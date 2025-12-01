@@ -1,0 +1,9 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\src",
+    "\\src\\interrupt"
+  ],
+  "SelectedNode": "\\src\\interrupt\\idt.c",
+  "PreviewInSolutionExplorer": false
+}

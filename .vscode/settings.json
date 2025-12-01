@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.c": "c",
+        "cstdint": "c",
+        "compare": "c"
+    },
+    "C_Cpp.default.compilerPath": "c:\\path\\mingw32\\bin\\gcc.exe"
+}
