@@ -11,7 +11,8 @@ C_FILES = \
 	src/interrupt/idt/idt.c \
     src/drivers/keyboard/keyboardDriver.c \
     src/drivers/vga/vga.c \
-    src/drivers/timer/timer.c
+    src/drivers/timer/timer.c \
+    src/programs/system/console/console.c
 
 ASM_FILES = \
 	boot/kernel.asm \

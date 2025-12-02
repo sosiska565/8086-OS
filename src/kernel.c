@@ -1,5 +1,9 @@
 #include "drivers/vga/vga.h"
+#include "drivers/keyboard/keyboardDriver.h"
 #include "interrupt/idt/idt.h"
+#include "programs/system/console/console.h"
+
+int $;
 
 void kmain(void){
     clear_screen();
@@ -9,11 +13,9 @@ void kmain(void){
 
     __asm__ volatile("sti");
 
-    while (1)
-    {
-        print("> ");
-    }
-    
+    $ = console.main();
+    print("\n");
+    printnumber($);
 
     return;
 }

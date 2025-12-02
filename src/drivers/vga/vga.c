@@ -117,3 +117,22 @@ void printhex(unsigned int num){
         lines = 0;
     }
 }
+
+void print_char(char c){
+    vidptr[current_loc * 2] = c;
+    vidptr[current_loc * 2 + 1] = 0x07;
+    current_loc++;
+
+    if(current_loc >= 80 * 25){
+        current_loc = 0;
+    }
+    
+    if(lines >= LINES){
+        clear_screen();
+        lines = 0;
+    }
+}
+
+int strcmp(char *c1, char *c2){
+    
+}
