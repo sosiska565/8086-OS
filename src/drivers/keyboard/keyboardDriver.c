@@ -123,6 +123,7 @@ Scancode_entity us_keymap[] = {
 static void add_to_buffer(char c) {
     if (buffer_count < BUFFER_SIZE) {
         key_buffer[buffer_count] = c;
+        
         buffer_count++;
     }
 }
@@ -259,20 +260,26 @@ void gets(char* buffer, int max_len) {
         
         if (c == '\n') {
             buffer[pos] = '\0';
+            print("\n");  // Переход на новую строку
             return;
         }
         else if (c == '\b') {
             if (pos > 0) {
                 pos--;
+                print("\b \b");  // Стираем символ на экране
             }
         }
-        else if (c == 0x03) {
+        else if (c == 0x03) {  // Ctrl+C
             buffer[0] = '\0';
+            print("^C\n");
             return;
         }
         else if (pos < max_len - 1) {
             buffer[pos] = c;
             pos++;
+            // Печатаем символ на экране
+            char str[2] = {c, '\0'};
+            print(str);
         }
     }
 }

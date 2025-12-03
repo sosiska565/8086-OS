@@ -23,7 +23,11 @@ void clear_screen(void){
 void print(const char* str){
     unsigned int i = 0;
     while(str[i] != '\0'){
-        if(str[i] == '\n'){
+        if(str[i] == '\b'){
+            vidptr[current_loc * 2] = ' ';
+            vidptr[current_loc * 2 + 1] = 0x07;
+            current_loc--;
+        } else if(str[i] == '\n'){
             current_loc += 80 - (current_loc % 80);
             lines++;
         } else {
@@ -133,6 +137,13 @@ void print_char(char c){
     }
 }
 
-int strcmp(char *c1, char *c2){
-    
+int strcmp(char *c1, char *c2) {
+    for(int i = 0; ; i++) {
+        if(c1[i] != c2[i]) {
+            return c1[i] - c2[i];
+        }
+        if(c1[i] == '\0') {
+            return 0;
+        }
+    }
 }

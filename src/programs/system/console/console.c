@@ -7,7 +7,7 @@ static int main(void) {
     print("Type 'help' for commands\n\n");
 
     while(1) {
-        print("$ ");
+        print("> ");
         
         char command[100];
         gets(command, 100);
@@ -17,6 +17,7 @@ static int main(void) {
         }
         
         if (strcmp(command, "help") == 0) {
+            print("\n");
             print("help - show this help\n");
             print("clear - clear screen\n");
             print("exit - exit console\n");
