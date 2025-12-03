@@ -2,8 +2,8 @@
 #define TIMER_H
 
 #include "interrupt/idt/idt.h"
-#include "drivers/vga/vga.h"
 
 void timer_handler_c(void);
+unsigned long get_ticks(void);
 
 #endif
