@@ -260,16 +260,16 @@ void gets(char* buffer, int max_len) {
         
         if (c == '\n') {
             buffer[pos] = '\0';
-            print("\n");  // Переход на новую строку
+            print("\n");
             return;
         }
         else if (c == '\b') {
             if (pos > 0) {
                 pos--;
-                print("\b \b");  // Стираем символ на экране
+                print("\b \b");
             }
         }
-        else if (c == 0x03) {  // Ctrl+C
+        else if (c == 0x03) {
             buffer[0] = '\0';
             print("^C\n");
             return;
@@ -277,7 +277,6 @@ void gets(char* buffer, int max_len) {
         else if (pos < max_len - 1) {
             buffer[pos] = c;
             pos++;
-            // Печатаем символ на экране
             char str[2] = {c, '\0'};
             print(str);
         }

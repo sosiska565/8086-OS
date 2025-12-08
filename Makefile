@@ -13,7 +13,9 @@ C_FILES = \
     src/drivers/vga/vga.c \
     src/drivers/timer/timer.c \
     src/programs/system/console/console.c \
-    src/programs/system/console/system.c
+    src/programs/system/console/system.c \
+    src/memory/memory.c \
+	src/programs/system/memory_viewer/memory_viewer.c
 
 ASM_FILES = \
 	boot/kernel.asm \

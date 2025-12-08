@@ -1,10 +1,11 @@
 #include "programs/system/console/console.h"
 
 int main(void) {
+    char *test;
     cmd_box();
-    enable_cursor();
 
     while(1) {
+        enable_cursor();
         print("> ");
         
         char command[100];
@@ -41,6 +42,22 @@ int main(void) {
             cmd_ascii();
         } else if (tokens[0] && strcmp(tokens[0], "box") == 0) {
             cmd_box();
+        } else if(tokens[0] && strcmp(tokens[0], "memory_viewer") == 0){
+            memory_viewer_program();
+        } else if (tokens[0] && strcmp(tokens[0], "kmalloc") == 0) {
+            int n = 0;
+            char* str = tokens[1];
+
+            while(*str >= '0' && *str <= '9'){
+                n = n * 10 + (*str - '0');
+                str++;
+            }
+
+            test = (char*)kmalloc(n);
+        } else if (tokens[0] && strcmp(tokens[0], "kfree") == 0) {
+            kfree(test);
+        } else if (tokens[0] && strcmp(tokens[0], "heapdump") == 0){
+            heap_dump();
         } else {
             print_colored("Unknown command: ", VGA_COLOR(VGA_COLOR_RED, VGA_COLOR_BLACK));
             if (tokens[0]) {

@@ -3,8 +3,19 @@
 #include "interrupt/idt/idt.h"
 #include "programs/system/console/console.h"
 #include "drivers/timer/timer.h"
+#include "memory/memory.h"
 
 int $;
+
+struct multiboot_info {
+    unsigned long flags;
+    unsigned long mem_lower;
+    unsigned long mem_upper;
+    unsigned long boot_device;
+    unsigned long cmdline;
+    unsigned long mods_count;
+    unsigned long mods_addr;
+} __attribute__((packed));
 
 void panic(char *err){
     set_text_color(4);
@@ -23,34 +34,7 @@ void panic(char *err){
     );
 }
 
-void main_screen(void){
-    set_text_color(1);
-    printn(" ::::::::   :::::::   ::::::::   ::::::::                 ::::::::   ::::::::");
-    printn(":+:    :+: :+:   :+: :+:    :+: :+:    :+:               :+:    :+: :+:    :+:");
-    printn("+:+    +:+ +:+  :+:+ +:+    +:+ +:+                      +:+    +:+ +:+");
-    printn(" +#++:++#  +#+ + +:+  +#++:++#  +#++:++#+  +#++:++#++:++ +#+    +:+ +#++:++#++");
-    set_text_color(9);
-    printn("+#+    +#+ +#+#  +#+ +#+    +#+ +#+    +#+               +#+    +#+        +#+");
-    printn("#+#    #+# #+#   #+# #+#    #+# #+#    #+#               #+#    #+# #+#    #+#");
-    printn(" ########   #######   ########   ########                 ########   ########");
-    set_text_color(7);
-    printn("\nWelcome to 8086-OS!");
-    unsigned long newTick = get_ticks() + 36;
-    while(get_ticks() < newTick);
-    clear_screen();
-}
-
-struct multiboot_info {
-    unsigned long flags;
-    unsigned long mem_lower;
-    unsigned long mem_upper;
-    unsigned long boot_device;
-    unsigned long cmdline;
-    unsigned long mods_count;
-    unsigned long mods_addr;
-} __attribute__((packed));
-
-void kmain(unsigned long magic, unsigned long mb_info_addr){
+void main_screen(unsigned long magic, unsigned long mb_info_addr){
     clear_screen();
 
     pic_remap();
@@ -59,7 +43,8 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
 
     __asm__ volatile("sti");
 
-    main_screen();
+    heap_init();
+    heap_dump();
 
     if(magic != 0x2BADB002){
         panic("0x2BADB002");
@@ -83,7 +68,25 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
         print(" MB)\n\n");
     }
 
-    parse_str("Hello world man!!");
+    set_text_color(1);
+    printn(" ::::::::   :::::::   ::::::::   ::::::::                 ::::::::   ::::::::");
+    printn(":+:    :+: :+:   :+: :+:    :+: :+:    :+:               :+:    :+: :+:    :+:");
+    printn("+:+    +:+ +:+  :+:+ +:+    +:+ +:+                      +:+    +:+ +:+");
+    printn(" +#++:++#  +#+ + +:+  +#++:++#  +#++:++#+  +#++:++#++:++ +#+    +:+ +#++:++#++");
+    set_text_color(9);
+    printn("+#+    +#+ +#+#  +#+ +#+    +#+ +#+    +#+               +#+    +#+        +#+");
+    printn("#+#    #+# #+#   #+# #+#    #+# #+#    #+#               #+#    #+# #+#    #+#");
+    printn(" ########   #######   ########   ########                 ########   ########");
+    set_text_color(7);
+    printn("\nWelcome to 8086-OS!\n");
+    printn("Press any key...\n");
+    getch();
+    clear_screen();
+}
+
+void kmain(unsigned long magic, unsigned long mb_info_addr){
+    main_screen(magic, mb_info_addr);
+
     $ = console.main();
     print("\n");
     printnumber($);
