@@ -18,13 +18,13 @@ char *vidptr = (char*) 0xb8000;
 unsigned int lines = 0;
 static uint8_t current_color = 0x07;
 
-static inline void outb(uint16_t port, uint8_t val) {
-    __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
+inline void outb(uint16_t port, uint8_t val) {
+    __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port) : "memory");
 }
 
-static inline uint8_t inb(uint16_t port) {
+inline uint8_t inb(uint16_t port) {
     uint8_t ret;
-    __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
+    __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port) : "memory");
     return ret;
 }
 
@@ -360,4 +360,80 @@ int strcmp(char *c1, char *c2) {
             return 0;
         }
     }
+}
+
+//
+
+void print_header(int header_bg_color, int header_text_color, char *title){
+    int len = 0;
+    while(title[len] != '\0') len++;
+
+    int padding = (80 - len) / 2;
+
+    set_background_color(header_bg_color);
+    set_text_color(header_text_color);
+
+    for(int i = 0; i < padding; i++){
+        print(" ");
+    }
+    print(title);
+    for(int i = 0; i <= padding; i++){
+        print(" ");
+    }
+
+    set_background_color(VGA_COLOR_BLACK);
+    set_text_color(VGA_COLOR_LIGHT_GREY);
+}
+
+void print_footer(int footer_bg_color, int footer_text_color, char *text) {
+    int len = 0;
+    int line_breaks = 0;
+    while(text[len] != '\0') len++;
+    
+    if (len > 80) {
+        line_breaks = (len - 1) / 80;
+    }
+
+    set_cursor_position(0, 24 - line_breaks);
+    
+    set_background_color(footer_bg_color);
+    set_text_color(footer_text_color);
+    
+    int total_parts = (len + 79) / 80;
+    char *parts[10];
+    
+    int part_index = 0;
+    int chars_processed = 0;
+    
+    while (chars_processed < len) {
+        int part_length = len - chars_processed;
+        if (part_length > 80) part_length = 80;
+        
+        char *part = text + chars_processed;
+        parts[part_index] = part;
+        
+        chars_processed += part_length;
+        part_index++;
+    }
+    
+    int last_part_length = len % 80;
+    if (last_part_length == 0 && len > 0) {
+        last_part_length = 80;
+    }
+    
+    print(text);
+    
+    for(int i = 0; i < 79 - 3; i++) {
+        print(" ");
+    }
+    
+    set_background_color(VGA_COLOR_BLACK);
+    set_text_color(VGA_COLOR_LIGHT_GREY);
+}
+
+void print_info(char *status, char *info, unsigned short color_status, unsigned short color_info){
+    print("[");
+    print_colored(status, color_status);
+    print("] ");
+    print_colored(info, color_info);
 }

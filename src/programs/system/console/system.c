@@ -94,10 +94,6 @@ void cmd_calc(char **tokens) {
     } else if(op == '*') {
         result = num1 * num2;
     } else if(op == '/') {
-        if(num2 == 0) {
-            print("Error: Division by zero!\n");
-            return;
-        }
         result = num1 / num2;
     } else {
         print("Unknown operation!\n");

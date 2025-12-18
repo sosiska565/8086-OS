@@ -5,6 +5,10 @@
 #include "drivers/vga/vga.h"
 #include "drivers/keyboard/keyboardDriver.h"
 
-int memory_viewer_program(void);
+typedef struct memory_viewer {
+    int (*main)(void);
+} memory_viewer_t;
+
+extern memory_viewer_t memory_viewer;
 
 #endif

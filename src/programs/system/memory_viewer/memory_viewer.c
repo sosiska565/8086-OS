@@ -1,38 +1,18 @@
 #include "programs/system/memory_viewer/memory_viewer.h"
 
-int memory_viewer_program(void){
+static int main(void){
     disable_cursor();
 
     uint32_t address = 0x100000;
     int bytes_to_show = 20;
     int bytes_per_line = 17;
 
-    int len_name = 0;
-    int len_bottominfo = 0;
-
-    char *name = "MEMORY VIEWER 1.0";
-    for(; name[len_name] != '\0'; len_name++);
-    int padding_size_name = (80 - len_name) / 2;
-
     char *bottominfo = "[W] up, [S] down, [A] multy up, [D] multy down, [C] change bytes per line, [Q] quit";
-    for(; bottominfo[len_bottominfo] != '\0'; len_bottominfo++);
-    int padding_size_bottominfo = (80 - len_bottominfo);
-    int free_space = 25 - 16;
 
     while(1){
         clear_screen();
 
-        set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLUE);
-        for(int i = 0; i < padding_size_name; i++){
-            print_char(' ');
-        }
-        print(name);
-        for(int i = 0; i <= padding_size_name; i++){
-            print_char(' ');
-        }
-        set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-
-        
+        print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "MEMORY VIEWER 1.0");
 
         for(int line = 0; line < 22; line++) {
             uint32_t current_addr = address + line * bytes_per_line;
@@ -62,12 +42,7 @@ int memory_viewer_program(void){
             print("\n");
         }
 
-        set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLUE);
-        print(bottominfo);
-        for(int i = 0; i < padding_size_bottominfo; i++){
-            print_char(' ');
-        }
-        set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        print_footer(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, bottominfo);
 
         char c = getch();
 
@@ -100,3 +75,7 @@ int memory_viewer_program(void){
 
     return 0;
 }
+
+memory_viewer_t memory_viewer = {
+    .main = main
+};

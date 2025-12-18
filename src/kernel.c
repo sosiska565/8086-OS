@@ -4,6 +4,7 @@
 #include "programs/system/console/console.h"
 #include "drivers/timer/timer.h"
 #include "memory/memory.h"
+#include "drivers/speaker/speaker.h"
 
 int $;
 
@@ -17,14 +18,16 @@ struct multiboot_info {
     unsigned long mods_addr;
 } __attribute__((packed));
 
-void panic(char *err){
+
+//18.2 one millisecond
+void panic(unsigned long err){
     set_text_color(4);
     clear_screen();
     printn("Kernel panic!\n");
     print("Err: ");
-    print(err);
+    printhex(err);
     printn("System will reboot in 5 seconds...\n");
-    unsigned long newTick = get_ticks() + 91;
+    unsigned long newTick = get_ticks() + 9100;
 
     while(get_ticks() < newTick);
 
@@ -37,17 +40,10 @@ void panic(char *err){
 void main_screen(unsigned long magic, unsigned long mb_info_addr){
     clear_screen();
 
-    pic_remap();
-    idt_install();
-    idt_init();
-
-    __asm__ volatile("sti");
-
-    heap_init();
-    heap_dump();
+    beep_timed(1000, 10000);
 
     if(magic != 0x2BADB002){
-        panic("0x2BADB002");
+        panic(magic);
     }
 
     struct multiboot_info* mbi = (struct multiboot_info*) mb_info_addr;
@@ -85,7 +81,20 @@ void main_screen(unsigned long magic, unsigned long mb_info_addr){
 }
 
 void kmain(unsigned long magic, unsigned long mb_info_addr){
+    clear_screen();
+    pic_remap();
+    idt_install();
+    idt_init();
+    timer_install();
+
+    __asm__ volatile("sti");
+
+    heap_init();
+    heap_dump();
+
     main_screen(magic, mb_info_addr);
+
+    int x = 0 / 0;
 
     $ = console.main();
     print("\n");

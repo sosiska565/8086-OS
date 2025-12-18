@@ -10,12 +10,14 @@ C_FILES = \
 	src/kernel.c \
 	src/interrupt/idt/idt.c \
     src/drivers/keyboard/keyboardDriver.c \
+    src/drivers/speaker/speaker.c \
     src/drivers/vga/vga.c \
     src/drivers/timer/timer.c \
     src/programs/system/console/console.c \
     src/programs/system/console/system.c \
     src/memory/memory.c \
-	src/programs/system/memory_viewer/memory_viewer.c
+	src/programs/system/memory_viewer/memory_viewer.c \
+	src/interrupt/interrupts/interrupts.c \
 
 ASM_FILES = \
 	boot/kernel.asm \
@@ -59,6 +61,7 @@ iso: kernel
 
 run: iso
 	@echo "[QEMU] Запуск..."
+	#qemu-system-i386 -cdrom $(ISO)
 	qemu-system-i386 -cdrom $(ISO)
 
 debug: iso

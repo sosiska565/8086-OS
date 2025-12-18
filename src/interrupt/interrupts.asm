@@ -1,19 +1,29 @@
-global irq0_handler
-global irq1_handler
+global system_division_handler
+global keyboard_handler
+global timer_handler
 
 global ignore_handler
 
+extern system_division_handler_c
 extern timer_handler_c
 extern keyboard_handler_c
 
-irq0_handler:
+system_division_handler:
+    push esp
+    
+    call system_division_handler_c
+
+    add esp, 4
+    iret
+
+keyboard_handler:
     pusha
     call timer_handler_c
 
     popa
     iret
 
-irq1_handler:
+timer_handler:
     pusha
     call keyboard_handler_c
     

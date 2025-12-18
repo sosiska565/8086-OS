@@ -62,4 +62,10 @@ void scroll_screen(void);
 int strcmp(char *c1, char *c2);
 char **parse_str(char *str);
 
+//
+
+void print_header(int header_bg_color, int header_text_color, char *title);
+void print_footer(int footer_bg_color, int footer_text_color, char *text);
+void print_info(char *status, char *info, unsigned short color_status, unsigned short color_info);
+
 #endif

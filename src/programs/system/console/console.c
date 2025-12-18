@@ -1,6 +1,6 @@
 #include "programs/system/console/console.h"
 
-int main(void) {
+static int main(void) {
     char *test;
     cmd_box();
 
@@ -43,7 +43,7 @@ int main(void) {
         } else if (tokens[0] && strcmp(tokens[0], "box") == 0) {
             cmd_box();
         } else if(tokens[0] && strcmp(tokens[0], "memory_viewer") == 0){
-            memory_viewer_program();
+            memory_viewer.main();
         } else if (tokens[0] && strcmp(tokens[0], "kmalloc") == 0) {
             int n = 0;
             char* str = tokens[1];
