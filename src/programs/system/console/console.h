@@ -1,15 +1,23 @@
 #ifndef CONSOLE_H
 #define CONSOLE_H
 
-#include "drivers/vga/vga.h"
-#include "drivers/keyboard/keyboardDriver.h"
-#include "programs/system/console/system.h"
-#include "memory/memory.h"
-#include "programs/system/memory_viewer/memory_viewer.h"
+#include <stddef.h>
 
-typedef struct console{
+typedef struct {
+    const char *name;
+    void (*handler)(char **);
+    const char *description;
+} command_t;
+
+typedef struct {
     int (*main)(void);
+    int should_exit;
 } Console;
+
+extern command_t commands[]; 
+
+void execute_command(char **tokens);
+int console_main(void);
 
 extern Console console;
 

@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "interrupt/idt/idt.h"
-#include "drivers/vga/vga.h"
 
 typedef struct scancode_entity {
     unsigned int scancode;

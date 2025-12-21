@@ -1,4 +1,6 @@
 #include "drivers/vga/vga.h"
+#include "drivers/io/io.h"
+#include <stddef.h>
 
 #define LINES 25
 #define COLUMNS_IN_LINE 80
@@ -17,16 +19,6 @@ unsigned int current_loc = 0;
 char *vidptr = (char*) 0xb8000;
 unsigned int lines = 0;
 static uint8_t current_color = 0x07;
-
-inline void outb(uint16_t port, uint8_t val) {
-    __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port) : "memory");
-}
-
-inline uint8_t inb(uint16_t port) {
-    uint8_t ret;
-    __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port) : "memory");
-    return ret;
-}
 
 void set_text_color(vga_color_t fg) {
     current_color = (current_color & 0xF0) | (fg & 0x0F);
@@ -226,6 +218,10 @@ void printn(char *c) {
     print(c);
 }
 
+void printn_void(void) {
+    print("\n");
+}
+
 void printn_colored(char *c, uint8_t color) {
     print_char_colored('\n', color);
     print_colored(c, color);
@@ -377,7 +373,7 @@ void print_header(int header_bg_color, int header_text_color, char *title){
         print(" ");
     }
     print(title);
-    for(int i = 0; i <= padding; i++){
+    for(int i = 0; i < padding; i++){
         print(" ");
     }
 
@@ -436,4 +432,151 @@ void print_info(char *status, char *info, unsigned short color_status, unsigned 
     print_colored(status, color_status);
     print("] ");
     print_colored(info, color_info);
+}
+
+int strtn(char *str){
+    int n = 0;
+    while(*str >= '0' && *str <= '9'){
+        n = n * 10 + (*str - '0');
+        str++;
+    }
+
+    return n;
+}
+
+//псевдо графика
+void draw_text_box_ex(char* lines[], char* title, 
+                      uint8_t padding_top, uint8_t padding_bottom,
+                      uint8_t padding_left, uint8_t padding_right,
+                      uint8_t border_color, uint8_t text_color, uint8_t title_color) {
+    
+    uint16_t max_width = 0;
+    uint16_t line_count = 0;
+    
+    for (uint16_t i = 0; lines[i] != NULL; i++) {
+        uint16_t len = 0;
+        char* ptr = lines[i];
+        while (*ptr != '\0') {
+            len++;
+            ptr++;
+        }
+        
+        if (len > max_width) max_width = len;
+        line_count++;
+    }
+    
+    uint16_t title_len = 0;
+    if (title != NULL) {
+        char* ptr = title;
+        while (*ptr != '\0') {
+            title_len++;
+            ptr++;
+        }
+        
+        uint16_t needed_width = title_len + 4;
+        if (needed_width > max_width) {
+            max_width = needed_width;
+        }
+    }
+    
+    uint16_t inner_width = max_width + padding_left + padding_right;
+    uint16_t box_width = inner_width + 2;
+    
+    uint8_t old_color = current_color;
+    
+    current_color = border_color;
+    print_char(201);
+    
+    if (title != NULL) {
+        uint8_t left_parts = 1;
+        for (uint8_t i = 0; i < left_parts; i++) {
+            print_char(205);
+        }
+        
+        current_color = title_color;
+        print_char(' ');
+        print(title);
+        print_char(' ');
+        current_color = border_color;
+        
+        uint16_t right_parts = box_width - 2 - left_parts - title_len - 2;
+        for (uint16_t i = 0; i < right_parts; i++) {
+            print_char(205);
+        }
+    } else {
+        for (uint16_t i = 0; i < box_width - 2; i++) {
+            print_char(205);
+        }
+    }
+    
+    print_char(187);
+    printn_void();
+    
+    for (uint8_t row = 0; row < padding_top; row++) {
+        print_char(186);
+        for (uint16_t i = 0; i < box_width - 2; i++) {
+            print_char(' ');
+        }
+        print_char(186);
+        printn_void();
+    }
+    
+    current_color = text_color;
+    for (uint16_t line_idx = 0; line_idx < line_count; line_idx++) {
+        current_color = border_color;
+        print_char(186);
+        current_color = text_color;
+        
+        char* line = lines[line_idx];
+        uint16_t line_len = 0;
+        char* ptr = line;
+        while (*ptr != '\0') {
+            line_len++;
+            ptr++;
+        }
+        
+        for (uint8_t i = 0; i < padding_left; i++) {
+            print_char(' ');
+        }
+        
+        print(line);
+        
+        uint16_t spaces_needed = max_width - line_len + padding_right;
+        for (uint16_t i = 0; i < spaces_needed; i++) {
+            print_char(' ');
+        }
+        
+        current_color = border_color;
+        print_char(186);
+        printn_void();
+    }
+    
+    current_color = border_color;
+    for (uint8_t row = 0; row < padding_bottom; row++) {
+        print_char(186);
+        for (uint16_t i = 0; i < box_width - 2; i++) {
+            print_char(' ');
+        }
+        print_char(186);
+        printn_void();
+    }
+    
+    print_char(200);
+    for (uint16_t i = 0; i < box_width - 2; i++) {
+        print_char(205);
+    }
+    print_char(188);
+    printn_void();
+    
+    current_color = old_color;
+}
+
+void draw_text_box(char* lines[], char* title, uint8_t padding, 
+                   uint8_t border_color, uint8_t text_color, uint8_t title_color) {
+    draw_text_box_ex(lines, title, padding, padding, padding, padding, 
+                    border_color, text_color, title_color);
+}
+
+void draw_simple_box(char* lines[], char* title) {
+    draw_text_box(lines, title, 1, VGA_COLOR_WHITE, VGA_COLOR_LIGHT_GREY, VGA_COLOR_YELLOW);
 }

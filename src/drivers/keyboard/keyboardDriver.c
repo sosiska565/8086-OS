@@ -1,4 +1,6 @@
 #include "drivers/keyboard/keyboardDriver.h"
+#include "interrupt/idt/idt.h"
+#include "drivers/vga/vga.h"
 
 #define BUFFER_SIZE 256
 

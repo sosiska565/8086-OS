@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "drivers/vga/vga.h"
-
 #define HEAP_START 0x00200000
 #define HEAP_SIZE 0x00100000
 

@@ -1,4 +1,5 @@
 #include "drivers/timer/timer.h"
+#include "drivers/io/io.h"
 
 unsigned long ticks = 0;
 

@@ -1,4 +1,6 @@
 #include "programs/system/memory_viewer/memory_viewer.h"
+#include "drivers/vga/vga.h"
+#include "drivers/keyboard/keyboardDriver.h"
 
 static int main(void){
     disable_cursor();
@@ -12,7 +14,7 @@ static int main(void){
     while(1){
         clear_screen();
 
-        print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "MEMORY VIEWER 1.0");
+        print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "MEMORY VIEWER V1.0");
 
         for(int line = 0; line < 22; line++) {
             uint32_t current_addr = address + line * bytes_per_line;
@@ -76,6 +78,6 @@ static int main(void){
     return 0;
 }
 
-memory_viewer_t memory_viewer = {
+memory_viewer_t memoryViewer = {
     .main = main
 };

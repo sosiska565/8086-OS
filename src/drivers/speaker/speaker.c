@@ -1,4 +1,5 @@
 #include "drivers/speaker/speaker.h"
+#include "drivers/io/io.h"
 
 void beep(unsigned int frequency) {
     if (frequency == 0) frequency = 1000;

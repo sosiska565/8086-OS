@@ -40,6 +40,7 @@ void print_char(char c);
 void print_char_colored(char c, uint8_t color);
 
 void printn(char *c);
+void printn_void(void);
 void printn_colored(char *c, uint8_t color);
 
 void set_text_color(vga_color_t fg);      
@@ -67,5 +68,15 @@ char **parse_str(char *str);
 void print_header(int header_bg_color, int header_text_color, char *title);
 void print_footer(int footer_bg_color, int footer_text_color, char *text);
 void print_info(char *status, char *info, unsigned short color_status, unsigned short color_info);
+int strtn(char *str);
+
+//псевдо графика
+void draw_text_box_ex(char* lines[], char* title, 
+                      uint8_t padding_top, uint8_t padding_bottom,
+                      uint8_t padding_left, uint8_t padding_right,
+                      uint8_t border_color, uint8_t text_color, uint8_t title_color);
+void draw_text_box(char* lines[], char* title, uint8_t padding, 
+                   uint8_t border_color, uint8_t text_color, uint8_t title_color);
+void draw_simple_box(char* lines[], char* title);
 
 #endif

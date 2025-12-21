@@ -1,4 +1,5 @@
 #include "interrupt/interrupts/interrupts.h"
+#include "drivers/vga/vga.h"
 
 struct interrupt_frame {
     unsigned int rip;
@@ -10,7 +11,7 @@ struct interrupt_frame {
 
 void system_division_handler_c(struct interrupt_frame *frame){
     print_info("ERROR", "Division by zero.\n", VGA_COLOR_RED, VGA_COLOR_LIGHT_GREY);
-    print_info("INFO", "Location: ", VGA_COLOR_GREEN, VGA_COLOR_LIGHT_GREY);
+    print_info("INFO", "Location: ", VGA_COLOR_YELLOW, VGA_COLOR_LIGHT_GREY);
     printhex(frame->rip);
     print("\n");
     

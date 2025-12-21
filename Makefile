@@ -5,19 +5,27 @@ LDFLAGS = -m elf_i386 -T link.ld -z execstack
 NASM    = nasm
 NASMFLAGS = -f elf32
 ISO     = os.iso
+DISK_IMG = disk.img
 
 C_FILES = \
 	src/kernel.c \
 	src/interrupt/idt/idt.c \
     src/drivers/keyboard/keyboardDriver.c \
+	src/drivers/file/initrd.c \
+	src/drivers/io/io.c \
+	src/drivers/file/ATA/ATA.c \
+    src/drivers/rtc/rtc.c \
     src/drivers/speaker/speaker.c \
     src/drivers/vga/vga.c \
     src/drivers/timer/timer.c \
     src/programs/system/console/console.c \
     src/programs/system/console/system.c \
+    src/programs/system/setup/setup.c \
+    src/programs/system/disk_viewer/disk_viewer.c \
     src/memory/memory.c \
 	src/programs/system/memory_viewer/memory_viewer.c \
 	src/interrupt/interrupts/interrupts.c \
+#     src/fs/fat/fat16.c  # <<--- ДОБАВИЛ ЭТУ СТРОКУ (иначе не скомпилируется)
 
 ASM_FILES = \
 	boot/kernel.asm \
@@ -43,6 +51,13 @@ kernel: $(OBJFILES)
 	@echo "[NASM] $<"
 	$(NASM) $(NASMFLAGS) $< -o $@
 
+$(DISK_IMG):
+	@echo "[IMG] Создание образа жесткого диска (10MB)..."
+	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=10
+	@echo "[FS] Форматирование в FAT16..."
+	@mkfs.fat -F 16 -n "8086OS_HDD" $(DISK_IMG)
+	@echo "✓ Диск готов и отформатирован!"
+
 iso: kernel
 	@echo "[ISO] Создание образа..."
 	@mkdir -p iso/boot/grub
@@ -59,14 +74,17 @@ iso: kernel
 	@grub-mkrescue -o $(ISO) iso 2>/dev/null || grub-mkrescue -o $(ISO) iso
 	@echo "✓ ISO создан: $(ISO)"
 
-run: iso
+run: 
 	@echo "[QEMU] Запуск..."
-	#qemu-system-i386 -cdrom $(ISO)
-	qemu-system-i386 -cdrom $(ISO)
+	@make clean
+	@make iso $(DISK_IMG)
+	# Исправил синтаксис: используем -drive вместо -hda для указания формата
+	qemu-system-i386 -cdrom $(ISO) -drive file=$(DISK_IMG),format=raw -boot d -rtc base=localtime
 
-debug: iso
+debug: iso $(DISK_IMG)
 	@echo "[QEMU] Запуск с отладкой..."
-	qemu-system-i386 -cdrom $(ISO) -d int,cpu_reset -no-reboot
+	# Тут тоже исправил логику: грузимся с CD, подключаем диск
+	qemu-system-i386 -cdrom $(ISO) -drive file=$(DISK_IMG),format=raw -boot d -rtc base=localtime -d int,cpu_reset -no-reboot
 
 list:
 	@echo "=== Си файлы ==="
@@ -83,13 +101,14 @@ clean:
 	@rm -f $(OBJFILES) kernel
 	@rm -f $(ISO)
 	@rm -rf iso
+	@rm -f $(DISK_IMG) # <<--- Лучше удалять диск при clean, чтобы он пересоздался заново
 	@echo "✓ Очистка завершена"
 
 help:
 	@echo "Доступные команды:"
 	@echo "  make          - Собрать ядро"
 	@echo "  make iso      - Создать ISO образ"
-	@echo "  make run      - Собрать и запустить в QEMU"
+	@echo "  make run      - Собрать, создать диск и запустить в QEMU"
 	@echo "  make debug    - Запустить с отладочной информацией"
 	@echo "  make list     - Показать список файлов проекта"
 	@echo "  make clean    - Удалить все собранные файлы"

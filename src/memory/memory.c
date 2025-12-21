@@ -1,4 +1,5 @@
 #include "memory/memory.h"
+#include "drivers/vga/vga.h"
 
 typedef struct memory_block {
     size_t size;
