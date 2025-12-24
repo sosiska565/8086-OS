@@ -21,11 +21,19 @@
 #define ATA_CMD_WRITE_PIO 0x30
 #define ATA_CMD_IDENTIFY 0xEC
 
-#define ATA_MASTER 0x00
-#define ATA_SLAVE  0x01
+#define ATA_PRIMARY_IO    0x1F0
+#define ATA_SECONDARY_IO  0x170
+
+#define ATA_MASTER  0
+#define ATA_SLAVE   1
+
+struct disk_struct {
+    uint16_t buffer[256];
+    char name[256];
+};
 
 void ata_read_sector(uint32_t lba, uint8_t *buffer);
 void ata_write_sector(uint32_t lba, uint8_t *buffer);
-void ata_identify(uint8_t drive);
+void ata_identify(uint8_t drive, struct disk_struct *ds);
 
 #endif

@@ -25,5 +25,8 @@ void cmd_kmalloc(char **tokens);
 void cmd_kfree(char **tokens);
 void cmd_heapdump(char **tokens);
 void cmd_disk_viewer(void);
+void cmd_ls(void);
+void cmd_cat(char **tokens);
+void cmd_exec(char **tokens);
 
 #endif

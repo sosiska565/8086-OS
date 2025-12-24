@@ -61,7 +61,7 @@ void ata_write_sector(uint32_t lba, uint8_t *buffer){
     ata_wait_bsy();
 }
 
-void ata_identify(uint8_t drive){
+void ata_identify(uint8_t drive, struct disk_struct *ds) {
     uint8_t drive_flag = (drive == ATA_SLAVE) ? 0xF0 : 0xE0;
     outb(ATA_DRIVE_HEAD, drive_flag);
     
@@ -73,29 +73,44 @@ void ata_identify(uint8_t drive){
     outb(ATA_COMMAND, ATA_CMD_IDENTIFY);
     
     uint8_t status = inb(ATA_STATUS);
-    if(status == 0) return;
+    if(status == 0) {
+        memset(ds->name, 0, 256);
+        strcpy(ds->name, "NO DISK");
+        return;
+    }
     
     while(inb(ATA_STATUS) & ATA_SR_BSY);
     
     if (inb(ATA_STATUS) & ATA_SR_ERR) {
-        print("Error identifying drive (might be CD-ROM)\n");
+        memset(ds->name, 0, 256);
+        strcpy(ds->name, "ERROR/CD-ROM");
         return;
     }
     
     while(!(inb(ATA_STATUS) & ATA_SR_DRQ));
     
-    uint16_t buffer[256];
-    for(int i=0; i<256; i++) {
-        buffer[i] = inw(ATA_DATA);
+    for(int i = 0; i < 256; i++) {
+        ds->buffer[i] = inw(ATA_DATA);
     }
     
-    print("Disk Model: ");
-    for(int i = 27; i < 47; i++) {
-        uint16_t w = buffer[i];
-        char c1 = (w >> 8) & 0xFF;
-        char c2 = w & 0xFF;
-        print_char(c1);
-        print_char(c2);
+    int name_idx = 0;
+    for(int word_idx = 27; word_idx <= 46 && name_idx < 40; word_idx++) {
+        uint16_t word = ds->buffer[word_idx];
+
+        char high = (word >> 8) & 0xFF;
+        char low  = word & 0xFF;
+
+        if(name_idx < 39) ds->name[name_idx++] = high;
+        if(name_idx < 39) ds->name[name_idx++] = low;
     }
-    print("\n");
+    ds->name[name_idx] = '\0';
+    
+    int len = strlen(ds->name);
+    while(len > 0 && ds->name[len-1] == ' ') {
+        ds->name[--len] = '\0';
+    }
+    
+    if(ds->name[0] == '\0') {
+        strcpy(ds->name, drive == ATA_MASTER ? "ATA Master" : "ATA Slave");
+    }
 }

@@ -14,7 +14,7 @@ static int main(void){
     while(1){
         clear_screen();
 
-        print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "MEMORY VIEWER V1.0");
+        print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "MEMORY VIEWER V1.0 ");
 
         for(int line = 0; line < 22; line++) {
             uint32_t current_addr = address + line * bytes_per_line;

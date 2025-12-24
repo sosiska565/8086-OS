@@ -248,9 +248,11 @@ Scancode_entity* get_key(int scancode) {
 }
 
 char getch(void) {
+    __asm__ volatile("sti");
     while (is_buffer_empty()) {
         __asm__ volatile("pause");
     }
+    __asm__ volatile("cli");
     return get_from_buffer();
 }
 

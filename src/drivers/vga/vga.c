@@ -87,10 +87,10 @@ void set_cursor_position(unsigned int x, unsigned int y) {
 
 void move_cursor_next_line(void) {
     current_loc += COLUMNS_IN_LINE - (current_loc % COLUMNS_IN_LINE);
-    lines++;
     
     if (current_loc >= COLUMNS_IN_LINE * LINES) {
-        current_loc = 0;
+        scroll_screen();
+        current_loc = (LINES - 1) * COLUMNS_IN_LINE;
     }
     
     update_cursor();
@@ -111,10 +111,6 @@ void scroll_screen(void) {
         vidptr[last_line_start + i] = ' ';
         vidptr[last_line_start + i + 1] = current_color;
     }
-    
-    current_loc -= COLUMNS_IN_LINE;
-    lines--;
-    update_cursor();
 }
 
 void clear_screen(void) {
@@ -146,25 +142,23 @@ void print_char(char c) {
 void print_char_colored(char c, uint8_t color) {
     if(c == '\n') {
         move_cursor_next_line();
-    } else if(c == '\b') {
+    } 
+    else if(c == '\b') {
         if(current_loc > 0) {
             current_loc--;
             vidptr[current_loc * 2] = ' ';
             vidptr[current_loc * 2 + 1] = color;
             update_cursor();
         }
-    } else {
+    } 
+    else {
         vidptr[current_loc * 2] = c;
         vidptr[current_loc * 2 + 1] = color;
         current_loc++;
         
-        if(current_loc % COLUMNS_IN_LINE == 0) {
-            lines++;
-            
-            if(current_loc >= COLUMNS_IN_LINE * LINES) {
-                scroll_screen();
-                current_loc = (LINES - 1) * COLUMNS_IN_LINE;
-            }
+        if (current_loc >= COLUMNS_IN_LINE * LINES) {
+            scroll_screen();
+            current_loc = (LINES - 1) * COLUMNS_IN_LINE;
         }
         
         update_cursor();
@@ -178,39 +172,9 @@ void print(const char* str) {
 void print_colored(const char* str, uint8_t color) {
     unsigned int i = 0;
     while(str[i] != '\0') {
-        if(str[i] == '\b') {
-            if(current_loc > 0) {
-                current_loc--;
-                vidptr[current_loc * 2] = ' ';
-                vidptr[current_loc * 2 + 1] = color;
-            }
-        } else if(str[i] == '\n') {
-            current_loc += COLUMNS_IN_LINE - (current_loc % COLUMNS_IN_LINE);
-            lines++;
-            
-            if(current_loc >= COLUMNS_IN_LINE * LINES) {
-                scroll_screen();
-                current_loc = (LINES - 1) * COLUMNS_IN_LINE;
-            }
-        } else {
-            vidptr[current_loc * 2] = str[i];
-            vidptr[current_loc * 2 + 1] = color;
-            current_loc++;
-            
-            if(current_loc % COLUMNS_IN_LINE == 0) {
-                lines++;
-                
-                if(current_loc >= COLUMNS_IN_LINE * LINES) {
-                    scroll_screen();
-                    current_loc = (LINES - 1) * COLUMNS_IN_LINE;
-                }
-            }
-        }
-        
+        print_char_colored(str[i], color); 
         i++;
     }
-    
-    update_cursor();
 }
 
 void printn(char *c) {
@@ -313,7 +277,7 @@ void printhex_colored(unsigned int num, uint8_t color) {
 
 //utils
 
-char** parse_str(char* str) {
+char** parse_str(char* str, char parse_char) {
     static char* tokens[256]; 
     static char buffer[256]; 
     
@@ -326,7 +290,7 @@ char** parse_str(char* str) {
     char* ptr = buffer;
     
     while (*str && token_count < 255) {
-        while (*str == ' ') {
+        while (*str == parse_char) {
             str++;
         }
         
@@ -334,7 +298,7 @@ char** parse_str(char* str) {
         
         tokens[token_count] = ptr;
         
-        while (*str && *str != ' ') {
+        while (*str && *str != parse_char) {
             *ptr++ = *str++;
         }
         
@@ -373,7 +337,7 @@ void print_header(int header_bg_color, int header_text_color, char *title){
         print(" ");
     }
     print(title);
-    for(int i = 0; i < padding; i++){
+    for(int i = 0; i <= padding; i++){
         print(" ");
     }
 
@@ -444,11 +408,59 @@ int strtn(char *str){
     return n;
 }
 
+void strcpy(char *dst, char *src){
+    int i = 0;
+    while (src[i]) {
+        dst[i] = src[i];
+        i++;
+    }
+    dst[i] = '\0';
+}
+
+int strlen(char *str){
+    int i = 0;
+    for(; str[i] != '\0'; i++);
+    return i;
+}
+
+void *memset(void *ptr, int value, size_t num) {
+    unsigned char *p = ptr;
+    unsigned char byte_value = (unsigned char)value;
+    
+    for(size_t i = 0; i < num; i++) {
+        p[i] = byte_value;
+    }
+    
+    return ptr;
+}
+
+char* toupper(char *str){
+    static char buffer[256];  // Статический буфер
+    int i;
+    
+    for(i = 0; str[i] != '\0' && i < 255; i++){
+        if (str[i] >= 'a' && str[i] <= 'z') 
+            buffer[i] = str[i] - 32;
+        else
+            buffer[i] = str[i];
+    }
+    buffer[i] = '\0';
+    
+    return buffer;
+}
+
+
+char toupper_char(char c) {
+    if (c >= 'a' && c <= 'z') return c - 32;
+    return c;
+}
+
 //псевдо графика
 void draw_text_box_ex(char* lines[], char* title, 
                       uint8_t padding_top, uint8_t padding_bottom,
                       uint8_t padding_left, uint8_t padding_right,
-                      uint8_t border_color, uint8_t text_color, uint8_t title_color) {
+                      uint8_t border_color, uint8_t text_color, uint8_t title_color,
+                      uint8_t centered) {
     
     uint16_t max_width = 0;
     uint16_t line_count = 0;
@@ -456,11 +468,7 @@ void draw_text_box_ex(char* lines[], char* title,
     for (uint16_t i = 0; lines[i] != NULL; i++) {
         uint16_t len = 0;
         char* ptr = lines[i];
-        while (*ptr != '\0') {
-            len++;
-            ptr++;
-        }
-        
+        while (*ptr != '\0') { len++; ptr++; }
         if (len > max_width) max_width = len;
         line_count++;
     }
@@ -468,30 +476,40 @@ void draw_text_box_ex(char* lines[], char* title,
     uint16_t title_len = 0;
     if (title != NULL) {
         char* ptr = title;
-        while (*ptr != '\0') {
-            title_len++;
-            ptr++;
-        }
-        
+        while (*ptr != '\0') { title_len++; ptr++; }
         uint16_t needed_width = title_len + 4;
-        if (needed_width > max_width) {
-            max_width = needed_width;
-        }
+        if (needed_width > max_width) max_width = needed_width;
     }
     
     uint16_t inner_width = max_width + padding_left + padding_right;
     uint16_t box_width = inner_width + 2;
     
     uint8_t old_color = current_color;
+
+    unsigned int start_x = 0;
+    unsigned int start_y = 0;
+    unsigned int temp_x;
+
+    get_cursor_xy(&temp_x, &start_y);
     
+    if (centered) {
+        if (box_width < 80) {
+            start_x = (80 - box_width) / 2;
+        } else {
+            start_x = 0;
+        }
+    } else {
+        start_x = temp_x;
+    }
+
+    uint16_t current_row_offset = 0;
+    set_cursor_position(start_x, start_y + current_row_offset);
     current_color = border_color;
     print_char(201);
     
     if (title != NULL) {
         uint8_t left_parts = 1;
-        for (uint8_t i = 0; i < left_parts; i++) {
-            print_char(205);
-        }
+        for (uint8_t i = 0; i < left_parts; i++) print_char(205);
         
         current_color = title_color;
         print_char(' ');
@@ -499,30 +517,27 @@ void draw_text_box_ex(char* lines[], char* title,
         print_char(' ');
         current_color = border_color;
         
-        uint16_t right_parts = box_width - 2 - left_parts - title_len - 2;
-        for (uint16_t i = 0; i < right_parts; i++) {
-            print_char(205);
-        }
+        uint16_t used = 2 + left_parts + title_len + 2;
+        uint16_t right_parts = (box_width > used) ? (box_width - used) : 0;
+        for (uint16_t i = 0; i < right_parts; i++) print_char(205);
     } else {
-        for (uint16_t i = 0; i < box_width - 2; i++) {
-            print_char(205);
-        }
+        for (uint16_t i = 0; i < box_width - 2; i++) print_char(205);
     }
-    
     print_char(187);
-    printn_void();
-    
+    current_row_offset++;
+
     for (uint8_t row = 0; row < padding_top; row++) {
+        set_cursor_position(start_x, start_y + current_row_offset);
         print_char(186);
-        for (uint16_t i = 0; i < box_width - 2; i++) {
-            print_char(' ');
-        }
+        for (uint16_t i = 0; i < box_width - 2; i++) print_char(' ');
         print_char(186);
-        printn_void();
+        current_row_offset++;
     }
     
     current_color = text_color;
     for (uint16_t line_idx = 0; line_idx < line_count; line_idx++) {
+        set_cursor_position(start_x, start_y + current_row_offset);
+        
         current_color = border_color;
         print_char(186);
         current_color = text_color;
@@ -530,41 +545,40 @@ void draw_text_box_ex(char* lines[], char* title,
         char* line = lines[line_idx];
         uint16_t line_len = 0;
         char* ptr = line;
-        while (*ptr != '\0') {
-            line_len++;
-            ptr++;
-        }
+        while (*ptr != '\0') { line_len++; ptr++; }
         
-        for (uint8_t i = 0; i < padding_left; i++) {
-            print_char(' ');
-        }
-        
-        print(line);
-        
-        uint16_t spaces_needed = max_width - line_len + padding_right;
-        for (uint16_t i = 0; i < spaces_needed; i++) {
-            print_char(' ');
+        if (centered) {
+            uint16_t total_spaces = max_width - line_len;
+            uint16_t spaces_left = (total_spaces / 2) + padding_left;
+            uint16_t spaces_right = (total_spaces - (total_spaces / 2)) + padding_right;
+            
+            for (uint16_t i = 0; i < spaces_left; i++) print_char(' ');
+            print(line);
+            for (uint16_t i = 0; i < spaces_right; i++) print_char(' ');
+        } else {
+            for (uint8_t i = 0; i < padding_left; i++) print_char(' ');
+            print(line);
+            uint16_t spaces_needed = max_width - line_len + padding_right;
+            for (uint16_t i = 0; i < spaces_needed; i++) print_char(' ');
         }
         
         current_color = border_color;
         print_char(186);
-        printn_void();
+        current_row_offset++;
     }
     
     current_color = border_color;
     for (uint8_t row = 0; row < padding_bottom; row++) {
+        set_cursor_position(start_x, start_y + current_row_offset);
         print_char(186);
-        for (uint16_t i = 0; i < box_width - 2; i++) {
-            print_char(' ');
-        }
+        for (uint16_t i = 0; i < box_width - 2; i++) print_char(' ');
         print_char(186);
-        printn_void();
+        current_row_offset++;
     }
     
+    set_cursor_position(start_x, start_y + current_row_offset);
     print_char(200);
-    for (uint16_t i = 0; i < box_width - 2; i++) {
-        print_char(205);
-    }
+    for (uint16_t i = 0; i < box_width - 2; i++) print_char(205);
     print_char(188);
     printn_void();
     
@@ -572,11 +586,13 @@ void draw_text_box_ex(char* lines[], char* title,
 }
 
 void draw_text_box(char* lines[], char* title, uint8_t padding, 
-                   uint8_t border_color, uint8_t text_color, uint8_t title_color) {
+                   uint8_t border_color, uint8_t text_color, uint8_t title_color,
+                   uint8_t centered) {
     draw_text_box_ex(lines, title, padding, padding, padding, padding, 
-                    border_color, text_color, title_color);
+                    border_color, text_color, title_color, centered);
 }
 
-void draw_simple_box(char* lines[], char* title) {
-    draw_text_box(lines, title, 1, VGA_COLOR_WHITE, VGA_COLOR_LIGHT_GREY, VGA_COLOR_YELLOW);
+void draw_simple_box(char* lines[], char* title, uint8_t centered) {
+    draw_text_box(lines, title, 1, VGA_COLOR_WHITE, VGA_COLOR_LIGHT_GREY, 
+                  VGA_COLOR_YELLOW, centered);
 }

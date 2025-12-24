@@ -17,7 +17,7 @@ int main(void){
         set_cursor_position(0, 0);
         clear_screen();
         print("\n");
-        print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "DISK VIEWER V1.0");
+        print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "DISK VIEWER V1.0 ");
         print("Sector: ");
         printnumber(n);
         print("\n");
@@ -28,7 +28,7 @@ int main(void){
             print_char((char)buffer[i]);
         }
 
-        print_footer(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "[Q] quit, [W] up, [S] down, [A] up 100, [D] down 100");
+        print_footer(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "[Q] quit, [W] up, [S] down, [A] up 1500, [D] down 1500");
 
         char c = getch();
 
@@ -38,8 +38,8 @@ int main(void){
         }
         if(c == 'w' || c == 'W') n--;
         if(c == 's' || c == 'S') n++;
-        if(c == 'a' || c == 'A') n -= 100;
-        if(c == 'd' || c == 'D') n += 100;
+        if(c == 'a' || c == 'A') n -= 1500;
+        if(c == 'd' || c == 'D') n += 1500;
         if(n < 0) n = 0;
     }
 }

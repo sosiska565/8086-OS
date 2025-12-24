@@ -3,5 +3,6 @@
 
 extern int $;
 extern unsigned short isReadMode;
+extern char* path;
 
 #endif

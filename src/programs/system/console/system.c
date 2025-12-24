@@ -6,9 +6,15 @@
 #include "memory/memory.h"
 #include "programs/system/memory_viewer/memory_viewer.h"
 #include "programs/system/disk_viewer/disk_viewer.h"
+#include "fs/fat/fat16.h"
+#include <stdint.h>
+
+#define PROGRAM_LOAD_ADDRES 0x300000
 
 //test var
 void* ptr;
+
+typedef void (*program_entry_t)(void);
 
 command_t commands[] = {
     {"help",          cmd_help,          "Show this help message"},
@@ -33,6 +39,9 @@ command_t commands[] = {
     {"heapdump",      cmd_heapdump,      "Dump heap state"},
 
     {"diskviewer",      cmd_disk_viewer,      "View disk"},
+    {"ls",      cmd_ls,      "Show all files"},
+    {"cat",      cmd_cat,      "Show file (cat <file>)"},
+    {"exec",      cmd_exec,      "Executable file (exec <file>)"},
     
     {NULL, NULL, NULL}
 };
@@ -215,59 +224,119 @@ void cmd_settextcolor(char **tokens) {
     }
 }
 
-void cmd_help(char **tokens){
+void str_copy_to_buffer(char* dest, char* src, uint16_t* offset) {
+    while (*src != '\0') {
+        dest[*offset] = *src;
+        (*offset)++;
+        src++;
+    }
+    dest[*offset] = '\0';
+}
+
+void int_to_buffer(char* dest, int n, uint16_t* offset) {
+    if (n == 0) {
+        dest[(*offset)++] = '0';
+        dest[*offset] = '\0';
+        return;
+    }
+    
+    char temp[10];
+    int i = 0;
+    while (n > 0) {
+        temp[i++] = (n % 10) + '0';
+        n /= 10;
+    }
+    
+    while (i > 0) {
+        dest[(*offset)++] = temp[--i];
+    }
+    dest[*offset] = '\0';
+}
+
+void cmd_help(char **tokens) {
+    clear_screen();
     int page = 1;
-    if(tokens[1] != 0) {
+    if (tokens[1] != 0) {
         char* page_str = tokens[1];
         page = 0;
-        while(*page_str >= '0' && *page_str <= '9') {
+        while (*page_str >= '0' && *page_str <= '9') {
             page = page * 10 + (*page_str - '0');
             page_str++;
         }
+        if (page == 0) page = 1;
     }
 
     int max_commands_in_page = 10;
-    int max_pages = 0;
     int length = 0;
+    while(commands[length].name != NULL) length++;
+    
+    int max_pages = (length + max_commands_in_page - 1) / max_commands_in_page;
+    if (max_pages == 0) max_pages = 1;
 
-    for(; commands[length].name != NULL; length++);
-    max_pages = (length / max_commands_in_page) + 1;
-
-    if(page > max_pages || page < 1) {
+    if (page > max_pages || page < 1) {
         print("Error: Page must be between 1 and ");
         printnumber(max_pages);
         print("\n");
         return;
     }
 
+    static char line_buffers[14][80]; 
+    char* lines_ptr[15];
+
     int start_index = (page - 1) * max_commands_in_page;
     int end_index = start_index + max_commands_in_page;
+    int current_line = 0;
 
-    print("\n=== Help (Page ");
-    printnumber(page);
-    print(" of ");
-    printnumber(max_pages);
-    print(") ===\n\n");
-
-    for(int i = start_index; i < end_index && i < length; i++) {
-        print(commands[i].name);
-        print(" - ");
-        print(commands[i].description);
-        print("\n");
+    for (int i = start_index; i < end_index && i < length; i++) {
+        uint16_t offset = 0;
+        
+        str_copy_to_buffer(line_buffers[current_line], commands[i].name, &offset);
+        str_copy_to_buffer(line_buffers[current_line], " - ", &offset);
+        str_copy_to_buffer(line_buffers[current_line], commands[i].description, &offset);
+        
+        lines_ptr[current_line] = line_buffers[current_line];
+        current_line++;
     }
 
-    print("\nNavigation: ");
-    if(page > 1) {
-        print("help ");
-        printnumber(page - 1);
-        print(" - Previous page | ");
+    if (max_pages > 1) {
+        line_buffers[current_line][0] = '\0'; 
+        lines_ptr[current_line] = line_buffers[current_line];
+        current_line++;
+
+        uint16_t offset = 0;
+        str_copy_to_buffer(line_buffers[current_line], "Nav: ", &offset);
+        
+        if (page > 1) {
+            str_copy_to_buffer(line_buffers[current_line], "prev: help ", &offset);
+            int_to_buffer(line_buffers[current_line], page - 1, &offset);
+            if (page < max_pages) {
+                str_copy_to_buffer(line_buffers[current_line], " | ", &offset);
+            }
+        }
+        
+        if (page < max_pages) {
+            str_copy_to_buffer(line_buffers[current_line], "next: help ", &offset);
+            int_to_buffer(line_buffers[current_line], page + 1, &offset);
+        }
+        
+        lines_ptr[current_line] = line_buffers[current_line];
+        current_line++;
     }
-    if(page < max_pages) {
-        print("help ");
-        printnumber(page + 1);
-        print(" - Next page");
-    }
-    print("\n");
+
+    lines_ptr[current_line] = NULL;
+
+    char title_buffer[40];
+    uint16_t title_offset = 0;
+    str_copy_to_buffer(title_buffer, "Help (Page ", &title_offset);
+    int_to_buffer(title_buffer, page, &title_offset);
+    str_copy_to_buffer(title_buffer, " of ", &title_offset);
+    int_to_buffer(title_buffer, max_pages, &title_offset);
+    str_copy_to_buffer(title_buffer, ")", &title_offset);
+    
+    draw_text_box_ex(lines_ptr, title_buffer, 
+                     1, 1, 2, 2,
+                     0x07, 0x0F, 0x0E,
+                     0);
 }
 
 void cmd_setbgcolor(char** tokens){
@@ -327,4 +396,48 @@ void cmd_heapdump(char **tokens) {
 
 void cmd_disk_viewer(void){
     disk_viewer.main();
+}
+
+void cmd_ls(void){
+    fat16_ls();
+}
+
+void cmd_cat(char **tokens){
+    uint8_t file_buffer[512];
+    
+    for(int i=0; i<512; i++) file_buffer[i] = 0;
+    
+    int file_size = fat16_read_file(tokens[1], file_buffer);
+
+    for(int i = 0; i < file_size; i++) {
+        print_char(file_buffer[i]);
+    }
+
+    print("\n");
+}
+
+void cmd_exec(char **tokens){
+    char *uppstr = toupper(tokens[1]);
+    
+    if(!tokens[1]){
+        print("Usage: exec <filename>\n");
+        return;
+    }
+
+    if(strcmp(parse_str(uppstr, '.')[1], "BIN") != 0) {
+        print("This file is not a executable format.\n");
+        return;
+    }
+
+    uint8_t* load_addr = (uint8_t*)PROGRAM_LOAD_ADDRES;
+
+    for(int i = 0; i < 1024; i++) load_addr[i] = 0;
+
+    if(fat16_read_file(uppstr, load_addr) > 0){
+        program_entry_t program = (program_entry_t)PROGRAM_LOAD_ADDRES;
+
+        program();
+    } else {
+        print("File not found!\n");
+    }
 }

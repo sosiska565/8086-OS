@@ -1,6 +1,7 @@
 #include "console.h"
 #include "drivers/vga/vga.h"
 #include "drivers/keyboard/keyboardDriver.h"
+#include "global.h"
 
 void execute_command(char **tokens) {
     if(!tokens[0]) return;
@@ -23,6 +24,7 @@ int console_main(void) {
 
     while(!console.should_exit) {
         enable_cursor();
+        print(path);
         print("> ");
         
         char command[100];
@@ -30,7 +32,7 @@ int console_main(void) {
         
         if(command[0] == '\0') continue;
         
-        char **tokens = parse_str(command);
+        char **tokens = parse_str(command, ' ');
         execute_command(tokens);
     }
     

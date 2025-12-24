@@ -2,6 +2,7 @@
 #define VGA_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 typedef enum {
     VGA_COLOR_BLACK = 0,
@@ -61,7 +62,7 @@ void get_cursor_xy(unsigned int *x, unsigned int *y);
 
 void scroll_screen(void);
 int strcmp(char *c1, char *c2);
-char **parse_str(char *str);
+char **parse_str(char *str, char parse_char);
 
 //
 
@@ -69,14 +70,18 @@ void print_header(int header_bg_color, int header_text_color, char *title);
 void print_footer(int footer_bg_color, int footer_text_color, char *text);
 void print_info(char *status, char *info, unsigned short color_status, unsigned short color_info);
 int strtn(char *str);
+void strcpy(char *s1, char *s2);
+void *memset(void *ptr, int value, size_t num);
+char* toupper(char *str);
+char toupper_char(char c);
 
 //псевдо графика
 void draw_text_box_ex(char* lines[], char* title, 
                       uint8_t padding_top, uint8_t padding_bottom,
                       uint8_t padding_left, uint8_t padding_right,
-                      uint8_t border_color, uint8_t text_color, uint8_t title_color);
+                      uint8_t border_color, uint8_t text_color, uint8_t title_color, uint8_t centered);
 void draw_text_box(char* lines[], char* title, uint8_t padding, 
-                   uint8_t border_color, uint8_t text_color, uint8_t title_color);
-void draw_simple_box(char* lines[], char* title);
+                   uint8_t border_color, uint8_t text_color, uint8_t title_color, uint8_t centered);
+void draw_simple_box(char* lines[], char* title, uint8_t centered);
 
 #endif

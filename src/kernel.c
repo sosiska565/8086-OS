@@ -11,11 +11,13 @@
 #include "drivers/file/initrd.h"
 #include "global.h"
 #include "programs/system/setup/setup.h"
+#include "fs/fat/fat16.h"
 
 #include "drivers/file/ATA/ATA.h"
 
 unsigned short isReadMode;
 int $;
+char* path = "/";
 
 //18.2 one millisecond
 void panic(unsigned long err){
@@ -71,9 +73,6 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
 
     __asm__ volatile("sti");
 
-    heap_init();
-    heap_dump();
-
     struct multiboot_info* mbi = (struct multiboot_info*) mb_info_addr;
 
     main_screen(magic, mb_info_addr, mbi);
@@ -98,10 +97,10 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
         print(" MB)\n\n");
     }
 
-    print_info("INFO", "isReadMode: ", VGA_COLOR_YELLOW, VGA_COLOR_LIGHT_GREY);
-    printnumber(isReadMode);
-    print("\n");
-    ata_identify(0x00);
+    //init
+    heap_init();
+    heap_dump();
+    fat16_init();
 
     //
 
