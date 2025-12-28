@@ -6,7 +6,7 @@
 #include "memory/memory.h"
 #include "programs/system/memory_viewer/memory_viewer.h"
 #include "programs/system/disk_viewer/disk_viewer.h"
-#include "fs/fat/fat16.h"
+#include "fs/fat/fat32.h"
 #include <stdint.h>
 
 #define PROGRAM_LOAD_ADDRES 0x300000
@@ -142,10 +142,6 @@ void cmd_calc(char **tokens) {
     } else if(op == '*') {
         result = num1 * num2;
     } else if(op == '/') {
-        if(num2 == 0) {
-            print("Error: Division by zero!\n");
-            return;
-        }
         result = num1 / num2;
     } else {
         print("Unknown operation! Use + - * /\n");
@@ -399,43 +395,67 @@ void cmd_disk_viewer(void){
 }
 
 void cmd_ls(void){
-    fat16_ls();
+    fat32_ls();
 }
 
 void cmd_cat(char **tokens){
-    uint8_t file_buffer[512];
-    
-    for(int i=0; i<512; i++) file_buffer[i] = 0;
-    
-    int file_size = fat16_read_file(tokens[1], file_buffer);
-
-    for(int i = 0; i < file_size; i++) {
-        print_char(file_buffer[i]);
+    if(!tokens[1]) {
+        print("Usage: cat <filename>\n");
+        return;
     }
 
-    print("\n");
+    uint8_t file_buffer[4096]; 
+    
+    for(int i=0; i<4096; i++) file_buffer[i] = 0;
+    
+    int file_size = fat32_read_file(tokens[1], file_buffer);
+
+    if (file_size > 0) {
+        for(int i = 0; i < file_size; i++) {
+            char c = (char)file_buffer[i];
+            print_char(c);
+        }
+        print("\n");
+    } else {
+        print("File not found or empty.\n");
+    }
+}
+
+int is_executable(char* filename) {
+    int len = 0;
+    while(filename[len]) len++;
+    
+    if (len < 4) return 0;
+    
+    char* ext = filename + len - 4;
+    
+    if (ext[0] != '.') return 0;
+    if (ext[1] != 'B' && ext[1] != 'b') return 0;
+    if (ext[2] != 'I' && ext[2] != 'i') return 0;
+    if (ext[3] != 'N' && ext[3] != 'n') return 0;
+    
+    return 1;
 }
 
 void cmd_exec(char **tokens){
-    char *uppstr = toupper(tokens[1]);
-    
     if(!tokens[1]){
         print("Usage: exec <filename>\n");
         return;
     }
 
-    if(strcmp(parse_str(uppstr, '.')[1], "BIN") != 0) {
-        print("This file is not a executable format.\n");
+    if (!is_executable(tokens[1])) {
+        print("Error: File is not executable (must be .bin)\n");
         return;
     }
 
     uint8_t* load_addr = (uint8_t*)PROGRAM_LOAD_ADDRES;
+    
+    for(int i = 0; i < 65536; i++) load_addr[i] = 0;
 
-    for(int i = 0; i < 1024; i++) load_addr[i] = 0;
+    int bytes_read = fat32_read_file(tokens[1], load_addr);
 
-    if(fat16_read_file(uppstr, load_addr) > 0){
+    if(bytes_read > 0){
         program_entry_t program = (program_entry_t)PROGRAM_LOAD_ADDRES;
-
         program();
     } else {
         print("File not found!\n");

@@ -43,11 +43,13 @@ void idt_init(void){
     extern void keyboard_handler();
     extern void timer_handler();
     extern void syscall_handler();
+    extern void mouse_handler();
 
     idt_set_gate(0, (uint32_t)system_division_handler);
-    idt_set_gate(32, (uint32_t)keyboard_handler);
-    idt_set_gate(33, (uint32_t)timer_handler);
+    idt_set_gate(32, (uint32_t)timer_handler);
+    idt_set_gate(33, (uint32_t)keyboard_handler);
     idt_set_gate(0x80, (uint32_t)syscall_handler);
+    idt_set_gate(44, (uint32_t)mouse_handler);
 }
 
 void pic_remap(void) {

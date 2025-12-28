@@ -11,7 +11,8 @@
 #include "drivers/file/initrd.h"
 #include "global.h"
 #include "programs/system/setup/setup.h"
-#include "fs/fat/fat16.h"
+#include "fs/fat/fat32.h"
+#include "drivers/mouse/mouse.h"
 
 #include "drivers/file/ATA/ATA.h"
 
@@ -100,7 +101,8 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     //init
     heap_init();
     heap_dump();
-    fat16_init();
+    fat32_init();
+    // mouse_init(); в пизду мышку бля
 
     //
 

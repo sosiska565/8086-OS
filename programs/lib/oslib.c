@@ -31,3 +31,37 @@ char getc(void) {
     );
     return c;
 }
+
+void gets(char *buffer, int max_len){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(3), "b"(buffer), "c"(max_len)
+    );
+}
+
+void *malloc(int size){
+    void *ptr;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ptr)
+        : "a"(4), "b"(size)
+    );
+    return ptr;
+}
+
+void free(void *ptr){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(5), "b"(ptr)
+    );
+}
+
+void cls(){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(6)
+    );
+}

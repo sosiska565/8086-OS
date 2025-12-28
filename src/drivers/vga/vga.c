@@ -20,6 +20,19 @@ char *vidptr = (char*) 0xb8000;
 unsigned int lines = 0;
 static uint8_t current_color = 0x07;
 
+uint16_t vga_get_entry(int x, int y){
+    unsigned int index = y * COLUMNS_IN_LINE + x;
+
+    uint16_t result = vidptr[index * 2] | (vidptr[index * 2 + 1] << 8);
+    return result;
+}
+
+void vga_set_entry(int x, int y, uint16_t entry){
+    unsigned int index = y * COLUMNS_IN_LINE + x;
+    vidptr[index * 2] = entry & 0xFF;
+    vidptr[index * 2 + 1] = (entry >> 8) & 0xFF;
+}
+
 void set_text_color(vga_color_t fg) {
     current_color = (current_color & 0xF0) | (fg & 0x0F);
 }
@@ -435,7 +448,7 @@ void *memset(void *ptr, int value, size_t num) {
 }
 
 char* toupper(char *str){
-    static char buffer[256];  // Статический буфер
+    static char buffer[256];
     int i;
     
     for(i = 0; str[i] != '\0' && i < 255; i++){

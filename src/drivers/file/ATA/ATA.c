@@ -11,24 +11,52 @@ void ata_wait_drq(void){
     while(!(inb(ATA_STATUS) & (ATA_SR_DRQ | ATA_SR_ERR)));
 }
 
-void ata_read_sector(uint32_t lba, uint8_t *buffer){
-    outb(ATA_DRIVE_HEAD, 0xE0 | ((lba >> 24) & 0x0F));
-    outb(ATA_ERROR, 0x00);
-    outb(ATA_SECTOR_CNT, 1);
+void ata_wait_io() {
+    inb(ATA_STATUS);
+    inb(ATA_STATUS);
+    inb(ATA_STATUS);
+    inb(ATA_STATUS);
+}
 
+int ata_read_sector(uint32_t lba, uint8_t *buffer, uint8_t drive) {
+    if(inb(ATA_STATUS) == 0xFF) {
+        return 0; 
+    }
+
+    uint8_t drive_head = 0xE0;
+    if (drive == ATA_SLAVE) {
+        drive_head = 0xF0;
+    }
+
+    outb(ATA_DRIVE_HEAD, drive_head | ((lba >> 24) & 0x0F));
+    
+    ata_wait_io();
+
+    outb(ATA_ERROR, 0x00);  
+    outb(ATA_SECTOR_CNT, 1);
+    
     outb(ATA_LBA_LOW, (uint8_t)(lba & 0xFF));
     outb(ATA_LBA_MID, (uint8_t)((lba >> 8) & 0xFF));
     outb(ATA_LBA_HIGH, (uint8_t)((lba >> 16) & 0xFF));
 
     outb(ATA_COMMAND, ATA_CMD_READ_PIO);
 
-    ata_wait_bsy();
-    ata_wait_drq();
+    while(inb(ATA_STATUS) & ATA_SR_BSY);
+    
+    uint8_t status = inb(ATA_STATUS);
+    if(status & ATA_SR_ERR) {
+        print("ATA Error!\n");
+        return 0;
+    }
+
+    while(!(inb(ATA_STATUS) & ATA_SR_DRQ));
 
     uint16_t* ptr = (uint16_t*)buffer;
     for(int i = 0; i < 256; i++){
         ptr[i] = inw(ATA_DATA);
     }
+    
+    return 1;
 }
 
 void ata_write_sector(uint32_t lba, uint8_t *buffer){

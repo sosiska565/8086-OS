@@ -32,7 +32,7 @@ struct disk_struct {
     char name[256];
 };
 
-void ata_read_sector(uint32_t lba, uint8_t *buffer);
+int ata_read_sector(uint32_t lba, uint8_t *buffer, uint8_t drive);
 void ata_write_sector(uint32_t lba, uint8_t *buffer);
 void ata_identify(uint8_t drive, struct disk_struct *ds);
 

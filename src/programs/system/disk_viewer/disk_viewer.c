@@ -22,7 +22,7 @@ int main(void){
         printnumber(n);
         print("\n");
 
-        ata_read_sector(n, buffer);
+        ata_read_sector(n, buffer, ATA_MASTER);
         
         for(int i = 0; i < 512; i++){
             print_char((char)buffer[i]);

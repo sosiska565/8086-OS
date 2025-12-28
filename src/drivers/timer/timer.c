@@ -1,5 +1,6 @@
 #include "drivers/timer/timer.h"
 #include "drivers/io/io.h"
+#include "drivers/vga/vga.h"
 
 unsigned long ticks = 0;
 

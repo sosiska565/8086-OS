@@ -25,6 +25,9 @@ typedef enum {
 
 #define VGA_COLOR(fg, bg) ((bg << 4) | (fg & 0x0F))
 
+uint16_t vga_get_entry(int x, int y);
+void vga_set_entry(int x, int y, uint16_t entry);
+
 void clear_screen(void);
 void clear_screen_colored(uint8_t color);
 

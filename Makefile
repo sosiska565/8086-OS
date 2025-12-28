@@ -27,13 +27,14 @@ C_FILES = src/kernel.c \
     src/memory/memory.c \
 	src/programs/system/memory_viewer/memory_viewer.c \
 	src/interrupt/interrupts/interrupts.c \
-    src/fs/fat/fat16.c \
-	src/programs/system/syscalls/syscalls.c
+    src/fs/fat/fat32.c \
+	src/programs/system/syscalls/syscalls.c \
+	src/drivers/mouse/mouse.c
 
 ASM_FILES = boot/kernel.asm boot/gdt.asm src/interrupt/interrupts.asm
 
 USER_C_FILES = \
-	programs/user/hello.c
+	programs/user/game.c
 
 C_OBJECTS   = $(C_FILES:.c=.o)
 ASM_OBJECTS = $(ASM_FILES:.asm=.o)
@@ -82,9 +83,13 @@ programs/bin/%.bin: programs/bin/%.o $(LIB_OBJS)
 	$(NASM) $(NASMFLAGS) $< -o $@
 
 $(DISK_IMG): kernel user_programs
-	@echo "[IMG] Создание диска..."
-	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=10 2>/dev/null
-	@mkfs.fat -F 16 -n "8086OS_HDD" $(DISK_IMG) 2>/dev/null
+	@echo "[IMG] Создание диска (64MB)..."
+	# bs=1M count=64 (Увеличили размер!)
+	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=64 2>/dev/null
+	
+	@echo "[FS] Форматирование в FAT32..."
+	# -F 32 принудительно включает FAT32
+	@mkfs.fat -F 32 -n "8086OS_HDD" $(DISK_IMG) 2>/dev/null
 	
 	@echo "Test file" > readme.txt
 	@mcopy -i $(DISK_IMG) readme.txt ::readme.txt 2>/dev/null
