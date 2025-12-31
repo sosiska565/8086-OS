@@ -230,7 +230,7 @@ void keyboard_handler_c(void) {
         }
     }
     
-    outb(0x20, 0x20);
+    // outb(0x20, 0x20);
 }
 
 int get_scancode(void) {

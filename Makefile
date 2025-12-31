@@ -29,7 +29,8 @@ C_FILES = src/kernel.c \
 	src/interrupt/interrupts/interrupts.c \
     src/fs/fat/fat32.c \
 	src/programs/system/syscalls/syscalls.c \
-	src/drivers/mouse/mouse.c
+	src/drivers/mouse/mouse.c \
+	src/utils/utils.c
 
 ASM_FILES = boot/kernel.asm boot/gdt.asm src/interrupt/interrupts.asm
 

@@ -13,6 +13,7 @@
 #include "programs/system/setup/setup.h"
 #include "fs/fat/fat32.h"
 #include "drivers/mouse/mouse.h"
+#include "utils/utils.h"
 
 #include "drivers/file/ATA/ATA.h"
 
@@ -102,6 +103,7 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     heap_init();
     heap_dump();
     fat32_init();
+    srand(get_ticks());
     // mouse_init(); в пизду мышку бля
 
     //

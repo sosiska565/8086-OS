@@ -2,6 +2,8 @@
 #include "drivers/vga/vga.h"
 #include "drivers/keyboard/keyboardDriver.h"
 #include "memory/memory.h"
+#include "utils/utils.h"
+#include "drivers/timer/timer.h"
 
 //THIS IS OS API
 //input: eax 0, ebx char = print char
@@ -16,6 +18,11 @@ void syscall_handler_c(struct registers *regs){
     else if(regs->eax == 4) regs->eax = kmalloc(regs->ebx);
     else if(regs->eax == 5) kfree(regs->ebx);
     else if(regs->eax == 6) clear_screen();
+    else if(regs->eax == 7) print_char_colored(regs->ebx, regs->ecx);
+    else if(regs->eax == 8) regs->eax = random();
+    else if(regs->eax == 9) printnumber(regs->ebx);
+    else if(regs->eax == 10) draw_simple_box(regs->ebx, regs->ecx, regs->edx);
+    else if(regs->eax == 11) set_cursor_position(regs->ebx, regs->ecx);
     else {
         print("Unknown syscall!\n");
     }
