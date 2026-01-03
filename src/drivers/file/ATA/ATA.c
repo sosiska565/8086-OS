@@ -133,7 +133,7 @@ void ata_identify(uint8_t drive, struct disk_struct *ds) {
     }
     ds->name[name_idx] = '\0';
     
-    int len = strlen(ds->name);
+    int len = strtn(ds->name);
     while(len > 0 && ds->name[len-1] == ' ') {
         ds->name[--len] = '\0';
     }

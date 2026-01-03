@@ -86,21 +86,21 @@ programs/bin/%.bin: programs/bin/%.o $(LIB_OBJS)
 $(DISK_IMG): kernel user_programs
 	@echo "[IMG] Создание диска (64MB)..."
 	# bs=1M count=64 (Увеличили размер!)
-	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=64 2>/dev/null
+	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=64 #2>/dev/null
 	
 	@echo "[FS] Форматирование в FAT32..."
 	# -F 32 принудительно включает FAT32
-	@mkfs.fat -F 32 -n "8086OS_HDD" $(DISK_IMG) 2>/dev/null
+	@mkfs.fat -F 32 -n "8086OS_HDD" $(DISK_IMG) #2>/dev/null
 	
 	@echo "Test file" > readme.txt
-	@mcopy -i $(DISK_IMG) readme.txt ::readme.txt 2>/dev/null
+	@mcopy -i $(DISK_IMG) readme.txt ::readme.txt #2>/dev/null
 	
 	@echo "[DISK] Копирование программ..."
 	@# Пробегаем по списку всех скомпилированных .bin файлов и копируем их
 	@for bin in $(USER_BINS); do \
 		filename=$$(basename $$bin); \
 		echo "  -> $$filename"; \
-		mcopy -i $(DISK_IMG) $$bin ::$$filename 2>/dev/null; \
+		mcopy -i $(DISK_IMG) $$bin ::$$filename #2>/dev/null; \
 	done
 	
 	@rm -f readme.txt
@@ -112,7 +112,7 @@ iso: kernel
 	@echo "set timeout=0" > iso/boot/grub/grub.cfg
 	@echo "set default=0" >> iso/boot/grub/grub.cfg
 	@echo "menuentry 'OS' { multiboot /boot/kernel.bin }" >> iso/boot/grub/grub.cfg
-	@grub-mkrescue -o $(ISO) iso 2>/dev/null
+	@grub-mkrescue -o $(ISO) iso #2>/dev/null
 
 build-all: iso $(DISK_IMG)
 

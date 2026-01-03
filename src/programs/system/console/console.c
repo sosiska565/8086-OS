@@ -2,6 +2,7 @@
 #include "drivers/vga/vga.h"
 #include "drivers/keyboard/keyboardDriver.h"
 #include "global.h"
+#include "programs/system/console/system.h"
 
 void execute_command(char **tokens) {
     if(!tokens[0]) return;
@@ -19,7 +20,7 @@ void execute_command(char **tokens) {
 }
 
 int console_main(void) {
-    cmd_box();
+    cmd_box((char **){NULL});
     console.should_exit = 0;
 
     while(!console.should_exit) {

@@ -188,7 +188,7 @@ void cmd_ascii(char **tokens) {
     print("\n");
 }
 
-void cmd_box(void) {
+void cmd_box(char **tokens) {
     print("\n");
     print("+-------------------------------+\n");
     print("|   Welcome to 8086-OS Console! |\n");
@@ -390,11 +390,11 @@ void cmd_heapdump(char **tokens) {
     heap_dump();
 }
 
-void cmd_disk_viewer(void){
+void cmd_disk_viewer(char **tokens){
     disk_viewer.main();
 }
 
-void cmd_ls(void){
+void cmd_ls(char **tokens){
     fat32_ls();
 }
 

@@ -38,5 +38,6 @@ unsigned long random(void);
 unsigned long randmm(unsigned long min, unsigned long max);
 void print_number(int number);
 void draw_simple_box(char **lines, char *title, uint8_t centered);
+void set_cursor_position(unsigned int x, unsigned int y);
 
 #endif

@@ -21,7 +21,6 @@ unsigned short isReadMode;
 int $;
 char* path = "/";
 
-//18.2 one millisecond
 void panic(unsigned long err){
     set_text_color(4);
     clear_screen();
