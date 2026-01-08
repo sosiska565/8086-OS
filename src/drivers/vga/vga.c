@@ -468,6 +468,10 @@ char toupper_char(char c) {
     return c;
 }
 
+void set_current_color(vga_color_t color){
+    current_color = color;
+}
+
 //псевдо графика
 void draw_text_box_ex(char* lines[], char* title, 
                       uint8_t padding_top, uint8_t padding_bottom,

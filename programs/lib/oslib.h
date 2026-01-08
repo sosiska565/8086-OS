@@ -37,7 +37,17 @@ void cls(void);
 unsigned long random(void);
 unsigned long randmm(unsigned long min, unsigned long max);
 void print_number(int number);
-void draw_simple_box(char **lines, char *title, uint8_t centered);
 void set_cursor_position(unsigned int x, unsigned int y);
+void set_background_color(vga_color_t color);
+void set_text_color(vga_color_t color);
+void get_cursor_xy(unsigned int *x, unsigned int *y);
+vga_color_t get_current_color(void);
+void set_current_color(vga_color_t color);
+int read_file(char *file_name, uint8_t *file_buffer);
+void printhex(unsigned int num);
+int get_file_size(char *file_name);
+uint8_t get_scanecode(void);
+int write_file(char *filename, uint8_t *buffer, uint32_t size);
+char scancode_to_ascii(uint8_t scancode);
 
 #endif

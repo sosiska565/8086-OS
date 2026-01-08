@@ -53,5 +53,8 @@ struct fat_directory_entry {
 void fat32_init();
 void fat32_ls();
 int fat32_read_file(char* filename, uint8_t* out_buffer);
+int fat32_get_file_size(char* file_name);
+int fat32_write_file(char* filename, uint8_t* buffer, uint32_t size);
+int fat32_delete_file(char* filename);
 
 #endif

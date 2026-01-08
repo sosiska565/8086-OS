@@ -8,13 +8,18 @@
 #include "programs/system/disk_viewer/disk_viewer.h"
 #include "fs/fat/fat32.h"
 #include <stdint.h>
+#include "drivers/keyboard/keyboardDriver.h"
+#include "utils/utils.h"
+#include "multiboot.h"
+#include "utils/utils.h"
+#include "global.h"
 
 #define PROGRAM_LOAD_ADDRES 0x300000
 
 //test var
 void* ptr;
 
-typedef void (*program_entry_t)(void);
+typedef void (*program_entry_t)(int argc, char **argv);
 
 command_t commands[] = {
     {"help",          cmd_help,          "Show this help message"},
@@ -30,7 +35,7 @@ command_t commands[] = {
     
     {"setbgcolor",    cmd_setbgcolor,    "Set background color (0-15)"},
     {"settextcolor",  cmd_settextcolor,  "Set text color (0-15)"},
-    {"colortest",     cmd_colortest,     "Show all colors"},
+    {"fetch",     cmd_colortest,     "Show OS info"},
     {"banner",        cmd_banner,        "Show OS banner"},
     
     {"memview",       cmd_memview,       "Memory viewer"},
@@ -42,6 +47,9 @@ command_t commands[] = {
     {"ls",      cmd_ls,      "Show all files"},
     {"cat",      cmd_cat,      "Show file (cat <file>)"},
     {"exec",      cmd_exec,      "Executable file (exec <file>)"},
+    {"mkfile",      cmd_mkfile,      "Make file (mkfile <file name> <text>)"},
+    {"rm",      cmd_rm,      "Remove file (rm <file name>)"},
+    {"readsystemcfg", cmd_readsystemcfg, "Update system configs"},
     
     {NULL, NULL, NULL}
 };
@@ -51,23 +59,43 @@ void register_commands(void) {
 }
 
 void cmd_colortest(char **tokens) {
-    print("\nVGA Color Table:\n");
-    print("================\n");
-    
-    const char* color_names[] = {
-        "Black", "Blue", "Green", "Cyan", 
-        "Red", "Magenta", "Brown", "Light Grey",
-        "Dark Grey", "Light Blue", "Light Green", "Light Cyan",
-        "Light Red", "Light Magenta", "Yellow", "White"
-    };
-    
-    for(int i = 0; i < 16; i++) {
-        printnumber(i);
-        print(": ");
-        print_colored("████ ", VGA_COLOR(VGA_COLOR_BLACK, i));
-        print(color_names[i]);
-        print("\n");
+    char *processor;
+    get_cpu_vendor(processor);
+    print("            .-\"\"\"-.");
+    print_colored("     OS:", VGA_COLOR(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK));
+    print("8086-OS V0.5");
+    printn("           '       \\");
+    print_colored("     CPU: ", VGA_COLOR(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK));
+    print(processor);
+    printn("          |,.  ,-.  |");
+    print_colored("     RAM:", VGA_COLOR(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK));
+    printnumber(mbi->mem_lower + mbi->mem_upper / 1024);
+    print("KB");
+    printn("          |()L( ()| |");
+    print("     ");
+    for(int i = 0; i < 8; i++) {
+        print_colored("█", VGA_COLOR(i, i));
     }
+    printn("          |,'  `\".| |");
+    print("     ");
+    for(int i = 8; i < 16; i++) {
+        print_colored("█", VGA_COLOR(i, i));
+    }
+    printn("          |.___.',| `");
+    printn("         .j `--\"' `  `.");
+    printn("        / '        '   \\");
+    printn("       / /          `   `.");
+    printn("      / /            `    .");
+    printn("     / /              l   |");
+    printn("    . ,               |   |");
+    printn("    ,\"`.             .|   |");
+    printn(" _.'   ``.          | `..-'l");
+    printn("|       `.`,        |      `.");
+    printn("|         `.    __.j         )");
+    printn("|__        |--\"\"___|      ,-'");
+    printn("   `\"--...,+\"\"\"\"   `._,.-'");
+    
+    print("\n");
 }
 
 void cmd_banner(char **tokens) {
@@ -404,21 +432,26 @@ void cmd_cat(char **tokens){
         return;
     }
 
-    uint8_t file_buffer[4096]; 
-    
-    for(int i=0; i<4096; i++) file_buffer[i] = 0;
-    
-    int file_size = fat32_read_file(tokens[1], file_buffer);
+    int file_size = fat32_get_file_size(tokens[1]);
 
-    if (file_size > 0) {
-        for(int i = 0; i < file_size; i++) {
-            char c = (char)file_buffer[i];
-            print_char(c);
-        }
-        print("\n");
-    } else {
+    if(file_size <= 0){
         print("File not found or empty.\n");
+        return;
     }
+
+    uint8_t *file_buffer = (uint8_t*)kmalloc(file_size + 512);
+
+    for(int i=0; i<file_size; i++) file_buffer[i] = 0;
+    
+    fat32_read_file(tokens[1], file_buffer);
+
+    for(int i = 0; i < file_size; i++) {
+        char c = (char)file_buffer[i];
+        print_char(c);
+    }
+    print("\n");
+
+    kfree(file_buffer);
 }
 
 int is_executable(char* filename) {
@@ -438,6 +471,7 @@ int is_executable(char* filename) {
 }
 
 void cmd_exec(char **tokens){
+    keyboard_flush();
     if(!tokens[1]){
         print("Usage: exec <filename>\n");
         return;
@@ -456,8 +490,68 @@ void cmd_exec(char **tokens){
 
     if(bytes_read > 0){
         program_entry_t program = (program_entry_t)PROGRAM_LOAD_ADDRES;
-        program();
+        int argc = 0;
+        while (tokens[1 + argc] != 0) {
+            argc++;
+        }
+
+        program(argc, &tokens[1]);
+
+        keyboard_flush();
     } else {
         print("File not found!\n");
     }
+}
+
+void cmd_mkfile(char **tokens) {
+    if (!tokens[1] || !tokens[2]) {
+        print("Usage: mkfile <name> <text>\n");
+        return;
+    }
+    
+    char* filename = tokens[1];
+    char* text = tokens[2];
+    
+    int len = 0;
+    while(text[len]) len++;
+    
+    if (fat32_write_file(filename, (uint8_t*)text, len) == 1) {
+        print("File created successfully!\n");
+    } else {
+        print("Error creating file.\n");
+    }
+}
+
+void cmd_rm(char **tokens){
+    if(fat32_delete_file(tokens[1]) != 1) print("File not removed\n");
+}
+
+void cmd_readsystemcfg(char **tokens) {
+    int file_size = fat32_get_file_size("kernel.cfg");
+
+    if(file_size <= 0){
+        panic("kernel.cfg not found!");
+        return;
+    }
+
+    uint8_t *file_buffer = (uint8_t*)kmalloc(file_size + 512);
+
+    for(int i=0; i<file_size; i++) file_buffer[i] = 0;
+
+    fat32_read_file("kernel.cfg", file_buffer);
+
+    Config *cfg = config_parse(file_buffer);
+
+    if(strcmp(config_get_value(cfg, "is_read_only_mode"), "true") == 0){
+        isReadMode = 1;
+    } else {
+        isReadMode = 0;
+    }
+
+    print("read mode: ");
+    printnumber(isReadMode);
+    print("\n");
+
+    config_free(cfg);
+    kfree(file_buffer);
 }

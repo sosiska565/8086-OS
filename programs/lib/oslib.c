@@ -1,4 +1,4 @@
-#include "oslib.h"
+#include <oslib.h>
 
 void print_char(char c){
     __asm__ volatile(
@@ -100,18 +100,110 @@ unsigned long randmm(unsigned long min, unsigned long max){
     return min + random() % (max - min + 1);
 }
 
-void draw_simple_box(char *lines[], char *title, uint8_t centered){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(10), "b"(lines), "c"(title), "d"(centered)
-    );
-}
-
 void set_cursor_position(unsigned int x, unsigned int y){
     __asm__ volatile(
         "int $0x80"
         :
         : "a"(11), "b"(x), "c"(y)
     );
+}
+
+void set_background_color(vga_color_t color){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(12), "b"(color)
+    );
+}
+
+void set_text_color(vga_color_t color){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(13), "b"(color)
+    );
+}
+
+void get_cursor_xy(unsigned int *x, unsigned int *y){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(14), "b"(x), "c"(y)
+    );
+}
+
+vga_color_t get_current_color(void){
+    vga_color_t color;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(color)
+        : "a"(15)
+    );
+    return color;
+}
+
+void set_current_color(vga_color_t color){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(16), "b"(color)
+    );
+}
+
+int read_file(char *file_name, uint8_t *file_buffer){
+    int sizefile;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(sizefile)
+        : "a"(10), "b"(file_name), "c"(file_buffer)
+    );
+    return sizefile;
+}
+
+void printhex(unsigned int num){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(17), "b"(num)
+    );
+}
+
+int get_file_size(char *file_name){
+    int size;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(size)
+        : "a"(18), "b"(file_name)
+    );
+    return size;
+}
+
+uint8_t get_scanecode(void){
+    int scanecode;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(scanecode)
+        : "a"(19)
+    );
+    return scanecode;
+}
+
+int write_file(char *filename, uint8_t *buffer, uint32_t size){
+    int error;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(error)
+        : "a"(20), "b"(filename), "c"(buffer), "d"(size)
+    );
+    return error;
+}
+
+char scancode_to_ascii(uint8_t scancode){
+    char c;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(c)
+        : "a"(21), "b"(scancode)
+    );
+    return c;
 }

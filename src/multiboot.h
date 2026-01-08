@@ -18,4 +18,6 @@ struct multiboot_info {
     unsigned long mods_addr;
 } __attribute__((packed));
 
+extern struct multiboot_info* mbi;
+
 #endif

@@ -10,6 +10,15 @@ NASMFLAGS = -f elf32
 ISO     = os.iso
 DISK_IMG = disk.img
 
+# Папки
+DISK_DIR = disk
+BIN_DIR  = programs/bin
+LIB_DIR  = programs/lib
+USER_DIR = programs/user
+
+# ==========================================
+# 1. ЯДРО
+# ==========================================
 C_FILES = src/kernel.c \
 	src/interrupt/idt/idt.c \
     src/drivers/keyboard/keyboardDriver.c \
@@ -34,46 +43,87 @@ C_FILES = src/kernel.c \
 
 ASM_FILES = boot/kernel.asm boot/gdt.asm src/interrupt/interrupts.asm
 
-USER_C_FILES = \
-	programs/user/game.c
-
 C_OBJECTS   = $(C_FILES:.c=.o)
 ASM_OBJECTS = $(ASM_FILES:.asm=.o)
 OBJFILES    = $(ASM_OBJECTS) $(C_OBJECTS)
 
-LIB_SRC   = programs/lib/oslib.c
-LIB_ENTRY = programs/lib/entry.asm
-LIB_OBJS  = programs/bin/entry.o programs/bin/oslib.o
+# ==========================================
+# 2. БИБЛИОТЕКА ПОЛЬЗОВАТЕЛЯ (АВТОМАТИКА)
+# ==========================================
 
-USER_OBJS = $(patsubst programs/user/%.c, programs/bin/%.o, $(USER_C_FILES))
-USER_BINS = $(patsubst programs/user/%.c, programs/bin/%.bin, $(USER_C_FILES))
+# Точка входа (ASM) всегда одна
+LIB_ENTRY_SRC = $(LIB_DIR)/entry.asm
+LIB_ENTRY_OBJ = $(BIN_DIR)/entry.o
 
-all: kernel user_programs
+# Находим ВСЕ .c файлы в папке programs/lib (oslib.c, string.c и т.д.)
+LIB_SOURCES = $(wildcard $(LIB_DIR)/*.c)
+
+# Создаем список объектных файлов для библиотеки (меняем .c на .o и папку на bin)
+LIB_C_OBJS  = $(patsubst $(LIB_DIR)/%.c, $(BIN_DIR)/%.o, $(LIB_SOURCES))
+
+# Итоговый список объектов, которые нужно прилинковать к программе пользователя
+# Сначала entry.o, потом всё остальное
+LIB_FINAL_OBJS = $(LIB_ENTRY_OBJ) $(LIB_C_OBJS)
+
+# ==========================================
+# 3. ПРОГРАММЫ ПОЛЬЗОВАТЕЛЯ
+# ==========================================
+
+# Список программ (добавляй сюда новые)
+USER_C_FILES = \
+	programs/user/game.c \
+	programs/user/nani.c
+
+# Генерируем пути для .o и .bin файлов
+USER_OBJS = $(patsubst $(USER_DIR)/%.c, $(BIN_DIR)/%.o, $(USER_C_FILES))
+USER_BINS = $(patsubst $(USER_DIR)/%.c, $(DISK_DIR)/%.bin, $(USER_C_FILES))
+
+# ==========================================
+# 4. ПРАВИЛА СБОРКИ
+# ==========================================
+
+all: pre-build kernel user_programs
+
+# Создаем папки, если их нет
+pre-build:
+	@mkdir -p $(DISK_DIR)
+	@mkdir -p $(BIN_DIR)
 
 kernel: $(OBJFILES)
 	@echo "[LD] Линковка ядра..."
 	$(LD) $(LDFLAGS) -o $@ $^
 	@echo "✓ Ядро собрано"
 
-user_programs: $(LIB_OBJS) $(USER_BINS)
-	@echo "✓ Все программы пользователя собраны"
+user_programs: $(LIB_FINAL_OBJS) $(USER_BINS)
+	@echo "✓ Все программы пользователя собраны в $(DISK_DIR)/"
 
-programs/bin/entry.o: $(LIB_ENTRY)
-	@mkdir -p programs/bin
+# --- Сборка библиотеки ---
+
+# Компиляция entry.asm
+$(BIN_DIR)/entry.o: $(LIB_ENTRY_SRC)
+	@mkdir -p $(BIN_DIR)
 	$(NASM) $(NASMFLAGS) $< -o $@
 
-programs/bin/oslib.o: $(LIB_SRC)
-	@mkdir -p programs/bin
+# УНИВЕРСАЛЬНОЕ ПРАВИЛО для всех .c файлов библиотеки
+$(BIN_DIR)/%.o: $(LIB_DIR)/%.c
+	@mkdir -p $(BIN_DIR)
+	@echo "[CC Lib] $<"
 	$(CC) $(USER_CFLAGS) -c $< -o $@
 
-programs/bin/%.o: programs/user/%.c
-	@mkdir -p programs/bin
-	@echo "[CC User] $<"
+# --- Сборка программ пользователя ---
+
+# Компиляция программы пользователя (.c -> .o)
+$(BIN_DIR)/%.o: $(USER_DIR)/%.c
+	@mkdir -p $(BIN_DIR)
+	@echo "[CC App] $<"
 	$(CC) $(USER_CFLAGS) -c $< -o $@
 
-programs/bin/%.bin: programs/bin/%.o $(LIB_OBJS)
-	@echo "[LD User] $@"
-	$(LD) -m elf_i386 -T programs/app.ld -o $@ $< $(LIB_OBJS)
+# Линковка программы (.o + библиотека -> .bin)
+$(DISK_DIR)/%.bin: $(BIN_DIR)/%.o $(LIB_FINAL_OBJS)
+	@echo "[LD App] $@"
+	$(LD) -m elf_i386 -T programs/app.ld -o $@ $< $(LIB_FINAL_OBJS)
+
+# --- Сборка ядра ---
 
 %.o: %.c
 	@echo "[CC Kernel] $<"
@@ -83,27 +133,20 @@ programs/bin/%.bin: programs/bin/%.o $(LIB_OBJS)
 	@echo "[NASM] $<"
 	$(NASM) $(NASMFLAGS) $< -o $@
 
+# ==========================================
+# 5. ДИСК И ЗАПУСК
+# ==========================================
+
 $(DISK_IMG): kernel user_programs
 	@echo "[IMG] Создание диска (64MB)..."
-	# bs=1M count=64 (Увеличили размер!)
-	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=64 #2>/dev/null
+	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=64 2>/dev/null
 	
 	@echo "[FS] Форматирование в FAT32..."
-	# -F 32 принудительно включает FAT32
-	@mkfs.fat -F 32 -n "8086OS_HDD" $(DISK_IMG) #2>/dev/null
+	@mkfs.fat -F 32 -n "8086OS_HDD" $(DISK_IMG)
 	
-	@echo "Test file" > readme.txt
-	@mcopy -i $(DISK_IMG) readme.txt ::readme.txt #2>/dev/null
+	@echo "[DISK] Копирование файлов из папки $(DISK_DIR)..."
+	@mcopy -i $(DISK_IMG) -s $(DISK_DIR)/* ::/
 	
-	@echo "[DISK] Копирование программ..."
-	@# Пробегаем по списку всех скомпилированных .bin файлов и копируем их
-	@for bin in $(USER_BINS); do \
-		filename=$$(basename $$bin); \
-		echo "  -> $$filename"; \
-		mcopy -i $(DISK_IMG) $$bin ::$$filename #2>/dev/null; \
-	done
-	
-	@rm -f readme.txt
 	@echo "✓ Диск готов!"
 
 iso: kernel
@@ -112,13 +155,17 @@ iso: kernel
 	@echo "set timeout=0" > iso/boot/grub/grub.cfg
 	@echo "set default=0" >> iso/boot/grub/grub.cfg
 	@echo "menuentry 'OS' { multiboot /boot/kernel.bin }" >> iso/boot/grub/grub.cfg
-	@grub-mkrescue -o $(ISO) iso #2>/dev/null
+	@grub-mkrescue -o $(ISO) iso 2>/dev/null
 
 build-all: iso $(DISK_IMG)
 
 run: clean build-all
 	@echo "[QEMU] Запуск..."
-	qemu-system-i386 -cdrom $(ISO) -drive file=$(DISK_IMG),format=raw -boot d -rtc base=localtime
+	qemu-system-i386 \
+		-drive file=$(DISK_IMG),format=raw,index=0,if=ide,media=disk \
+		-drive file=$(ISO),format=raw,index=1,if=ide,media=cdrom \
+		-boot d \
+		-rtc base=localtime
 
 debug: clean build-all
 	@echo "[QEMU] Отладка..."
@@ -128,6 +175,14 @@ clean:
 	@echo "[CLEAN] Очистка..."
 	@rm -f $(OBJFILES) kernel $(DISK_IMG) $(ISO)
 	@rm -rf iso programs/bin
+	@rm -f $(DISK_DIR)/*.bin
 	@echo "✓ Готово"
 
-.PHONY: all iso run clean user_programs build-all debug
+oncerun:
+	qemu-system-i386 \
+		-drive file=$(DISK_IMG),format=raw,index=0,if=ide,media=disk \
+		-drive file=$(ISO),format=raw,index=1,if=ide,media=cdrom \
+		-boot d \
+		-rtc base=localtime
+
+.PHONY: all iso run clean user_programs build-all debug pre-build

@@ -2,6 +2,8 @@
 #include "drivers/vga/vga.h"
 #include "drivers/keyboard/keyboardDriver.h"
 
+static const char *hex_chars = "0123456789ABCDEF";
+
 static int main(void){
     disable_cursor();
 
@@ -18,9 +20,7 @@ static int main(void){
 
         for(int line = 0; line < 22; line++) {
             uint32_t current_addr = address + line * bytes_per_line;
-            
             set_text_color(VGA_COLOR_DARK_GREY);
-            char hex_chars[] = "0123456789ABCDEF";
             for(int j = 3; j >= 0; j--) {
                 print_char(hex_chars[(current_addr >> (j*4)) & 0x0F]);
             }

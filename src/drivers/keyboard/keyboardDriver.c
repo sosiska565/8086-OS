@@ -1,18 +1,20 @@
 #include "drivers/keyboard/keyboardDriver.h"
-#include "interrupt/idt/idt.h"
 #include "drivers/vga/vga.h"
 #include "drivers/io/io.h"
 
 #define BUFFER_SIZE 256
 
-static int scanecode = 0;
-static char key_buffer[BUFFER_SIZE];
-static int buffer_count = 0;
 static uint8_t shift_pressed = 0;
 static uint8_t caps_lock = 0;
 
+static char key_buffer[BUFFER_SIZE];
+static int buffer_count = 0;
+
+static uint8_t scancode_buffer[BUFFER_SIZE];
+static int scancode_count = 0;
+
 Scancode_entity us_keymap[] = {
-    {0x00, 0, 0, 0, 0, "Error/Overrun"},
+    {0x00, 0, 0, 0, 0, "Error"},
     {0x01, 0, 0, 0, 0, "ESC"},
     {0x02, '1', '!', '~', '1', "1"},
     {0x03, '2', '@', '`', '2', "2"},
@@ -31,7 +33,7 @@ Scancode_entity us_keymap[] = {
     
     {0x10, 'q', 'Q', 0, 'Q', "Q"},
     {0x11, 'w', 'W', 0, 'W', "W"},
-    {0x12, 'e', 'E', '€', 'E', "E"},
+    {0x12, 'e', 'E', 0, 'E', "E"},
     {0x13, 'r', 'R', 0, 'R', "R"},
     {0x14, 't', 'T', 0, 'T', "T"},
     {0x15, 'y', 'Y', 0, 'Y', "Y"},
@@ -75,58 +77,11 @@ Scancode_entity us_keymap[] = {
     {0x39, ' ', ' ', ' ', ' ', "Space"},
     
     {0x3A, 0, 0, 0, 0, "CapsLock"},
-    {0x3B, 0, 0, 0, 0, "F1"},
-    {0x3C, 0, 0, 0, 0, "F2"},
-    {0x3D, 0, 0, 0, 0, "F3"},
-    {0x3E, 0, 0, 0, 0, "F4"},
-    {0x3F, 0, 0, 0, 0, "F5"},
-    {0x40, 0, 0, 0, 0, "F6"},
-    {0x41, 0, 0, 0, 0, "F7"},
-    {0x42, 0, 0, 0, 0, "F8"},
-    {0x43, 0, 0, 0, 0, "F9"},
-    {0x44, 0, 0, 0, 0, "F10"},
-    
-    {0x45, 0, 0, 0, 0, "NumLock"},
-    {0x46, 0, 0, 0, 0, "ScrollLock"},
-    {0x47, '7', 0, 0, '7', "Keypad 7/Home"},
-    {0x48, '8', 0, 0, '8', "Keypad 8/Up"},
-    {0x49, '9', 0, 0, '9', "Keypad 9/PgUp"},
-    {0x4A, '-', '-', '-', '-', "Keypad -"},
-    {0x4B, '4', 0, 0, '4', "Keypad 4/Left"},
-    {0x4C, '5', 0, 0, '5', "Keypad 5"},
-    {0x4D, '6', 0, 0, '6', "Keypad 6/Right"},
-    {0x4E, '+', '+', '+', '+', "Keypad +"},
-    {0x4F, '1', 0, 0, '1', "Keypad 1/End"},
-    {0x50, '2', 0, 0, '2', "Keypad 2/Down"},
-    {0x51, '3', 0, 0, '3', "Keypad 3/PgDn"},
-    {0x52, '0', 0, 0, '0', "Keypad 0/Ins"},
-    {0x53, '.', 0, 0, '.', "Keypad ./Del"},
-    {0x56, '\\', '|', 0, '\\', "Non-US \\ and |"},
-    {0x57, 0, 0, 0, 0, "F11"},
-    {0x58, 0, 0, 0, 0, "F12"},
-    
-    {0x5B, 0, 0, 0, 0, "Left Windows"},  
-    {0x5C, 0, 0, 0, 0, "Right Windows"}, 
-    {0x5D, 0, 0, 0, 0, "Application"},   
-    {0x5E, 0, 0, 0, 0, "ACPI Power"},    
-    {0x5F, 0, 0, 0, 0, "ACPI Sleep"},    
-    {0x63, 0, 0, 0, 0, "ACPI Wake"},     
-    
-    {0xE0, 0, 0, 0, 0, "Extended Prefix"},
-
-    {0xAA, 0, 0, 0, 0, "Keyboard Self Test Pass"},
-    {0xEE, 0, 0, 0, 0, "Echo"},
-    {0xFA, 0, 0, 0, 0, "Acknowledge"},
-    {0xFC, 0, 0, 0, 0, "Self Test Failed"},
-    {0xFD, 0, 0, 0, 0, "Diagnostic Failure"},
-    {0xFE, 0, 0, 0, 0, "Resend Request"},
-    {0xFF, 0, 0, 0, 0, "Key Error/Overrun"},
 };
 
 static void add_to_buffer(char c) {
     if (buffer_count < BUFFER_SIZE) {
         key_buffer[buffer_count] = c;
-        
         buffer_count++;
     }
 }
@@ -147,13 +102,36 @@ static char get_from_buffer(void) {
     return 0;
 }
 
+static void add_scancode_to_buffer(uint8_t code) {
+    if (scancode_count < BUFFER_SIZE) {
+        scancode_buffer[scancode_count] = code;
+        scancode_count++;
+    }
+}
+
+static int is_scancode_buffer_empty(void) {
+    return scancode_count == 0;
+}
+
+static uint8_t get_scancode_from_buffer(void) {
+    if (scancode_count > 0) {
+        uint8_t code = scancode_buffer[0];
+        for (int i = 1; i < scancode_count; i++) {
+            scancode_buffer[i-1] = scancode_buffer[i];
+        }
+        scancode_count--;
+        return code;
+    }
+    return 0;
+}
+
 static char get_letter(char lower, char upper, uint8_t shift, uint8_t caps) {
     if (shift) return upper;
     if (caps) return upper;
     return lower;
 }
 
-static char scancode_to_char(uint8_t scancode) {
+char scancode_to_char(uint8_t scancode) {
     if (scancode & 0x80) return 0;
     
     switch(scancode) {
@@ -213,10 +191,10 @@ static char scancode_to_char(uint8_t scancode) {
 }
 
 void keyboard_handler_c(void) {
-    scanecode = inb(0x60);
+    uint8_t scancode = inb(0x60);
     
-    uint8_t is_release = (scanecode & 0x80);
-    uint8_t make_code = scanecode & 0x7F;
+    uint8_t is_release = (scancode & 0x80);
+    uint8_t make_code = scancode & 0x7F;
     
     if (make_code == 0x2A || make_code == 0x36) {
         shift_pressed = !is_release;
@@ -225,27 +203,13 @@ void keyboard_handler_c(void) {
     }
     
     if (!is_release) {
+        add_scancode_to_buffer(make_code);
+
         char c = scancode_to_char(make_code);
         if (c != 0) {
             add_to_buffer(c);
         }
     }
-    
-    // outb(0x20, 0x20);
-}
-
-int get_scancode(void) {
-    return scanecode;
-}
-
-Scancode_entity* get_key(int scancode) {
-    int size = sizeof(us_keymap) / sizeof(Scancode_entity);
-    for (int i = 0; i < size; i++) {
-        if (us_keymap[i].scancode == scancode) {
-            return &us_keymap[i];
-        }
-    }
-    return NULL;
 }
 
 char getch(void) {
@@ -254,7 +218,20 @@ char getch(void) {
         __asm__ volatile("pause");
     }
     __asm__ volatile("cli");
-    return get_from_buffer();
+    char c = get_from_buffer();
+    __asm__ volatile("sti");
+    return c;
+}
+
+uint8_t wait_scancode(void) {
+    __asm__ volatile("sti");
+    while (is_scancode_buffer_empty()) {
+        __asm__ volatile("pause");
+    }
+    __asm__ volatile("cli");
+    uint8_t code = get_scancode_from_buffer();
+    __asm__ volatile("sti");
+    return code;
 }
 
 void gets(char* buffer, int max_len) {
@@ -274,16 +251,22 @@ void gets(char* buffer, int max_len) {
                 print("\b \b");
             }
         }
-        else if (c == 0x03) {
-            buffer[0] = '\0';
-            print("^C\n");
-            return;
-        }
         else if (pos < max_len - 1) {
-            buffer[pos] = c;
-            pos++;
-            char str[2] = {c, '\0'};
-            print(str);
+            if(c >= 32 && c <= 126) {
+                buffer[pos] = c;
+                pos++;
+                char str[2] = {c, '\0'};
+                print(str);
+            }
         }
     }
+}
+
+void keyboard_flush(void) {
+    __asm__ volatile("cli");
+    
+    buffer_count = 0;
+    scancode_count = 0;
+    
+    __asm__ volatile("sti");
 }

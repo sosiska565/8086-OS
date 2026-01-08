@@ -46,6 +46,7 @@ int ata_read_sector(uint32_t lba, uint8_t *buffer, uint8_t drive) {
     uint8_t status = inb(ATA_STATUS);
     if(status & ATA_SR_ERR) {
         print("ATA Error!\n");
+        while(1);
         return 0;
     }
 
@@ -64,9 +65,12 @@ void ata_write_sector(uint32_t lba, uint8_t *buffer){
         print_info("ERROR", "System is booted in read-only mode", VGA_COLOR_RED, VGA_COLOR_LIGHT_GREY);
         return;
     }
-    ata_wait_bsy();
 
-    outb(ATA_DRIVE_HEAD, 0xE0 | ((lba >> 24) & 0x0F));
+    uint8_t drive_flag = 0xE0 | ((lba >> 24) & 0x0F);
+    
+    outb(ATA_DRIVE_HEAD, drive_flag);
+    ata_wait_io();
+
     outb(ATA_ERROR, 0x00);
     outb(ATA_SECTOR_CNT, 1);
     outb(ATA_LBA_LOW, (uint8_t)(lba & 0xFF));
@@ -74,18 +78,20 @@ void ata_write_sector(uint32_t lba, uint8_t *buffer){
     outb(ATA_LBA_HIGH, (uint8_t)((lba >> 16) & 0xFF));
 
     outb(ATA_COMMAND, ATA_CMD_WRITE_PIO);
-
     ata_wait_bsy();
+    ata_wait_drq(); 
 
     uint16_t* ptr = (uint16_t*)buffer;
     for(int i = 0; i < 256; i++){
         outw(ATA_DATA, ptr[i]);
-
-        __asm__ volatile("nop");
-        __asm__ volatile("nop");
-        __asm__ volatile("nop");
+        __asm__ volatile(
+            "nop\n" 
+            "nop\n"
+            "nop"
+        );
     }
 
+    outb(ATA_COMMAND, 0xE7); 
     ata_wait_bsy();
 }
 
@@ -133,7 +139,8 @@ void ata_identify(uint8_t drive, struct disk_struct *ds) {
     }
     ds->name[name_idx] = '\0';
     
-    int len = strtn(ds->name);
+    int len = 0;
+    for(int i = 0; ds->name[i] != '\0'; i++) len++;
     while(len > 0 && ds->name[len-1] == ' ') {
         ds->name[--len] = '\0';
     }

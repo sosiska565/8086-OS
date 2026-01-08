@@ -1,6 +1,7 @@
 #include "fs/fat/fat32.h"
 #include "drivers/file/ATA/ATA.h"
 #include "drivers/vga/vga.h"
+#include "global.h"
 
 struct fat32_bpb bpb;
 uint32_t fat_start_sector;
@@ -146,4 +147,222 @@ int fat32_read_file(char* filename, uint8_t* out_buffer) {
         dir_cluster = get_next_cluster(dir_cluster);
     }
     return -1;
+}
+
+int fat32_get_file_size(char* file_name){
+    char dos_name[11];
+    to_dos_file_name(file_name, dos_name);
+
+    uint32_t dir_cluster = bpb.root_cluster;
+    uint8_t buffer[512];
+
+    while (dir_cluster < 0x0FFFFFF8) {
+        uint32_t lba = cluster_to_lba(dir_cluster);
+        
+        for(int i=0; i<bpb.sectors_per_cluster; i++) {
+            ata_read_sector(lba + i, buffer, ATA_MASTER);
+            struct fat_directory_entry* entry = (struct fat_directory_entry*) buffer;
+            
+            for(int j=0; j<16; j++) {
+                if(entry[j].name[0] == 0x00) return -1;
+                if(entry[j].name[0] == 0xE5 || entry[j].attributes == 0x0F) continue;
+                
+                int match = 1;
+                for(int k=0; k<11; k++) {
+                    if(entry[j].name[k] != dos_name[k]) { match = 0; break; }
+                }
+                
+                if(match) {
+                    return entry[j].file_size;
+                }
+            }
+        }
+        dir_cluster = get_next_cluster(dir_cluster);
+    }
+    return -1;
+}
+
+void fat32_write_fat_entry(uint32_t cluster, uint32_t value) {
+    uint32_t fat_offset = cluster * 4;
+    uint32_t fat_sector = fat_start_sector + (fat_offset / 512);
+    uint32_t ent_offset = fat_offset % 512;
+    
+    uint8_t buffer[512];
+    
+    ata_read_sector(fat_sector, buffer, ATA_MASTER);
+    
+    uint32_t *entry = (uint32_t*)&buffer[ent_offset];
+    uint32_t current_val = *entry;
+    *entry = (current_val & 0xF0000000) | (value & 0x0FFFFFFF);
+    
+    ata_write_sector(fat_sector, buffer);
+    
+    if(bpb.num_fats > 1) {
+        ata_write_sector(fat_sector + bpb.sectors_per_fat_32, buffer);
+    }
+}
+
+uint32_t fat32_find_free_cluster() {
+    uint8_t buffer[512];
+    
+    uint32_t total_sectors = bpb.sectors_per_fat_32;
+    
+    for (uint32_t sec = 0; sec < total_sectors; sec++) {
+        ata_read_sector(fat_start_sector + sec, buffer, ATA_MASTER);
+        
+        uint32_t *entries = (uint32_t*)buffer;
+        for (int i = 0; i < 128; i++) {
+            if ((entries[i] & 0x0FFFFFFF) == 0) {
+                return sec * 128 + i;
+            }
+        }
+    }
+    return 0;
+}
+
+int fat32_find_free_dir_entry(uint32_t *sector_out, uint32_t *offset_out) {
+    uint32_t dir_cluster = bpb.root_cluster;
+    uint8_t buffer[512];
+    
+    while (dir_cluster < 0x0FFFFFF8) {
+        uint32_t lba = cluster_to_lba(dir_cluster);
+        
+        for(int i=0; i<bpb.sectors_per_cluster; i++) {
+            ata_read_sector(lba + i, buffer, ATA_MASTER);
+            struct fat_directory_entry* entries = (struct fat_directory_entry*)buffer;
+            
+            for(int j=0; j<16; j++) {
+                if (entries[j].name[0] == 0x00 || entries[j].name[0] == 0xE5) {
+                    *sector_out = lba + i;
+                    *offset_out = j * 32;
+                    return 1;
+                }
+            }
+        }
+        dir_cluster = get_next_cluster(dir_cluster);
+    }
+    return 0;
+}
+
+int fat32_delete_file(char* filename) {
+    if(isReadMode == 1) return -1;
+    char dos_name[11];
+    to_dos_file_name(filename, dos_name);
+    
+    uint32_t dir_cluster = bpb.root_cluster;
+    uint8_t buffer[512];
+    
+    while (dir_cluster < 0x0FFFFFF8) {
+        uint32_t lba = cluster_to_lba(dir_cluster);
+        for(int i=0; i<bpb.sectors_per_cluster; i++) {
+            ata_read_sector(lba + i, buffer, ATA_MASTER);
+            struct fat_directory_entry* entry = (struct fat_directory_entry*) buffer;
+            
+            int modified = 0;
+            
+            for(int j=0; j<16; j++) {
+                if(entry[j].name[0] == 0x00) return -1;
+                if(entry[j].name[0] == 0xE5) continue;
+                
+                int match = 1;
+                for(int k=0; k<11; k++) {
+                    if(entry[j].name[k] != dos_name[k]) { match = 0; break; }
+                }
+                
+                if(match) {
+                    uint32_t cluster = ((uint32_t)entry[j].first_cluster_high << 16) | entry[j].first_cluster_low;
+                    
+                    while(cluster < 0x0FFFFFF8 && cluster != 0) {
+                        uint32_t next = get_next_cluster(cluster);
+                        fat32_write_fat_entry(cluster, 0);
+                        cluster = next;
+                    }
+                    
+                    entry[j].name[0] = 0xE5; 
+                    
+                    ata_write_sector(lba + i, buffer);
+                    return 1;
+                }
+            }
+        }
+        dir_cluster = get_next_cluster(dir_cluster);
+    }
+    return -1;
+}
+
+int fat32_write_file(char* filename, uint8_t* data, uint32_t size) {
+    if(isReadMode == 1) return -1;
+    char dos_name[11];
+    to_dos_file_name(filename, dos_name);
+    
+    fat32_delete_file(filename);
+
+    uint32_t cluster_bytes = bpb.sectors_per_cluster * 512;
+    uint32_t clusters_needed = (size + cluster_bytes - 1) / cluster_bytes;
+    if (clusters_needed == 0) clusters_needed = 1;
+
+    uint32_t first_cluster = 0;
+    uint32_t prev_cluster = 0;
+
+    for(uint32_t i = 0; i < clusters_needed; i++) {
+        uint32_t free_cluster = fat32_find_free_cluster();
+        if(free_cluster == 0) return -2;
+        
+        if(i == 0) first_cluster = free_cluster;
+        else {
+            fat32_write_fat_entry(prev_cluster, free_cluster);
+        }
+        
+        fat32_write_fat_entry(free_cluster, 0x0FFFFFFF);
+        prev_cluster = free_cluster;
+    }
+
+    uint32_t current_cluster = first_cluster;
+    uint32_t written = 0;
+    
+    for(uint32_t i = 0; i < clusters_needed; i++) {
+        uint32_t lba = cluster_to_lba(current_cluster);
+        
+        for(int s = 0; s < bpb.sectors_per_cluster; s++) {
+            if(written >= size) {
+                uint8_t zeros[512];
+                for(int z=0; z<512; z++) zeros[z] = 0;
+                ata_write_sector(lba + s, zeros);
+            } else {
+                ata_write_sector(lba + s, data + written);
+                written += 512;
+            }
+        }
+        current_cluster = get_next_cluster(current_cluster);
+    }
+
+    uint32_t dir_cluster = bpb.root_cluster;
+    uint8_t buffer[512];
+    
+    while(dir_cluster < 0x0FFFFFF8) {
+        uint32_t lba = cluster_to_lba(dir_cluster);
+        for(int i=0; i<bpb.sectors_per_cluster; i++) {
+            ata_read_sector(lba + i, buffer, ATA_MASTER);
+            struct fat_directory_entry* entry = (struct fat_directory_entry*) buffer;
+            
+            for(int j=0; j<16; j++) {
+                if(entry[j].name[0] == 0x00 || entry[j].name[0] == 0xE5) {
+                    
+                    for(int k=0; k<11; k++) entry[j].name[k] = dos_name[k];
+                    entry[j].attributes = 0x20;
+                    entry[j].first_cluster_high = (first_cluster >> 16) & 0xFFFF;
+                    entry[j].first_cluster_low = first_cluster & 0xFFFF;
+                    entry[j].file_size = size;
+                    
+                    ata_write_sector(lba + i, buffer);
+                    return 1;
+                }
+            }
+        }
+        uint32_t next = get_next_cluster(dir_cluster);
+        if(next >= 0x0FFFFFF8) break;
+        dir_cluster = next;
+    }
+    
+    return -3;
 }

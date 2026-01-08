@@ -20,23 +20,7 @@
 unsigned short isReadMode;
 int $;
 char* path = "/";
-
-void panic(unsigned long err){
-    set_text_color(4);
-    clear_screen();
-    printn("Kernel panic!\n");
-    print("Err: ");
-    printhex(err);
-    printn("System will reboot in 5 seconds...\n");
-    unsigned long newTick = get_ticks() + 9100;
-
-    while(get_ticks() < newTick);
-
-    __asm__ volatile (
-        "mov $0xFE, %al\n"
-        "out %al, $0x64\n"
-    );
-}
+struct multiboot_info* mbi;
 
 void main_screen(unsigned long magic, unsigned long mb_info_addr, struct multiboot_info* mbi){
     clear_screen();
@@ -44,7 +28,7 @@ void main_screen(unsigned long magic, unsigned long mb_info_addr, struct multibo
     beep_timed(1000, 10000);
 
     if(magic != 0x2BADB002){
-        panic(magic);
+        panic("Magic value is not correct");
     }
 
     set_text_color(1);
@@ -74,29 +58,11 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
 
     __asm__ volatile("sti");
 
-    struct multiboot_info* mbi = (struct multiboot_info*) mb_info_addr;
+    mbi = (struct multiboot_info*) mb_info_addr;
 
     main_screen(magic, mb_info_addr, mbi);
 
     //run setup
-    setup.main();
-
-    //degug info
-    if (mbi->flags & 0x01) {
-        unsigned long total_mem_kb = mbi->mem_lower + mbi->mem_upper;
-        print("Memory stat:\n");
-        print("  Lower (conventional): ");
-        printnumber(mbi->mem_lower);
-        print(" KB\n");
-        print("  Upper (extended): ");
-        printnumber(mbi->mem_upper);
-        print(" KB\n");
-        print("  Total: ");
-        printnumber(total_mem_kb);
-        print(" KB (");
-        printnumber(total_mem_kb / 1024);
-        print(" MB)\n\n");
-    }
 
     //init
     heap_init();
@@ -106,7 +72,7 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     // mouse_init(); в пизду мышку бля
 
     //
-
+    setup.main();
     $ = console.main();
     print("\n");
     printnumber($);

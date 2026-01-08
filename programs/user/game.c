@@ -1,4 +1,5 @@
-#include "oslib.h"
+#include <oslib.h>
+#include <string.h>
 #include <stddef.h>
 
 #define MAP_WIDTH 79

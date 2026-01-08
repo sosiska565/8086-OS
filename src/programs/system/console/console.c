@@ -20,6 +20,7 @@ void execute_command(char **tokens) {
 }
 
 int console_main(void) {
+    cmd_readsystemcfg((char **){NULL});
     cmd_box((char **){NULL});
     console.should_exit = 0;
 

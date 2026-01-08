@@ -77,6 +77,8 @@ void strcpy(char *s1, char *s2);
 void *memset(void *ptr, int value, size_t num);
 char* toupper(char *str);
 char toupper_char(char c);
+void set_current_color(vga_color_t color);
+int strlen(char *str);
 
 //псевдо графика
 void draw_text_box_ex(char* lines[], char* title, 
