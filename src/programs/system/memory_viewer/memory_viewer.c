@@ -7,7 +7,7 @@ static const char *hex_chars = "0123456789ABCDEF";
 static int main(void){
     disable_cursor();
 
-    uint32_t address = 0x100000;
+    uint32_t address = 0x0;
     int bytes_to_show = 20;
     int bytes_per_line = 17;
 

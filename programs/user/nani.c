@@ -6,25 +6,49 @@
 #define SCREEN_HEIGHT 25
 #define VIEW_HEIGHT (SCREEN_HEIGHT - 2) 
 
-#define MAX_FILE_SIZE 40000 
+#define INITIAL_CAPACITY 1024 
 
 uint8_t *file_data;
 int file_size;
+int buffer_capacity;
+
 int *line_offsets;
 int total_lines = 0;
+int line_index_capacity = 0;
 
 int scroll_offset = 0;
+int col_offset = 0; 
 int cursor_x = 0;
 int cursor_y = 0;
 
+void ensure_capacity(int required_size) {
+    if (required_size >= buffer_capacity) {
+        int new_capacity = buffer_capacity * 2;
+        if (new_capacity < required_size) new_capacity = required_size + 1024;
+
+        uint8_t *new_data = (uint8_t*)malloc(new_capacity);
+        
+        if (new_data == 0) return; 
+
+        for(int i = 0; i < file_size; i++) new_data[i] = file_data[i];
+
+        if (file_data) free(file_data);
+
+        file_data = new_data;
+        buffer_capacity = new_capacity;
+    }
+}
+
 void build_line_index(void) {
-    if (line_offsets) free(line_offsets);
-    line_offsets = (int*)malloc((MAX_FILE_SIZE) * 4);
-    
+    int needed_cap = (file_size + 2) * 4;
+    if (line_offsets == 0 || needed_cap > line_index_capacity) {
+        if (line_offsets) free(line_offsets);
+        line_index_capacity = needed_cap + 1024;
+        line_offsets = (int*)malloc(line_index_capacity);
+    }
     total_lines = 0;
     line_offsets[0] = 0;
     total_lines++;
-
     for (int i = 0; i < file_size; i++) {
         if (file_data[i] == '\n') {
             line_offsets[total_lines] = i + 1;
@@ -38,10 +62,8 @@ int get_line_length(int line_idx) {
     if (line_idx >= total_lines) return 0;
     int start = line_offsets[line_idx];
     int end;
-    
     if (line_idx + 1 < total_lines) end = line_offsets[line_idx + 1] - 1;
     else end = file_size;
-    
     if (end > start && file_data[end-1] == '\n') end--;
     return end - start;
 }
@@ -54,50 +76,34 @@ int get_buffer_index(int x, int y) {
 }
 
 void insert_char(char c) {
-    if (file_size >= MAX_FILE_SIZE - 1) return;
-
+    ensure_capacity(file_size + 1);
     int idx = get_buffer_index(cursor_x, cursor_y);
-
-    for (int i = file_size; i > idx; i--) {
-        file_data[i] = file_data[i-1];
-    }
-
+    for (int i = file_size; i > idx; i--) file_data[i] = file_data[i-1];
     file_data[idx] = c;
     file_size++;
-    
-    if (c == '\n') {
-        cursor_y++;
-        cursor_x = 0;
-    } else {
-        cursor_x++;
-    }
+    if (c == '\n') { cursor_y++; cursor_x = 0; } else { cursor_x++; }
     build_line_index();
 }
 
 void delete_char_backspace() {
     if (cursor_x == 0 && cursor_y == 0) return;
-
     int idx = get_buffer_index(cursor_x, cursor_y) - 1;
-    
-    if (file_data[idx] == '\n') {
-        cursor_y--;
-        cursor_x = get_line_length(cursor_y);
-    } else {
-        cursor_x--;
-    }
-
-    for (int i = idx; i < file_size - 1; i++) {
-        file_data[i] = file_data[i+1];
-    }
-    
+    if (file_data[idx] == '\n') { cursor_y--; cursor_x = get_line_length(cursor_y); } else { cursor_x--; }
+    for (int i = idx; i < file_size - 1; i++) file_data[i] = file_data[i+1];
     file_size--;
     build_line_index();
 }
 
 void draw_interface(char *filename) {
+    char buffer[32];
+    char footer[128];
+    itoa(buffer_capacity / 1024, buffer, 10);
+    strcpy(footer, "[F2] Save  [Esc] Quit  Typing: Enabled, MEM: ");
+    strcat(footer, buffer);
+    strcat(footer, "KB");
     set_cursor_position(0, 0);
     print_header(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_YELLOW, filename);
-    print_footer(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_YELLOW, "[F2] Save  [Esc] Quit  Typing: Enabled");
+    print_footer(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_YELLOW, footer);
 }
 
 void draw_content(void) {
@@ -118,10 +124,13 @@ void draw_content(void) {
         int start_pos = line_offsets[current_line_idx];
         int len = get_line_length(current_line_idx);
 
-        for (int j = 0; j < len && j < SCREEN_WIDTH; j++) {
+        int printed_chars = 0;
+        
+        for (int j = col_offset; j < len && printed_chars < SCREEN_WIDTH; j++) {
             char c = file_data[start_pos + j];
             if (c >= 32) print_char(c);
             else print_char(' ');
+            printed_chars++;
         }
     }
 }
@@ -133,11 +142,15 @@ void update_cursor_logic() {
     if (cursor_y < scroll_offset) {
         scroll_offset = cursor_y;
     }
+    if (cursor_x >= col_offset + SCREEN_WIDTH) {
+        col_offset = cursor_x - SCREEN_WIDTH + 1;
+    }
+    if (cursor_x < col_offset) {
+        col_offset = cursor_x;
+    }
 
-    int screen_x = cursor_x;
+    int screen_x = cursor_x - col_offset;
     int screen_y = cursor_y - scroll_offset + 1;
-
-    if (screen_x > SCREEN_WIDTH - 1) screen_x = SCREEN_WIDTH - 1;
 
     set_cursor_position(screen_x, screen_y);
 }
@@ -148,18 +161,29 @@ void main(int argc, char **argv){
         return;
     }
 
-    file_data = (uint8_t*)malloc(MAX_FILE_SIZE);
-    for(int i=0; i<MAX_FILE_SIZE; i++) file_data[i] = 0;
-
     int size = get_file_size(argv[1]);
+    
     if(size > 0) {
-        read_file(argv[1], file_data);
+        buffer_capacity = size + 1024;
+        file_data = (uint8_t*)malloc(buffer_capacity);
+        if(!file_data) { print("Out of memory\n"); return; }
+        
+        read_file(argv[1], file_data); 
         file_size = size;
     } else {
+        buffer_capacity = INITIAL_CAPACITY;
+        file_data = (uint8_t*)malloc(buffer_capacity);
+        if(!file_data) { print("Out of memory\n"); return; }
+        
         file_size = 0;
     }
 
+    line_offsets = 0;
+    line_index_capacity = 0;
     build_line_index();
+
+    col_offset = 0;
+
     cls();
 
     while(1){
@@ -171,11 +195,11 @@ void main(int argc, char **argv){
 
         if(scancode == 0x01) break;
 
-        if(scancode == 0x3C) {
+        else if(scancode == 0x3C) {
             write_file(argv[1], file_data, file_size);
             
             set_cursor_position(60, 0);
-            print_colored("SAVED!", VGA_COLOR_GREEN);
+            print_colored("SAVED!", VGA_COLOR(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_LIGHT_BLUE));
             for(volatile int k=0; k<500000000; k++);
         }
 
@@ -195,7 +219,7 @@ void main(int argc, char **argv){
         }
         else if(scancode == 0x4B) {
             if (cursor_x > 0) cursor_x--;
-            else if (cursor_y > 0) {
+            else if (cursor_y > 0) { 
                 cursor_y--;
                 cursor_x = get_line_length(cursor_y);
             }
@@ -208,6 +232,7 @@ void main(int argc, char **argv){
                 cursor_x = 0;
             }
         }
+        
         else if(scancode == 0x0E) {
             delete_char_backspace();
         }
@@ -223,6 +248,6 @@ void main(int argc, char **argv){
     }
 
     cls();
-    free(file_data);
-    free(line_offsets);
+    if(file_data) free(file_data);
+    if(line_offsets) free(line_offsets);
 }

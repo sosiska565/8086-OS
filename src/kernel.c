@@ -14,6 +14,9 @@
 #include "fs/fat/fat32.h"
 #include "drivers/mouse/mouse.h"
 #include "utils/utils.h"
+#include "drivers/pci/pci.h"
+#include "drivers/video/bga/bga.h"
+#include "drivers/video/bga/gfx_console.h"
 
 #include "drivers/file/ATA/ATA.h"
 
@@ -21,35 +24,14 @@ unsigned short isReadMode;
 int $;
 char* path = "/";
 struct multiboot_info* mbi;
+int graphic_mode = 1;
 
-void main_screen(unsigned long magic, unsigned long mb_info_addr, struct multiboot_info* mbi){
-    clear_screen();
-
-    beep_timed(1000, 10000);
-
+void kmain(unsigned long magic, unsigned long mb_info_addr){
+    //init
     if(magic != 0x2BADB002){
         panic("Magic value is not correct");
     }
 
-    set_text_color(1);
-    printn(" ::::::::   :::::::   ::::::::   ::::::::                 ::::::::   ::::::::");
-    printn(":+:    :+: :+:   :+: :+:    :+: :+:    :+:               :+:    :+: :+:    :+:");
-    printn("+:+    +:+ +:+  :+:+ +:+    +:+ +:+                      +:+    +:+ +:+");
-    printn(" +#++:++#  +#+ + +:+  +#++:++#  +#++:++#+  +#++:++#++:++ +#+    +:+ +#++:++#++");
-    set_text_color(9);
-    printn("+#+    +#+ +#+#  +#+ +#+    +#+ +#+    +#+               +#+    +#+        +#+");
-    printn("#+#    #+# #+#   #+# #+#    #+# #+#    #+#               #+#    #+# #+#    #+#");
-    printn(" ########   #######   ########   ########                 ########   ########");
-    set_text_color(7);
-
-    printn("\nWelcome to 8086-OS!\n");
-    printn("Press any key...\n");
-    getch();
-    clear_screen();
-}
-
-void kmain(unsigned long magic, unsigned long mb_info_addr){
-    //init
     clear_screen();
     pic_remap();
     idt_install();
@@ -60,8 +42,6 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
 
     mbi = (struct multiboot_info*) mb_info_addr;
 
-    main_screen(magic, mb_info_addr, mbi);
-
     //run setup
 
     //init
@@ -70,12 +50,12 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     fat32_init();
     srand(get_ticks());
     // mouse_init(); в пизду мышку бля
-
-    //
+    
     setup.main();
-    $ = console.main();
-    print("\n");
-    printnumber($);
 
+    pci_scan();
+
+    if(graphic_mode == 2 && isReadMode == 1) init_bga(800, 600);
+    console.main();
     return;
 }

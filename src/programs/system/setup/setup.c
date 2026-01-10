@@ -13,8 +13,7 @@ char slave[256];
 
 Config *cfg;
 
-static int main(void){
-    //read cfg
+void diskStage(void){
     int file_size = fat32_get_file_size("kernel.cfg");
 
     if(file_size <= 0){
@@ -33,7 +32,7 @@ static int main(void){
 
     if(isfirststart){
         if(strcmp(isfirststart, "false") == 0){
-            return 0;
+            return;
         }
     } else {
         panic("kernel.cfg damaged");
@@ -44,19 +43,18 @@ static int main(void){
     clear_screen();
 
     print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "SETUP");
-    print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "Welcome to 8086-OS!");
     print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "DISKS");
     ata_identify(ATA_MASTER, &ds);
     strcpy(master, ds.name);
     ata_identify(ATA_SLAVE, &ds);
     strcpy(slave, ds.name);
-    print("\n");
+    printf("\n");
     draw_text_box_ex((char*[]){
         master,
         slave,
         NULL
     }, "Disks list", 1, 1, 1, 1, VGA_COLOR_LIGHT_GREY, VGA_COLOR_LIGHT_GREY, VGA_COLOR_WHITE, 1);
-    print("\n");
+    printf("\n");
     draw_text_box_ex((char*[]){
         "1. read only (OS can`t write data into disks),",
         "2. read/write (OS can write data into disks),",
@@ -77,10 +75,10 @@ static int main(void){
         config_set_value(cfg, "is_read_only_mode", "false");
 
     if (isReadMode == 0) {
-        print("\nSaving configuration...\n");
+        printf("\nSaving configuration...\n");
         config_save("kernel.cfg", cfg);
     } else {
-        print("\nRead-only mode selected. Config NOT updated.\n");
+        printf("\nRead-only mode selected. Config NOT updated.\n");
         for(volatile int i=0; i<50000000; i++);
     }
 
@@ -90,7 +88,67 @@ static int main(void){
     
     config_free(cfg);
     kfree(file_buffer);
+}
 
+void graphicmodeStage(void){
+    clear_screen();
+    int file_size = fat32_get_file_size("kernel.cfg");
+
+    if(file_size <= 0){
+        panic("kernel.cfg not found!");
+    }
+
+    uint8_t *file_buffer = (uint8_t*)kmalloc(file_size + 512);
+
+    for(int i=0; i<file_size; i++) file_buffer[i] = 0;
+
+    fat32_read_file("kernel.cfg", file_buffer);
+
+    cfg = config_parse((char *)file_buffer);
+
+    char *value = config_get_value(cfg, "graphic_mode");
+
+    print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "SETUP");
+    print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "GRAPHIC MODE ");
+    printf("\n");
+
+    draw_text_box_ex(
+        (char*[]){
+            "1. text mode,",
+            "2. graphic mode 800x600,",
+            "(default 1)",
+            NULL
+        }, "Please select a graphic mode", 
+        1, 1, 1, 1, 
+        VGA_COLOR_LIGHT_GREY, VGA_COLOR_LIGHT_GREY, VGA_COLOR_WHITE,
+        1
+    );
+
+    char c = getch();
+    if(c == '1') {
+        graphic_mode = 1;
+        config_set_value(cfg, "graphic_mode", "false");
+        config_save("kernel.cfg", cfg);
+    }
+    else if(c == '2') {
+        graphic_mode = 2;
+        config_set_value(cfg, "graphic_mode", "true");
+        config_save("kernel.cfg", cfg);
+    }
+    else {
+        graphic_mode = 1;
+        config_set_value(cfg, "graphic_mode", "false");
+        config_save("kernel.cfg", cfg);
+    }
+
+    clear_screen();
+    config_free(cfg);
+    kfree(file_buffer);
+}
+
+static int main(void){
+    diskStage();
+    graphicmodeStage();
     return 0;
 }
 

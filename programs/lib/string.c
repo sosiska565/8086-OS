@@ -49,6 +49,24 @@ void strcpy(char *dst, char *src){
     dst[i] = '\0';
 }
 
+char *strcat(char *dest, const char *src) {
+    char *original_dest = dest;
+    
+    while (*dest != '\0') {
+        dest++;
+    }
+    
+    while (*src != '\0') {
+        *dest = *src;
+        dest++;
+        src++;
+    }
+    
+    *dest = '\0';
+    
+    return original_dest;
+}
+
 void itoa(int n, char* buffer, int base) {
     int i = 0;
     if (n == 0) { buffer[0] = '0'; buffer[1] = 0; return; }

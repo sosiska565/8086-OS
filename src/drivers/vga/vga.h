@@ -79,6 +79,7 @@ char* toupper(char *str);
 char toupper_char(char c);
 void set_current_color(vga_color_t color);
 int strlen(char *str);
+void printf(const char* format, ...);
 
 //псевдо графика
 void draw_text_box_ex(char* lines[], char* title, 

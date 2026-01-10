@@ -1,6 +1,10 @@
 #include "drivers/vga/vga.h"
 #include "drivers/io/io.h"
+#include "drivers/video/bga/bga.h"
+#include "drivers/video/bga/gfx_console.h"
 #include <stddef.h>
+#include <stdarg.h>
+#include "global.h"
 
 #define LINES 25
 #define COLUMNS_IN_LINE 80
@@ -14,6 +18,9 @@
 #define CURSOR_LOCATION_LOW  0x0F
 #define CURSOR_START_REG     0x0A
 #define CURSOR_END_REG       0x0B
+
+#define DEF_COLOR_TEXT 0x07
+#define DEF_COLOR_GFX  0x00FFFFFF
 
 unsigned int current_loc = 0;
 char *vidptr = (char*) 0xb8000;
@@ -470,6 +477,111 @@ char toupper_char(char c) {
 
 void set_current_color(vga_color_t color){
     current_color = color;
+} 
+
+void _putchar(char c) {
+    if (graphic_mode == 2) {
+        if (video_memory != 0) {
+            gfx_putc(c);
+        }
+    } else {
+        print_char(c);
+    }
+}
+
+void _puts(const char* str) {
+    while(*str) {
+        _putchar(*str++);
+    }
+}
+
+void _print_number(int n, int base, int is_signed) {
+    char buffer[64];
+    int i = 0;
+    int is_neg = 0;
+
+    if (is_signed && n < 0 && base == 10) {
+        is_neg = 1;
+        n = -n;
+    }
+
+    if (n == 0) {
+        _putchar('0');
+        return;
+    }
+
+    unsigned int un = (unsigned int)n;
+    
+    while (un > 0) {
+        int remainder = un % base;
+        if (remainder >= 10) {
+            buffer[i++] = (remainder - 10) + 'A';
+        } else {
+            buffer[i++] = remainder + '0';
+        }
+        un /= base;
+    }
+
+    if (is_neg) {
+        _putchar('-');
+    }
+
+    while (--i >= 0) {
+        _putchar(buffer[i]);
+    }
+}
+
+void _set_console_color(unsigned int color) {
+    if (graphic_mode == 2) {
+        gfx_set_color(color);
+    } else {
+        set_text_color((uint8_t)color);
+    }
+}
+
+void printf(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+
+    while (*format != '\0') {
+        if (*format == '%') {
+            format++;
+            switch (*format) {
+                case 'c': _putchar((char)va_arg(args, int)); break;
+                case 's': {
+                    char* s = va_arg(args, char*);
+                    _puts(s ? s : "(null)"); 
+                    break;
+                }
+                case 'd': 
+                case 'i': _print_number(va_arg(args, int), 10, 1); break;
+                case 'u': _print_number(va_arg(args, unsigned int), 10, 0); break;
+                case 'x': 
+                case 'X': 
+                    _puts("0x"); 
+                    _print_number(va_arg(args, unsigned int), 16, 0); 
+                    break;
+                case 'b': 
+                    _puts("0b"); 
+                    _print_number(va_arg(args, unsigned int), 2, 0); 
+                    break;
+                case 'C': _set_console_color(va_arg(args, unsigned int)); break; // Цвет
+                case '%': _putchar('%'); break;
+                default:  _putchar('%'); _putchar(*format); break;
+            }
+        } else {
+            _putchar(*format);
+        }
+        format++;
+    }
+
+    va_end(args);
+
+    if (graphic_mode == 2) {
+        _set_console_color(DEF_COLOR_GFX);
+    } else {
+        _set_console_color(DEF_COLOR_TEXT);
+    }
 }
 
 //псевдо графика

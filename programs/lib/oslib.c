@@ -207,3 +207,11 @@ char scancode_to_ascii(uint8_t scancode){
     );
     return c;
 }
+
+void my_memcpy(void* dest, void* src, int size) {
+    uint8_t* d = (uint8_t*)dest;
+    uint8_t* s = (uint8_t*)src;
+    for(int i = 0; i < size; i++) {
+        d[i] = s[i];
+    }
+}

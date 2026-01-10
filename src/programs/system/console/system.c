@@ -13,6 +13,7 @@
 #include "multiboot.h"
 #include "utils/utils.h"
 #include "global.h"
+#include "drivers/video/bga/bga.h"
 
 #define PROGRAM_LOAD_ADDRES 0x300000
 
@@ -59,41 +60,40 @@ void register_commands(void) {
 }
 
 void cmd_colortest(char **tokens) {
-    char *processor;
+    unsigned long long total_mem_kb = (unsigned long long)mbi->mem_lower + mbi->mem_upper;
+    char processor[13];
     get_cpu_vendor(processor);
-    print("            .-\"\"\"-.");
-    print_colored("     OS:", VGA_COLOR(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK));
-    print("8086-OS V0.5");
-    printn("           '       \\");
-    print_colored("     CPU: ", VGA_COLOR(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK));
-    print(processor);
-    printn("          |,.  ,-.  |");
-    print_colored("     RAM:", VGA_COLOR(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK));
-    printnumber(mbi->mem_lower + mbi->mem_upper / 1024);
-    print("KB");
-    printn("          |()L( ()| |");
-    print("     ");
+    printf("            .-\"\"\"-.");
+    printf("     OS:");
+    printf("8086-OS V0.5");
+    printf("\n           '       \\");
+    printf("     CPU: ");
+    printf("%s", processor);
+    printf("\n          |,.  ,-.  |");
+    printf("     RAM: %d MB", (int)(total_mem_kb / 1024));
+    printf("\n          |()L( ()| |");
+    printf("     ");
     for(int i = 0; i < 8; i++) {
-        print_colored("█", VGA_COLOR(i, i));
+        printf("%C%c", VGA_COLOR(i, i), 0xDB);
     }
-    printn("          |,'  `\".| |");
-    print("     ");
+    printf("\n          |,'  `\".| |");
+    printf("     ");
     for(int i = 8; i < 16; i++) {
-        print_colored("█", VGA_COLOR(i, i));
+        printf("%C%c", VGA_COLOR(i, i), 0xDB);
     }
-    printn("          |.___.',| `");
-    printn("         .j `--\"' `  `.");
-    printn("        / '        '   \\");
-    printn("       / /          `   `.");
-    printn("      / /            `    .");
-    printn("     / /              l   |");
-    printn("    . ,               |   |");
-    printn("    ,\"`.             .|   |");
-    printn(" _.'   ``.          | `..-'l");
-    printn("|       `.`,        |      `.");
-    printn("|         `.    __.j         )");
-    printn("|__        |--\"\"___|      ,-'");
-    printn("   `\"--...,+\"\"\"\"   `._,.-'");
+    printf("\n          |.___.',| `");
+    printf("\n         .j `--\"' `  `.");
+    printf("\n        / '        '   \\");
+    printf("\n       / /          `   `.");
+    printf("\n      / /            `    .");
+    printf("\n     / /              l   |");
+    printf("\n    . ,               |   |");
+    printf("\n    ,\"`.             .|   |");
+    printf("\n _.'   ``.          | `..-'l");
+    printf("\n|       `.`,        |      `.");
+    printf("\n|         `.    __.j         )");
+    printf("\n|__        |--\"\"___|      ,-'");
+    printf("\n   `\"--...,+\"\"\"\"   `._,.-'");
     
     print("\n");
 }
@@ -504,18 +504,14 @@ void cmd_exec(char **tokens){
 }
 
 void cmd_mkfile(char **tokens) {
-    if (!tokens[1] || !tokens[2]) {
+    if (!tokens[1]) {
         print("Usage: mkfile <name> <text>\n");
         return;
     }
     
     char* filename = tokens[1];
-    char* text = tokens[2];
     
-    int len = 0;
-    while(text[len]) len++;
-    
-    if (fat32_write_file(filename, (uint8_t*)text, len) == 1) {
+    if (fat32_write_file(filename, "", 0) == 1) {
         print("File created successfully!\n");
     } else {
         print("Error creating file.\n");
@@ -546,6 +542,15 @@ void cmd_readsystemcfg(char **tokens) {
         isReadMode = 1;
     } else {
         isReadMode = 0;
+    }
+
+    if(strcmp(config_get_value(cfg, "graphic_mode"), "true") == 0){
+        set_video_mode(VIDEO_MODE_GRAPHICS);
+        clear_screen_bga(0x00000000);
+        graphic_mode = 2;
+    } else {
+        set_video_mode(VIDEO_MODE_TEXT);
+        graphic_mode = 1;
     }
 
     print("read mode: ");

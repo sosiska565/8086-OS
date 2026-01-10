@@ -4,5 +4,6 @@
 extern int $;
 extern unsigned short isReadMode;
 extern char* path;
+extern int graphic_mode;
 
 #endif

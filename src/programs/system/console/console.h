@@ -11,13 +11,12 @@ typedef struct {
 
 typedef struct {
     int (*main)(void);
-    int should_exit;
+    int should_exit
 } Console;
 
 extern command_t commands[]; 
 
 void execute_command(char **tokens);
-int console_main(void);
 
 extern Console console;
 

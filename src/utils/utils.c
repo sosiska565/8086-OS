@@ -41,10 +41,10 @@ void get_cpu_vendor(char *buffer) {
 void panic(char *err){
     set_text_color(4);
     clear_screen();
-    printn("Kernel panic!\n");
-    print("Err: ");
-    print(err);
-    printn("System will reboot in 5 seconds...\n");
+    printf("\nKernel panic!\n");
+    printf("Err: ");
+    printf("%d", err);
+    printf("\nSystem will reboot in 5 seconds...\n");
     unsigned long newTick = get_ticks() + 9100;
 
     while(get_ticks() < newTick);

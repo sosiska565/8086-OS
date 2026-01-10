@@ -7,6 +7,7 @@ void print_header(int header_bg_color, int header_text_color, char *title);
 void print_footer(int footer_bg_color, int footer_text_color, char *text);
 void strcpy(char *dst, char *src);
 void itoa(int n, char* buffer, int base);
+char *strcat(char *dest, const char *src);
 
 //псевдо графика
 
