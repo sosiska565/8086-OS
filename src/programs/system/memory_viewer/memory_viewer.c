@@ -24,24 +24,24 @@ static int main(void){
             for(int j = 3; j >= 0; j--) {
                 print_char(hex_chars[(current_addr >> (j*4)) & 0x0F]);
             }
-            print(": ");
+            printf(": ");
             
             set_text_color(VGA_COLOR_LIGHT_GREEN);
             for(int i = 0; i < bytes_per_line; i++) {
                 uint8_t value = *((uint8_t*)(current_addr + i));
                 print_char(hex_chars[(value >> 4) & 0x0F]);
                 print_char(hex_chars[value & 0x0F]);
-                print(" ");
+                printf(" ");
             }
 
             set_text_color(VGA_COLOR_LIGHT_BLUE);
-            print(" | ");
+            printf(" | ");
             for(int i = 0; i < bytes_per_line; i++) {
                 uint8_t value = *((uint8_t*)(current_addr + i));
                 set_text_color(VGA_COLOR_LIGHT_MAGENTA);
                 print_char(value >= 32 && value <= 126 ? value : '.');
             }
-            print("\n");
+            printf("\n");
         }
 
         print_footer(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, bottominfo);
@@ -57,7 +57,7 @@ static int main(void){
             int i = 0;
             
             enable_cursor();
-            print("Bytes per line: ");
+            printf("Bytes per line: ");
             gets(buffer, sizeof(buffer));
             
             int n = 0;

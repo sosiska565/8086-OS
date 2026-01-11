@@ -37,8 +37,9 @@ C_FILES = src/kernel.c \
 	src/drivers/mouse/mouse.c \
 	src/utils/utils.c \
 	src/drivers/pci/pci.c \
-	src/drivers/video/bga/bga.c \
-	src/drivers/video/bga/gfx_console.c
+	src/drivers/video/bga/gfx_console.c \
+	src/drivers/video/graphics.c \
+	src/drivers/video/vesa.c
 
 ASM_FILES = boot/kernel.asm boot/gdt.asm src/interrupt/interrupts.asm
 

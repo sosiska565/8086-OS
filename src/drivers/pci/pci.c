@@ -9,7 +9,7 @@ uint32_t pci_read(uint8_t bus, uint8_t device, uint8_t func, uint8_t offset){
 }
 
 void pci_scan(void){
-    print("PCI scanning...\n");
+    printf("PCI scanning...\n");
 
     for(uint16_t bus = 0; bus < 256; bus++){
         for(uint8_t dev = 0; dev < 32; dev++){
@@ -20,23 +20,23 @@ void pci_scan(void){
 
             if(vendor_id == 0xFFFF) continue;
 
-            print("Found device! Bus: ");
+            printf("Found device! Bus: ");
             printnumber(bus);
-            print(" device: ");
+            printf(" device: ");
             printnumber(dev);
-            print(" [Vendor: ");
+            printf(" [Vendor: ");
             printhex(vendor_id);
-            print(" Device: ");
+            printf(" Device: ");
             printhex(device_id);
 
             uint32_t class_reg = pci_read(bus, dev, 0, 0x08);
             uint8_t class_code = (class_reg >> 24) & 0xFF;
             uint8_t subclass = (class_reg >> 16) & 0xFF;
             
-            print(" Class: ");
+            printf(" Class: ");
             printhex(class_code);
-            print("]");
-            print("\n");
+            printf("]");
+            printf("\n");
         }
     }
 }

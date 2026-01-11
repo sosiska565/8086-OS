@@ -8,13 +8,10 @@
 extern command_t commands[];
 
 void cmd_colortest(char **tokens);
-void cmd_banner(char **tokens);
-void cmd_sysinfo(char **tokens);
 void cmd_echo(char **tokens);
 void cmd_calc(char **tokens);
 void cmd_time(char **tokens);
 void cmd_ascii(char **tokens);
-void cmd_box(char **tokens);
 void cmd_settextcolor(char **tokens);
 void cmd_help(char **tokens);
 void cmd_setbgcolor(char** tokens);

@@ -8,30 +8,30 @@ void initrd_files(struct multiboot_info* mbi){
         return;
     }
 
-    print("Modules found: ");
+    printf("Modules found: ");
     printnumber(mbi->mods_count);
     printn_void();
 
     struct multiboot_module* mod = (struct multiboot_module*) mbi->mods_addr;
 
     for(unsigned int i = 0; i < mbi->mods_count; i++){
-        print("Module ");
+        printf("Module ");
         printnumber(i);
-        print(" loaded at: ");
+        printf(" loaded at: ");
         printhex(mod[i].mod_start);
-        print(" - ");
+        printf(" - ");
         printhex(mod[i].mod_end);
 
-        print(" Name: ");
-        print((char*)mod[i].string);
+        printf(" Name: ");
+        printf((char*)mod[i].string);
         printn_void();
 
         char* file_content = (char*) mod[i].mod_start;
-        print("Content prev: ");
+        printf("Content prev: ");
         for(int k = 0; k < 10; k++){
             char c = file_content[k];
             char str[2] = {c, '\0'};
-            print(str);
+            printf(str);
         }
         printn_void();
 

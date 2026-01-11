@@ -5,7 +5,7 @@
 #include "programs/system/console/system.h"
 #include "utils/utils.h"
 #include "drivers/video/bga/gfx_console.h"
-#include "drivers/video/bga/bga.h"
+#include "drivers/video/vesa.h"
 
 #define HISTORY_SIZE 10
 #define CMD_MAX_LEN 100
@@ -36,11 +36,12 @@ void add_to_history(const char* cmd) {
 
 void clear_current_line(int len) {
     for (int i = 0; i < len; i++) {
-        print("\b \b");
+        printf("\b \b");
     }
 }
 
 void execute_command(char **tokens) {
+    printf("\n");
     if(!tokens[0]) return;
     
     for(int i = 0; commands[i].name != NULL; i++) {
@@ -50,45 +51,26 @@ void execute_command(char **tokens) {
         }
     }
     
-    print_colored("Unknown command: ", VGA_COLOR(VGA_COLOR_RED, VGA_COLOR_BLACK));
-    print(tokens[0]);
-    print("\n");
+    printf("Unknown command: %s\n", 
+           tokens[0]);
 }
 
-void gfx_console_main(void){
-    cmd_readsystemcfg((char **){NULL});
-
-    init_gfx_console();
-
-    //
-    clear_screen_bga(0x00000000);
-
-    // cmd_colortest((char **){NULL});
-
-    printf("HI");
-
-    while(1);
-
-    while(1){
-        char c = getch();
-        printf("%c", c);
-    }
-}
 
 int console_main(void) {
-    if(graphic_mode == 2) gfx_console_main();
-
     char *empty_args[] = {NULL};
-    cmd_readsystemcfg(empty_args);
-    cmd_box(empty_args);
+    
+    init_gfx_console();
+    clear_screen_vesa(0x00000000);
+    
+    cmd_colortest(empty_args);
+    printf("\n");
     
     console.should_exit = 0;
 
     while(!console.should_exit) {
         keyboard_flush();
-        enable_cursor();
-        print(path);
-        print("> ");
+        
+        printf("%s> ", path);
 
         char command[CMD_MAX_LEN];
         memset(command, 0, CMD_MAX_LEN);
@@ -101,7 +83,7 @@ int console_main(void) {
 
             if (scancode == 0x1C) {
                 command[pos] = '\0';
-                print("\n");
+                printf("\n");
                 add_to_history(command);
                 break;
             }
@@ -110,20 +92,17 @@ int console_main(void) {
                 if (pos > 0) {
                     pos--;
                     command[pos] = '\0';
-                    print("\b \b");
+                    printf("\b \b");
                 }
             }
 
             else if (scancode == 0x48) {
                 if (history_browse_idx > 0) {
                     clear_current_line(pos);
-                    
                     history_browse_idx--;
-                    
                     strcpy(command, history[history_browse_idx]);
                     pos = strlen(command);
-                    
-                    print(command);
+                    printf(command);
                 }
             }
 
@@ -138,7 +117,7 @@ int console_main(void) {
                     } else {
                         strcpy(command, history[history_browse_idx]);
                         pos = strlen(command);
-                        print(command);
+                        printf(command);
                     }
                 }
             }
@@ -151,7 +130,7 @@ int console_main(void) {
                 if (c != 0 && pos < CMD_MAX_LEN - 1) {
                     command[pos] = c;
                     pos++;
-                    print_char(c);
+                    printf("%c", c);
                 }
             }
         }
@@ -162,7 +141,6 @@ int console_main(void) {
         execute_command(tokens);
     }
     
-    disable_cursor();
     return 0;
 }
 

@@ -18,21 +18,21 @@ void find_bga_pci(void){
         for(uint8_t dev = 0; dev < 32; dev++) {
             uint32_t id = pci_read(bus, dev, 0, 0);
             if ((id & 0xFFFF) == 0x1234 && (id >> 16) == 0x1111) {
-                print("BGA Found!\n");
+                printf("BGA Found!\n");
                 
                 uint32_t bar0 = pci_read(bus, dev, 0, 0x10);
                 
                 video_memory = (uint32_t*)(bar0 & 0xFFFFFFF0);
                 
-                print("LFB Address: ");
+                printf("LFB Address: ");
                 printhex((uint32_t)video_memory);
-                print("\n");
+                printf("\n");
                 return;
             }
         }
     }
 
-    print("Error: BGA Device not found!\n");
+    printf("Error: BGA Device not found!\n");
 }
 
 void init_bga(int width, int height){
@@ -104,4 +104,12 @@ void bga_print_string(int x, int y, char* str, uint32_t color) {
         bga_draw_char(cursor_x, cursor_y, str[i], color, 0);
         cursor_x += 8;
     }
+}
+
+int getScreenWidth(void){
+    return screenW;
+}
+
+int getScreenHeight(void){
+    return screenH;
 }

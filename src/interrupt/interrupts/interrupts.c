@@ -13,7 +13,7 @@ void system_division_handler_c(struct interrupt_frame *frame){
     print_info("ERROR", "Division by zero.\n", VGA_COLOR_RED, VGA_COLOR_LIGHT_GREY);
     print_info("INFO", "Location: ", VGA_COLOR_YELLOW, VGA_COLOR_LIGHT_GREY);
     printhex(frame->rip);
-    print("\n");
+    printf("\n");
     
     frame->rip += 2;
 }

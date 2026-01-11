@@ -1,4 +1,5 @@
 #include <oslib.h>
+#include <stdarg.h>
 
 void print_char(char c){
     __asm__ volatile(
@@ -214,4 +215,36 @@ void my_memcpy(void* dest, void* src, int size) {
     for(int i = 0; i < size; i++) {
         d[i] = s[i];
     }
+}
+
+int getScreenWidth(void){
+    int width;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(width)
+        : "a"(22)
+    );
+    return width;
+}
+
+int getScreenHeight(void){
+    int height;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(height)
+        : "a"(23)
+    );
+    return height;
+}
+
+void printf(const char* format, ...){
+    va_list args;
+    va_start(args, format);
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(24), "b"(format), "c"(args)
+    );
+
+    va_end(args);
 }

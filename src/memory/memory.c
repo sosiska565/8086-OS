@@ -10,7 +10,7 @@ typedef struct memory_block {
 static memory_block_t *heap_start = NULL;
 
 void heap_init(void){
-    print("Initializing heap...\n");
+    printf("Initializing heap...\n");
 
     heap_start = (memory_block_t*)HEAP_START;
 
@@ -18,13 +18,13 @@ void heap_init(void){
     heap_start->is_free = 1;
     heap_start->next = NULL;
 
-    print("Heap initialized at ");
+    printf("Heap initialized at ");
     printhex((unsigned int)HEAP_START);
-    print("\n");
+    printf("\n");
 
-    print("Heap size: ");
+    printf("Heap size: ");
     printnumber(HEAP_SIZE / 1024);
-    print(" KB\n");
+    printf(" KB\n");
 }
 
 void* kmalloc(size_t size){
@@ -85,33 +85,33 @@ void kfree(void* ptr){
 }
 
 void heap_dump(void) {
-    print("\n=== HEAP DUMP ===\n");
+    printf("\n=== HEAP DUMP ===\n");
     
     memory_block_t *current = heap_start;
     int block_num = 0;
     
     while(current != NULL) {
-        print("Block ");
-        printnumber(block_num);
-        print(": ");
+        printf("Block ");
+        printf("%d", block_num);
+        printf(": ");
         
         if(current->is_free) {
-            print_colored("FREE", VGA_COLOR(VGA_COLOR_GREEN, VGA_COLOR_BLACK));
+            printf("%s%C", "FREE", VGA_COLOR(VGA_COLOR_GREEN, VGA_COLOR_BLACK));
         } else {
-            print_colored("USED", VGA_COLOR(VGA_COLOR_RED, VGA_COLOR_BLACK));
+            printf("%s%C", "USED", VGA_COLOR(VGA_COLOR_RED, VGA_COLOR_BLACK));
         }
         
-        print("  Size: ");
-        printnumber(current->size);
-        print(" bytes");
+        printf("  Size: ");
+        printf("%d", current->size);
+        printf(" bytes");
         
-        print("  Addr: ");
-        printhex((uint32_t)current);
-        print("\n");
+        printf("  Addr: ");
+        printf("%X", (uint32_t)current);
+        printf("\n");
         
         current = current->next;
         block_num++;
     }
     
-    print("=================\n\n");
+    printf("=================\n\n");
 }

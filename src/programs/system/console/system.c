@@ -13,7 +13,6 @@
 #include "multiboot.h"
 #include "utils/utils.h"
 #include "global.h"
-#include "drivers/video/bga/bga.h"
 
 #define PROGRAM_LOAD_ADDRES 0x300000
 
@@ -27,7 +26,6 @@ command_t commands[] = {
     {"clear",         cmd_clear,         "Clear screen"},
     {"exit",          cmd_exit,          "Exit console"},
     
-    {"sysinfo",       cmd_sysinfo,       "System information"},
     {"time",          cmd_time,          "Show current time"},
     
     {"echo",          cmd_echo,          "Print text"},
@@ -37,7 +35,6 @@ command_t commands[] = {
     {"setbgcolor",    cmd_setbgcolor,    "Set background color (0-15)"},
     {"settextcolor",  cmd_settextcolor,  "Set text color (0-15)"},
     {"fetch",     cmd_colortest,     "Show OS info"},
-    {"banner",        cmd_banner,        "Show OS banner"},
     
     {"memview",       cmd_memview,       "Memory viewer"},
     {"kmalloc",       cmd_kmalloc,       "Allocate memory (kmalloc 256)"},
@@ -74,12 +71,12 @@ void cmd_colortest(char **tokens) {
     printf("\n          |()L( ()| |");
     printf("     ");
     for(int i = 0; i < 8; i++) {
-        printf("%C%c", VGA_COLOR(i, i), 0xDB);
+        printf("%C%c", VGA_COLOR(i, 0), '#');
     }
     printf("\n          |,'  `\".| |");
     printf("     ");
     for(int i = 8; i < 16; i++) {
-        printf("%C%c", VGA_COLOR(i, i), 0xDB);
+        printf("%C%c", VGA_COLOR(i, 0), '#');
     }
     printf("\n          |.___.',| `");
     printf("\n         .j `--\"' `  `.");
@@ -95,54 +92,30 @@ void cmd_colortest(char **tokens) {
     printf("\n|__        |--\"\"___|      ,-'");
     printf("\n   `\"--...,+\"\"\"\"   `._,.-'");
     
-    print("\n");
-}
-
-void cmd_banner(char **tokens) {
-    print("\n");
-    print("========================================\n");
-    print("     8086-OS Operating System          \n");
-    print("     Version 1.0.0                     \n");
-    print("     Type 'help' for commands          \n");
-    print("========================================\n");
-    print("\n");
-}
-
-void cmd_sysinfo(char **tokens) {
-    print("\nSystem Information:\n");
-    print("==================\n");
-    print("OS Name: 8086-OS\n");
-    print("Version: 1.0.0\n");
-    print("Architecture: x86 (16-bit)\n");
-    print("Video Mode: VGA Text Mode 80x25\n");
-    print("Available Commands: ");
-    int count = 0;
-    for(int i = 0; commands[i].name != NULL; i++) count++;
-    printnumber(count);
-    print("\n\n");
+    printf("\n");
 }
 
 void cmd_echo(char **tokens) {
     if (tokens[1] == 0) {
-        print("\n");
+        printf("\n");
         return;
     }
     
     int i = 1;
     while(tokens[i] != 0) {
-        print(tokens[i]);
+        printf(tokens[i]);
         if(tokens[i+1] != 0) {
-            print(" ");
+            printf(" ");
         }
         i++;
     }
-    print("\n");
+    printf("\n");
 }
 
 void cmd_calc(char **tokens) {
     if (!tokens[1] || !tokens[2] || !tokens[3]) {
-        print("Usage: calc <num1> <op> <num2>\n");
-        print("Operations: + - * /\n");
+        printf("Usage: calc <num1> <op> <num2>\n");
+        printf("Operations: + - * /\n");
         return;
     }
     
@@ -172,57 +145,57 @@ void cmd_calc(char **tokens) {
     } else if(op == '/') {
         result = num1 / num2;
     } else {
-        print("Unknown operation! Use + - * /\n");
+        printf("Unknown operation! Use + - * /\n");
         return;
     }
     
-    print("Result: ");
+    printf("Result: ");
     printnumber(result);
-    print("\n");
+    printf("\n");
 }
 
 void cmd_time(char **tokens) {
-    print("\nCurrent Time:\n");
-    print("============\n");
-    print("Time: ");
+    printf("\nCurrent Time:\n");
+    printf("============\n");
+    printf("Time: ");
     printnumber(rtc_get_time().hour);
-    print(":");
+    printf(":");
     printnumber(rtc_get_time().minute);
-    print(":");
+    printf(":");
     printnumber(rtc_get_time().second);
-    print("\nDate: ");
+    printf("\nDate: ");
     printnumber(rtc_get_time().day);
-    print("/");
+    printf("/");
     printnumber(rtc_get_time().month);
-    print("/");
+    printf("/");
     printnumber(rtc_get_time().year);
-    print("\n");
+    printf("\n");
 }
 
 void cmd_ascii(char **tokens) {
-    print("\nASCII Table (printable):\n");
-    print("========================\n");
+    printf("\nASCII Table (printable):\n");
+    printf("========================\n");
     
     for(int i = 32; i < 127; i++) {
         printnumber(i);
-        print(": ");
+        printf(": ");
         print_char((char)i);
-        print("  ");
+        printf("  ");
         
         if((i - 31) % 8 == 0) {
-            print("\n");
+            printf("\n");
         }
     }
-    print("\n");
+    printf("\n");
 }
 
 void cmd_box(char **tokens) {
-    print("\n");
-    print("+-------------------------------+\n");
-    print("|   Welcome to 8086-OS Console! |\n");
-    print("|   Type 'help' for commands!   |\n");
-    print("+-------------------------------+\n");
-    print("\n");
+    printf("\n");
+    printf("+-------------------------------+\n");
+    printf("|   Welcome to 8086-OS Console! |\n");
+    printf("|   Type 'help' for commands!   |\n");
+    printf("+-------------------------------+\n");
+    printf("\n");
 }
 
 void cmd_settextcolor(char **tokens) {
@@ -237,14 +210,14 @@ void cmd_settextcolor(char **tokens) {
         
         if (color >= 0 && color <= 15) {
             set_text_color(color);
-            print("Text color set to ");
+            printf("Text color set to ");
             printnumber(color);
-            print("\n");
+            printf("\n");
         } else {
-            print("Invalid color! Use 0-15\n");
+            printf("Invalid color! Use 0-15\n");
         }
     } else {
-        print("Usage: settextcolor <0-15>\n");
+        printf("Usage: settextcolor <0-15>\n");
     }
 }
 
@@ -298,9 +271,9 @@ void cmd_help(char **tokens) {
     if (max_pages == 0) max_pages = 1;
 
     if (page > max_pages || page < 1) {
-        print("Error: Page must be between 1 and ");
+        printf("Error: Page must be between 1 and ");
         printnumber(max_pages);
-        print("\n");
+        printf("\n");
         return;
     }
 
@@ -375,14 +348,14 @@ void cmd_setbgcolor(char** tokens){
         
         if (color >= 0 && color <= 15) {
             set_background_color(color);
-            print("Background color set to ");
+            printf("Background color set to ");
             printnumber(color);
-            print("\n");
+            printf("\n");
         } else {
-            print("Invalid color! Use 0-15\n");
+            printf("Invalid color! Use 0-15\n");
         }
     } else {
-        print("Usage: setbgcolor <0-15>\n");
+        printf("Usage: setbgcolor <0-15>\n");
     }
 }
 
@@ -392,7 +365,7 @@ void cmd_clear(char **tokens) {
 
 void cmd_exit(char **tokens) {
     console.should_exit = 1;
-    print("Exiting console...\n");
+    printf("Exiting console...\n");
 }
 
 void cmd_memview(char **tokens) {
@@ -401,7 +374,7 @@ void cmd_memview(char **tokens) {
 
 void cmd_kmalloc(char **tokens) {
     if (!tokens[1]) {
-        print("Usage: kmalloc <size>\n");
+        printf("Usage: kmalloc <size>\n");
         return;
     }
     
@@ -428,14 +401,14 @@ void cmd_ls(char **tokens){
 
 void cmd_cat(char **tokens){
     if(!tokens[1]) {
-        print("Usage: cat <filename>\n");
+        printf("Usage: cat <filename>\n");
         return;
     }
 
     int file_size = fat32_get_file_size(tokens[1]);
 
     if(file_size <= 0){
-        print("File not found or empty.\n");
+        printf("File not found or empty.\n");
         return;
     }
 
@@ -447,9 +420,9 @@ void cmd_cat(char **tokens){
 
     for(int i = 0; i < file_size; i++) {
         char c = (char)file_buffer[i];
-        print_char(c);
+        printf("%c", c);
     }
-    print("\n");
+    printf("\n");
 
     kfree(file_buffer);
 }
@@ -473,12 +446,12 @@ int is_executable(char* filename) {
 void cmd_exec(char **tokens){
     keyboard_flush();
     if(!tokens[1]){
-        print("Usage: exec <filename>\n");
+        printf("Usage: exec <filename>\n");
         return;
     }
 
     if (!is_executable(tokens[1])) {
-        print("Error: File is not executable (must be .bin)\n");
+        printf("Error: File is not executable (must be .bin)\n");
         return;
     }
 
@@ -499,27 +472,27 @@ void cmd_exec(char **tokens){
 
         keyboard_flush();
     } else {
-        print("File not found!\n");
+        printf("File not found!\n");
     }
 }
 
 void cmd_mkfile(char **tokens) {
     if (!tokens[1]) {
-        print("Usage: mkfile <name> <text>\n");
+        printf("Usage: mkfile <name> <text>\n");
         return;
     }
     
     char* filename = tokens[1];
     
     if (fat32_write_file(filename, "", 0) == 1) {
-        print("File created successfully!\n");
+        printf("File created successfully!\n");
     } else {
-        print("Error creating file.\n");
+        printf("Error creating file.\n");
     }
 }
 
 void cmd_rm(char **tokens){
-    if(fat32_delete_file(tokens[1]) != 1) print("File not removed\n");
+    if(fat32_delete_file(tokens[1]) != 1) printf("File not removed\n");
 }
 
 void cmd_readsystemcfg(char **tokens) {
@@ -544,18 +517,9 @@ void cmd_readsystemcfg(char **tokens) {
         isReadMode = 0;
     }
 
-    if(strcmp(config_get_value(cfg, "graphic_mode"), "true") == 0){
-        set_video_mode(VIDEO_MODE_GRAPHICS);
-        clear_screen_bga(0x00000000);
-        graphic_mode = 2;
-    } else {
-        set_video_mode(VIDEO_MODE_TEXT);
-        graphic_mode = 1;
-    }
-
-    print("read mode: ");
-    printnumber(isReadMode);
-    print("\n");
+    printf("read mode: ");
+    printf("%d", isReadMode);
+    printf("\n");
 
     config_free(cfg);
     kfree(file_buffer);

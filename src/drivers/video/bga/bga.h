@@ -33,5 +33,7 @@ void clear_screen_bga(uint32_t color);
 void set_video_mode(int mode);
 void bga_draw_char(int x, int y, char c, uint32_t color, uint32_t bgcolor);
 void bga_print_string(int x, int y, char* str, uint32_t color);
+int getScreenWidth(void);
+int getScreenHeight(void);
 
 #endif

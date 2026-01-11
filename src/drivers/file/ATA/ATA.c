@@ -45,8 +45,7 @@ int ata_read_sector(uint32_t lba, uint8_t *buffer, uint8_t drive) {
     
     uint8_t status = inb(ATA_STATUS);
     if(status & ATA_SR_ERR) {
-        print("ATA Error!\n");
-        while(1);
+        printf("ATA Error!\n");
         return 0;
     }
 

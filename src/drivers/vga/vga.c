@@ -1,10 +1,9 @@
 #include "drivers/vga/vga.h"
 #include "drivers/io/io.h"
-#include "drivers/video/bga/bga.h"
 #include "drivers/video/bga/gfx_console.h"
 #include <stddef.h>
-#include <stdarg.h>
 #include "global.h"
+#include "drivers/video/vesa.h"
 
 #define LINES 25
 #define COLUMNS_IN_LINE 80
@@ -26,6 +25,7 @@ unsigned int current_loc = 0;
 char *vidptr = (char*) 0xb8000;
 unsigned int lines = 0;
 static uint8_t current_color = 0x07;
+extern uint32_t *video_memory;
 
 uint16_t vga_get_entry(int x, int y){
     unsigned int index = y * COLUMNS_IN_LINE + x;
@@ -45,7 +45,12 @@ void set_text_color(vga_color_t fg) {
 }
 
 void set_background_color(vga_color_t bg) {
-    current_color = (current_color & 0x0F) | ((bg & 0x0F) << 4);
+    if (bg <= 15) {
+        gfx_set_bg_color(vga_to_rgb[bg]);
+    } 
+    else {
+        gfx_set_bg_color(bg);
+    }
 }
 
 void set_color(vga_color_t fg, vga_color_t bg) {
@@ -98,11 +103,7 @@ unsigned int get_cursor_position(void) {
 }
 
 void set_cursor_position(unsigned int x, unsigned int y) {
-    if (x >= COLUMNS_IN_LINE) x = COLUMNS_IN_LINE - 1;
-    if (y >= LINES) y = LINES - 1;
-    
-    current_loc = y * COLUMNS_IN_LINE + x;
-    update_cursor();
+    gfx_set_cursor((int)x, (int)y);
 }
 
 void move_cursor_next_line(void) {
@@ -117,8 +118,10 @@ void move_cursor_next_line(void) {
 }
 
 void get_cursor_xy(unsigned int *x, unsigned int *y) {
-    *x = current_loc % COLUMNS_IN_LINE;
-    *y = current_loc / COLUMNS_IN_LINE;
+    int ix, iy;
+    gfx_get_cursor(&ix, &iy);
+    *x = (unsigned int)ix;
+    *y = (unsigned int)iy;
 }
 
 void scroll_screen(void) {
@@ -134,14 +137,7 @@ void scroll_screen(void) {
 }
 
 void clear_screen(void) {
-    unsigned int i = 0;
-    while(i < SCREENSIZE) {
-        vidptr[i++] = ' ';
-        vidptr[i++] = current_color;
-    }
-    current_loc = 0;
-    lines = 0;
-    update_cursor();
+    clear_screen_vesa(0x00000000);
 }
 
 void clear_screen_colored(uint8_t color) {
@@ -198,12 +194,12 @@ void print_colored(const char* str, uint8_t color) {
 }
 
 void printn(char *c) {
-    print("\n");
-    print(c);
+    printf("\n");
+    printf(c);
 }
 
 void printn_void(void) {
-    print("\n");
+    printf("\n");
 }
 
 void printn_colored(char *c, uint8_t color) {
@@ -354,11 +350,11 @@ void print_header(int header_bg_color, int header_text_color, char *title){
     set_text_color(header_text_color);
 
     for(int i = 0; i < padding; i++){
-        print(" ");
+        printf(" ");
     }
-    print(title);
+    printf(title);
     for(int i = 0; i <= padding; i++){
-        print(" ");
+        printf(" ");
     }
 
     set_background_color(VGA_COLOR_BLACK);
@@ -401,10 +397,10 @@ void print_footer(int footer_bg_color, int footer_text_color, char *text) {
         last_part_length = 80;
     }
     
-    print(text);
+    printf(text);
     
     for(int i = 0; i < 79 - 3; i++) {
-        print(" ");
+        printf(" ");
     }
     
     set_background_color(VGA_COLOR_BLACK);
@@ -412,9 +408,9 @@ void print_footer(int footer_bg_color, int footer_text_color, char *text) {
 }
 
 void print_info(char *status, char *info, unsigned short color_status, unsigned short color_info){
-    print("[");
+    printf("[");
     print_colored(status, color_status);
-    print("] ");
+    printf("] ");
     print_colored(info, color_info);
 }
 
@@ -480,12 +476,8 @@ void set_current_color(vga_color_t color){
 } 
 
 void _putchar(char c) {
-    if (graphic_mode == 2) {
-        if (video_memory != 0) {
-            gfx_putc(c);
-        }
-    } else {
-        print_char(c);
+    if (video_memory != 0) {
+        gfx_putc(c);
     }
 }
 
@@ -532,17 +524,15 @@ void _print_number(int n, int base, int is_signed) {
 }
 
 void _set_console_color(unsigned int color) {
-    if (graphic_mode == 2) {
+    if (color <= 15) {
+        gfx_set_color(vga_to_rgb[color]);
+    } 
+    else {
         gfx_set_color(color);
-    } else {
-        set_text_color((uint8_t)color);
     }
 }
 
-void printf(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-
+void vprintf(const char* format, va_list args) {
     while (*format != '\0') {
         if (*format == '%') {
             format++;
@@ -561,11 +551,7 @@ void printf(const char* format, ...) {
                     _puts("0x"); 
                     _print_number(va_arg(args, unsigned int), 16, 0); 
                     break;
-                case 'b': 
-                    _puts("0b"); 
-                    _print_number(va_arg(args, unsigned int), 2, 0); 
-                    break;
-                case 'C': _set_console_color(va_arg(args, unsigned int)); break; // Цвет
+                case 'C': _set_console_color(va_arg(args, unsigned int)); break;
                 case '%': _putchar('%'); break;
                 default:  _putchar('%'); _putchar(*format); break;
             }
@@ -575,13 +561,16 @@ void printf(const char* format, ...) {
         format++;
     }
 
-    va_end(args);
+    _set_console_color(DEF_COLOR_GFX);
+}
 
-    if (graphic_mode == 2) {
-        _set_console_color(DEF_COLOR_GFX);
-    } else {
-        _set_console_color(DEF_COLOR_TEXT);
-    }
+void printf(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    
+    vprintf(format, args);
+    
+    va_end(args);
 }
 
 //псевдо графика
@@ -642,7 +631,7 @@ void draw_text_box_ex(char* lines[], char* title,
         
         current_color = title_color;
         print_char(' ');
-        print(title);
+        printf(title);
         print_char(' ');
         current_color = border_color;
         
@@ -682,11 +671,11 @@ void draw_text_box_ex(char* lines[], char* title,
             uint16_t spaces_right = (total_spaces - (total_spaces / 2)) + padding_right;
             
             for (uint16_t i = 0; i < spaces_left; i++) print_char(' ');
-            print(line);
+            printf(line);
             for (uint16_t i = 0; i < spaces_right; i++) print_char(' ');
         } else {
             for (uint8_t i = 0; i < padding_left; i++) print_char(' ');
-            print(line);
+            printf(line);
             uint16_t spaces_needed = max_width - line_len + padding_right;
             for (uint16_t i = 0; i < spaces_needed; i++) print_char(' ');
         }

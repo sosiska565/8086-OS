@@ -5,6 +5,11 @@
 #include "utils/utils.h"
 #include "drivers/timer/timer.h"
 #include "fs/fat/fat32.h"
+#include <stdarg.h>
+#include "drivers/video/vesa.h"
+
+extern int screen_width;
+extern int screen_height;
 
 void syscall_handler_c(struct registers *regs){
     if(regs->eax == 0) print_char((char)regs->ebx);
@@ -29,7 +34,10 @@ void syscall_handler_c(struct registers *regs){
     else if(regs->eax == 19) regs->eax = wait_scancode();
     else if(regs->eax == 20) regs->eax = fat32_write_file((char*)regs->ebx, (uint8_t*)regs->ecx, (uint32_t)regs->edx);
     else if(regs->eax == 21) regs->eax = scancode_to_char((uint8_t)regs->ebx);
+    else if(regs->eax == 22) regs->eax = screen_width;
+    else if(regs->eax == 23) regs->eax = screen_height;
+    else if(regs->eax == 24) vprintf((const char *)regs->ebx, *(va_list*)&regs->ecx);
     else {
-        print("Unknown syscall!\n");
+        printf("Unknown syscall!\n");
     }
 }

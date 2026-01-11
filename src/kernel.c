@@ -15,8 +15,9 @@
 #include "drivers/mouse/mouse.h"
 #include "utils/utils.h"
 #include "drivers/pci/pci.h"
-#include "drivers/video/bga/bga.h"
 #include "drivers/video/bga/gfx_console.h"
+#include "drivers/video/vesa.h"
+#include "drivers/video/graphics.h"
 
 #include "drivers/file/ATA/ATA.h"
 
@@ -24,7 +25,6 @@ unsigned short isReadMode;
 int $;
 char* path = "/";
 struct multiboot_info* mbi;
-int graphic_mode = 1;
 
 void kmain(unsigned long magic, unsigned long mb_info_addr){
     //init
@@ -49,13 +49,19 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     heap_dump();
     fat32_init();
     srand(get_ticks());
-    // mouse_init(); в пизду мышку бля
+    // mouse_init();
+
+    init_vesa();
+    init_gfx_console();
+    //pci_scan();
+    clear_screen_vesa(VGA32_COLOR_BLUE);
+    printf("Screen: %dx%d\n", get_screen_width(), get_screen_height());
+    draw_rect_filled((get_screen_width() - 505) / 2, (get_screen_height() - 205) / 2, 505, 205, VGA32_COLOR_WHITE);
+    draw_rect_filled((get_screen_width() - 500) / 2, (get_screen_height() - 200) / 2, 500, 200, VGA32_COLOR_DARK_GREY);
+    getch();
     
     setup.main();
 
-    pci_scan();
-
-    if(graphic_mode == 2 && isReadMode == 1) init_bga(800, 600);
     console.main();
     return;
 }

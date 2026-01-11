@@ -50,5 +50,8 @@ uint8_t get_scanecode(void);
 int write_file(char *filename, uint8_t *buffer, uint32_t size);
 char scancode_to_ascii(uint8_t scancode);
 void my_memcpy(void* dest, void* src, int size);
+int getScreenWidth(void);
+int getScreenHeight(void);
+void printf(const char* format, ...);
 
 #endif

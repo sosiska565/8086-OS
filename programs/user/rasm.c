@@ -1,5 +1,5 @@
 #include "oslib.h"
-#include "string.h"
+#include "strings.h"
 
 void main(int argc, char **argv){
     print("not now :)\n");

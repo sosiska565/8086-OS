@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdarg.h>
 
 typedef enum {
     VGA_COLOR_BLACK = 0,
@@ -21,7 +22,43 @@ typedef enum {
     VGA_COLOR_LIGHT_MAGENTA = 13,
     VGA_COLOR_YELLOW = 14,
     VGA_COLOR_WHITE = 15,
+    //32bit
+    VGA32_COLOR_BLACK = 0x00000000,
+    VGA32_COLOR_BLUE = 0x000000FF,
+    VGA32_COLOR_GREEN = 0x0000FF00,
+    VGA32_COLOR_CYAN = 0x0000FFFF,
+    VGA32_COLOR_RED = 0x00FF0000,
+    VGA32_COLOR_MAGENTA = 0x00FF00FF,
+    VGA32_COLOR_BROWN = 0x00640000,
+    VGA32_COLOR_LIGHT_GREY = 0x00D3D3D3,
+    VGA32_COLOR_DARK_GREY = 0x00A9A9A9,
+    VGA32_COLOR_LIGHT_BLUE = 0x00ADD8E6,
+    VGA32_COLOR_LIGHT_GREEN = 0x0090EE90,
+    VGA32_COLOR_LIGHT_CYAN = 0x00E0FFFF,
+    VGA32_COLOR_LIGHT_RED = 0x00FFA07A,
+    VGA32_COLOR_LIGHT_MAGENTA = 0x00FFB6C1,
+    VGA32_COLOR_YELLOW = 0x00FFFF00,
+    VGA32_COLOR_WHITE = 0x00FFFFFF,
 } vga_color_t;
+
+static const uint32_t vga_to_rgb[] = {
+    0x000000,
+    0x0000AA,
+    0x00AA00,
+    0x00AAAA,
+    0xAA0000, 
+    0xAA00AA,
+    0xAA5500,
+    0xAAAAAA,
+    0x555555,
+    0x5555FF,
+    0x55FF55,
+    0x55FFFF,
+    0xFF5555,
+    0xFF55FF,
+    0xFFFF55,
+    0xFFFFFF
+};
 
 #define VGA_COLOR(fg, bg) ((bg << 4) | (fg & 0x0F))
 
@@ -80,6 +117,7 @@ char toupper_char(char c);
 void set_current_color(vga_color_t color);
 int strlen(char *str);
 void printf(const char* format, ...);
+void vprintf(const char* format, va_list args);
 
 //псевдо графика
 void draw_text_box_ex(char* lines[], char* title, 

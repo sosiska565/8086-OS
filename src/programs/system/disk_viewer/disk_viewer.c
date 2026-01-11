@@ -16,16 +16,16 @@ int main(void){
     while(1){
         set_cursor_position(0, 0);
         clear_screen();
-        print("\n");
+        printf("\n");
         print_header(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "DISK VIEWER V1.0 ");
-        print("Sector: ");
-        printnumber(n);
-        print("\n");
+        printf("Sector: ");
+        printf("%d", n);
+        printf("\n");
 
         ata_read_sector(n, buffer, ATA_MASTER);
         
         for(int i = 0; i < 512; i++){
-            print_char((char)buffer[i]);
+            printf("%c", (char)buffer[i]);
         }
 
         print_footer(VGA_COLOR_BLUE, VGA_COLOR_YELLOW, "[Q] quit, [W] up, [S] down, [A] up 1500, [D] down 1500");

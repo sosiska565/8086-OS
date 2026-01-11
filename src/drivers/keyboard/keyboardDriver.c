@@ -242,13 +242,13 @@ void gets(char* buffer, int max_len) {
         
         if (c == '\n') {
             buffer[pos] = '\0';
-            print("\n");
+            printf("\n");
             return;
         }
         else if (c == '\b') {
             if (pos > 0) {
                 pos--;
-                print("\b \b");
+                printf("\b \b");
             }
         }
         else if (pos < max_len - 1) {
@@ -256,7 +256,7 @@ void gets(char* buffer, int max_len) {
                 buffer[pos] = c;
                 pos++;
                 char str[2] = {c, '\0'};
-                print(str);
+                printf(str);
             }
         }
     }

@@ -37,5 +37,5 @@ gdt_start:
 gdt_end:
 
 gdt_ptr:
-    dw gdt_end - gdt_start - 1
+    dw gdt_end - gdt_start; - 1
     dd gdt_start

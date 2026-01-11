@@ -29,17 +29,17 @@ void fat32_init() {
     for(int i=0; i<sizeof(struct fat32_bpb); i++) ptr[i] = buffer[i];
 
     char* type = (char*)bpb.fs_type;
-    print("FS Type detected: ");
+    printf("FS Type detected: ");
     for(int i=0; i<5; i++) print_char(type[i]);
-    print("\n");
+    printf("\n");
 
     fat_start_sector = bpb.reserved_sectors;
     
     data_start_sector = bpb.reserved_sectors + (bpb.num_fats * bpb.sectors_per_fat_32);
     
-    print("FAT32 Initialized. Root Cluster: ");
+    printf("FAT32 Initialized. Root Cluster: ");
     printnumber(bpb.root_cluster);
-    print("\n");
+    printf("\n");
 }
 
 uint32_t cluster_to_lba(uint32_t cluster) {
@@ -85,16 +85,16 @@ void fat32_ls() {
                 for(int k=0; k<3; k++) ext[k] = entry[j].ext[k];
                 ext[3] = 0;
                 
-                print(name);
-                if(entry[j].attributes & 0x10) print("/");
+                printf(name);
+                if(entry[j].attributes & 0x10) printf("/");
                 else {
-                    print(".");
-                    print(ext);
-                    print("  ");
+                    printf(".");
+                    printf(ext);
+                    printf("  ");
                     printnumber(entry[j].file_size);
-                    print(" b");
+                    printf(" b");
                 }
-                print("\n");
+                printf("\n");
             }
         }
         
