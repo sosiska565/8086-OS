@@ -1,3 +1,6 @@
+.vs
+.vscode
+iso
 os.iso
 kernel
 disk.img
