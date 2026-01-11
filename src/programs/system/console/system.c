@@ -158,17 +158,17 @@ void cmd_time(char **tokens) {
     printf("\nCurrent Time:\n");
     printf("============\n");
     printf("Time: ");
-    printnumber(rtc_get_time().hour);
+    printf("%d", rtc_get_time().hour);
     printf(":");
-    printnumber(rtc_get_time().minute);
+    printf("%d", rtc_get_time().minute);
     printf(":");
-    printnumber(rtc_get_time().second);
+    printf("%d", rtc_get_time().second);
     printf("\nDate: ");
-    printnumber(rtc_get_time().day);
+    printf("%d", rtc_get_time().day);
     printf("/");
-    printnumber(rtc_get_time().month);
+    printf("%d", rtc_get_time().month);
     printf("/");
-    printnumber(rtc_get_time().year);
+    printf("%d", rtc_get_time().year);
     printf("\n");
 }
 
@@ -177,9 +177,9 @@ void cmd_ascii(char **tokens) {
     printf("========================\n");
     
     for(int i = 32; i < 127; i++) {
-        printnumber(i);
+        printf("%d", i);
         printf(": ");
-        print_char((char)i);
+        printf("%c", (char)i);
         printf("  ");
         
         if((i - 31) % 8 == 0) {
@@ -211,7 +211,7 @@ void cmd_settextcolor(char **tokens) {
         if (color >= 0 && color <= 15) {
             set_text_color(color);
             printf("Text color set to ");
-            printnumber(color);
+            printf("%d", color);
             printf("\n");
         } else {
             printf("Invalid color! Use 0-15\n");
@@ -361,6 +361,7 @@ void cmd_setbgcolor(char** tokens){
 
 void cmd_clear(char **tokens) {
     clear_screen();
+    set_cursor_position(0,0);
 }
 
 void cmd_exit(char **tokens) {

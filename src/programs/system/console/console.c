@@ -41,7 +41,7 @@ void clear_current_line(int len) {
 }
 
 void execute_command(char **tokens) {
-    printf("\n");
+    //printf("\n");
     if(!tokens[0]) return;
     
     for(int i = 0; commands[i].name != NULL; i++) {

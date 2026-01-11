@@ -41,6 +41,7 @@ void vga_set_entry(int x, int y, uint16_t entry){
 }
 
 void set_text_color(vga_color_t fg) {
+    
     current_color = (current_color & 0xF0) | (fg & 0x0F);
 }
 
@@ -138,6 +139,7 @@ void scroll_screen(void) {
 
 void clear_screen(void) {
     clear_screen_vesa(0x00000000);
+    set_cursor_position(0, 0);
 }
 
 void clear_screen_colored(uint8_t color) {
