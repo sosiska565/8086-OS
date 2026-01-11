@@ -11,7 +11,7 @@ typedef struct {
 
 typedef struct {
     int (*main)(void);
-    int should_exit
+    int should_exit;
 } Console;
 
 extern command_t commands[]; 

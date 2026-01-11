@@ -26,7 +26,7 @@ void syscall_handler_c(struct registers *regs){
     else if(regs->eax == 11) set_cursor_position((unsigned int)regs->ebx, (unsigned int)regs->ecx);
     else if(regs->eax == 12) set_background_color((vga_color_t)regs->ebx);
     else if(regs->eax == 13) set_text_color((vga_color_t)regs->ebx);
-    else if(regs->eax == 14) get_cursor_xy(&regs->ebx, &regs->ecx);
+    else if(regs->eax == 14) get_cursor_xy((unsigned int *)&regs->ebx, (unsigned int *)&regs->ecx);
     else if(regs->eax == 15) regs->eax = (vga_color_t)get_current_color();
     else if(regs->eax == 16) set_current_color((vga_color_t)regs->ebx);
     else if(regs->eax == 17) printhex((unsigned int)regs->ebx);

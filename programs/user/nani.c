@@ -6,7 +6,6 @@
 #define FONT_H 8
 #define INITIAL_CAPACITY 1024 
 
-// Цвета
 #define COL_BG_UI    0x000000AA
 #define COL_FG_UI    0x00FFFF55
 #define COL_BG_TEXT  0x00000000
@@ -190,12 +189,9 @@ void update_scroll_logic() {
     set_cursor_position(screen_x, screen_y);
 }
 
-// --- MAIN ---
-
 void main(int argc, char **argv){
     if(argc == 1){ printf("Usage: nani <filename>\n"); return; }
 
-    // Настройка экрана
     int w_pixels = getScreenWidth();
     int h_pixels = getScreenHeight();
     if (w_pixels > 200) { 
@@ -207,7 +203,6 @@ void main(int argc, char **argv){
     }
     view_height = screen_height_chars - 2;
 
-    // Загрузка
     int size = get_file_size(argv[1]);
     if(size > 0) {
         buffer_capacity = size + 1024;
@@ -226,38 +221,30 @@ void main(int argc, char **argv){
     build_line_index();
     col_offset = 0;
 
-    cls(); // Очистка один раз при старте
+    cls();
 
     while(1){
-        // Обновляем прокрутку ДО отрисовки
         update_scroll_logic();
 
-        // 1. Рисуем интерфейс
-        
-        
-        // 2. Рисуем текст
         draw_content();
 
         draw_interface(argv[1]);
         
-        // 3. Рисуем курсор ПОВЕРХ текста
         draw_cursor();
 
         uint8_t scancode = get_scanecode();
 
-        if(scancode == 0x01) break; // Esc
+        if(scancode == 0x01) break;
 
-        else if(scancode == 0x3C) { // F2
+        else if(scancode == 0x3C) {
             write_file(argv[1], file_data, file_size);
             set_cursor_position(screen_width_chars - 10, 0);
             set_background_color(COL_BG_UI);
-            printf("%CSAVED!", COL_FG_UI); // Показываем Saved
+            printf("%CSAVED!", COL_FG_UI);
             set_background_color(COL_BG_TEXT);
-            // НЕ ЖДЕМ, иначе интерфейс зависнет. Сообщение перезапишется в след. кадре.
-            // Если хочешь видеть надпись - сделай счетчик кадров или просто оставь.
-             for(volatile int k=0; k<50000000; k++); // Ладно, короткая пауза ок
+             for(volatile int k=0; k<500000000; k++);
         }
-        else if(scancode == 0x48) { // Up
+        else if(scancode == 0x48) {
             if (cursor_y > 0) {
                 cursor_y--;
                 int len = get_line_length(cursor_y);
@@ -271,14 +258,14 @@ void main(int argc, char **argv){
                 if (cursor_x > len) cursor_x = len;
             }
         }
-        else if(scancode == 0x4B) { // Left
+        else if(scancode == 0x4B) {
             if (cursor_x > 0) cursor_x--;
             else if (cursor_y > 0) { 
                 cursor_y--;
                 cursor_x = get_line_length(cursor_y);
             }
         }
-        else if(scancode == 0x4D) { // Right
+        else if(scancode == 0x4D) {
             int len = get_line_length(cursor_y);
             if (cursor_x < len) cursor_x++;
             else if (cursor_y < total_lines - 1) {
@@ -286,10 +273,10 @@ void main(int argc, char **argv){
                 cursor_x = 0;
             }
         }
-        else if(scancode == 0x0E) { // Backspace
+        else if(scancode == 0x0E) {
             delete_char_backspace();
         }
-        else if(scancode == 0x1C) { // Enter
+        else if(scancode == 0x1C) {
             insert_char('\n');
         }
         else {
