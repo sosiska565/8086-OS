@@ -24,5 +24,6 @@ char* config_get_value(Config* cfg, const char* key);
 void config_free(Config* cfg);
 void config_save(char *filename, Config *cfg);
 void config_set_value(Config *cfg, char *key, char *new_val);
+int get_pixels_in_string(char *str);
 
 #endif

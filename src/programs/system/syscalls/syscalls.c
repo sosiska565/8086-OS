@@ -7,9 +7,18 @@
 #include "fs/fat/fat32.h"
 #include <stdarg.h>
 #include "drivers/video/vesa.h"
+#include "drivers/video/graphics.h"
 
 extern int screen_width;
 extern int screen_height;
+
+typedef struct {
+    int x;
+    int y;
+    int width;
+    int height;
+    uint32_t color;
+} Rect;
 
 void syscall_handler_c(struct registers *regs){
     if(regs->eax == 0) print_char((char)regs->ebx);
@@ -37,6 +46,12 @@ void syscall_handler_c(struct registers *regs){
     else if(regs->eax == 22) regs->eax = screen_width;
     else if(regs->eax == 23) regs->eax = screen_height;
     else if(regs->eax == 24) vprintf((const char *)regs->ebx, *(va_list*)&regs->ecx);
+    else if(regs->eax == 25) {
+        Rect *rect = (Rect*)regs->ebx;
+        draw_rect_filled(rect->x, rect->y, rect->width, rect->height, rect->color);
+    }
+    else if(regs->eax == 26) regs->eax = get_screen_width();
+    else if(regs->eax == 27) regs->eax = get_screen_height();
     else {
         printf("Unknown syscall!\n");
     }

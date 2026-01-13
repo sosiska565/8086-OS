@@ -24,6 +24,14 @@ typedef enum {
 
 #define VGA_COLOR(fg, bg) ((bg << 4) | (fg & 0x0F))
 
+typedef struct {
+    int x;
+    int y;
+    int width;
+    int height;
+    uint32_t color;
+} Rect;
+
 void print_char(char c);
 void print_char_colored(char c, int color);
 void print_colored(char *str, int color);
@@ -49,9 +57,12 @@ int get_file_size(char *file_name);
 uint8_t get_scanecode(void);
 int write_file(char *filename, uint8_t *buffer, uint32_t size);
 char scancode_to_ascii(uint8_t scancode);
-void my_memcpy(void* dest, void* src, int size);
+void memcpy(void* dest, void* src, int size);
 int getScreenWidth(void);
 int getScreenHeight(void);
 void printf(const char* format, ...);
+void draw_rect_filled(Rect *rect);
+int get_screen_width(void);
+int get_screen_height(void);
 
 #endif

@@ -43,7 +43,7 @@ void panic(char *err){
     clear_screen();
     printf("\nKernel panic!\n");
     printf("Err: ");
-    printf("%d", err);
+    printf("%s", err);
     printf("\nSystem will reboot in 5 seconds...\n");
     unsigned long newTick = get_ticks() + 9100;
 
@@ -168,4 +168,9 @@ void config_save(char *filename, Config *cfg) {
     fat32_write_file(filename, out_buffer, pos);
 
     kfree(out_buffer);
+}
+
+int get_pixels_in_string(char *str){
+    int pixels = strlen(str) * 8;
+    return pixels;
 }

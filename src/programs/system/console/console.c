@@ -6,6 +6,7 @@
 #include "utils/utils.h"
 #include "drivers/video/bga/gfx_console.h"
 #include "drivers/video/vesa.h"
+#include "drivers/video/graphics.h"
 
 #define HISTORY_SIZE 10
 #define CMD_MAX_LEN 100
@@ -13,6 +14,7 @@
 char history[HISTORY_SIZE][CMD_MAX_LEN];
 int history_count = 0;
 int history_browse_idx = 0;
+Window consoleWin;
 
 void add_to_history(const char* cmd) {
     if (cmd[0] == '\0') return;
@@ -55,6 +57,24 @@ void execute_command(char **tokens) {
            tokens[0]);
 }
 
+void draw_console_cursor(Window *win, int state) {
+    uint32_t color;
+    
+    if (state) {
+        color = 0xFFFFFFFF; 
+    } else {
+        color = win->bg_color;
+    }
+    
+    if (win->cursor_y < win->height) {
+        draw_rect_filled(
+            win->x + win->cursor_x, 
+            win->y + win->cursor_y, 
+            8, 8,
+            color
+        );
+    }
+}
 
 int console_main(void) {
     char *empty_args[] = {NULL};
@@ -62,6 +82,14 @@ int console_main(void) {
     init_gfx_console();
     clear_screen_vesa(0x00000000);
     
+    draw_window(
+        &consoleWin, 0, 0,
+        get_screen_width() - 3, get_screen_height() - 3,
+        VGA32_COLOR_CYAN, VGA32_COLOR_BLACK,
+        1
+    );
+    set_current_output_window(&consoleWin);
+
     cmd_colortest(empty_args);
     printf("\n");
     
@@ -79,7 +107,11 @@ int console_main(void) {
         history_browse_idx = history_count;
 
         while(1) {
+            draw_console_cursor(&consoleWin, 1);
+
             uint8_t scancode = wait_scancode();
+
+            draw_console_cursor(&consoleWin, 0);
 
             if (scancode == 0x1C) {
                 command[pos] = '\0';

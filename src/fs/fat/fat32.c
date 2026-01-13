@@ -91,7 +91,7 @@ void fat32_ls() {
                     printf(".");
                     printf(ext);
                     printf("  ");
-                    printnumber(entry[j].file_size);
+                    printf("%d", entry[j].file_size);
                     printf(" b");
                 }
                 printf("\n");

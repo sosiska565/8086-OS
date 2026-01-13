@@ -6,6 +6,8 @@
 #include "fs/fat/fat32.h"
 #include "utils/utils.h"
 #include "memory/memory.h"
+#include "drivers/video/graphics.h"
+#include "drivers/video/vesa.h"
 
 struct disk_struct ds;
 char master[256];
@@ -46,19 +48,63 @@ void diskStage(void){
     strcpy(master, ds.name);
     ata_identify(ATA_SLAVE, &ds);
     strcpy(slave, ds.name);
+    
+    Window setupWin;
+    draw_window(
+        &setupWin, 0,
+        0, 500, 300,
+        VGA32_COLOR_CYAN, VGA32_COLOR_DARK_GREY,
+        1
+    );
+    set_current_output_window(&setupWin);
     printf("\n");
-    draw_text_box_ex((char*[]){
-        master,
-        slave,
-        NULL
-    }, "Disks list", 1, 1, 1, 1, VGA_COLOR_LIGHT_GREY, VGA_COLOR_LIGHT_GREY, VGA_COLOR_WHITE, 1);
     printf("\n");
-    draw_text_box_ex((char*[]){
-        "1. read only (OS can`t write data into disks),",
-        "2. read/write (OS can write data into disks),",
-        "(default 1)",
-        NULL
-    }, "Please select a OS disk driver type", 1, 1, 1, 1, VGA_COLOR_LIGHT_GREY, VGA_COLOR_LIGHT_GREY, VGA_COLOR_WHITE, 1);
+    printf("\n");
+    for(int i = 0; i < ((setupWin.width / 8) - strlen("Welcome to setup 8086-OS!")) / 2; i++){
+        printf(" ");
+    }
+    printf("Welcome to setup 8086-OS!");
+    printf("\n");
+    printf("\n");
+    printf("\n");
+    for(int i = 0; i < ((setupWin.width / 8) - strlen("---Disks list---")) / 2; i++){
+        printf(" ");
+    }
+    printf("---Disks list---");
+    printf("\n");
+    printf("\n");
+    for(int i = 0; i < ((setupWin.width / 8) - strlen(master)) / 2; i++){
+        printf(" ");
+    }
+    printf(master);
+    printf("\n");
+    printf("\n");
+    for(int i = 0; i < ((setupWin.width / 8) - strlen(slave)) / 2; i++){
+        printf(" ");
+    }
+    printf(slave);
+    printf("\n");
+    printf("\n");
+    printf("\n");
+    printf("\n");
+    printf("\n");
+    for(int i = 0; i < ((setupWin.width / 8) - strlen("Please select the OS mode")) / 2; i++){
+        printf(" ");
+    }
+    printf("Please select the OS mode\n\n\n");
+    for(int i = 0; i < ((setupWin.width / 8) - strlen("1. read-only mode(OS is not allowed to write to the disk)")) / 2; i++){
+        printf(" ");
+    }
+    printf("1. read-only mode(OS is not allowed to write to the disk)\n\n");
+    for(int i = 0; i < ((setupWin.width / 8) - strlen("2. read/write mode(OS has permission to write to the disk)")) / 2; i++){
+        printf(" ");
+    }
+    printf("2. read/write mode(OS has permission to write to the disk)\n\n");
+    for(int i = 0; i < ((setupWin.width / 8) - strlen("(default 1)")) / 2; i++){
+        printf(" ");
+    }
+    printf("(default 1)");
+
     isReadMode = 1;
     char c = getch();
 
@@ -73,10 +119,8 @@ void diskStage(void){
         config_set_value(cfg, "is_read_only_mode", "false");
 
     if (isReadMode == 0) {
-        printf("\nSaving configuration...\n");
         config_save("kernel.cfg", cfg);
     } else {
-        printf("\nRead-only mode selected. Config NOT updated.\n");
         for(volatile int i=0; i<50000000; i++);
     }
 
@@ -84,6 +128,7 @@ void diskStage(void){
 
     //update config
     
+    set_current_output_window(0);
     config_free(cfg);
     kfree(file_buffer);
 }

@@ -13,6 +13,7 @@
 #include "multiboot.h"
 #include "utils/utils.h"
 #include "global.h"
+#include "drivers/video/graphics.h"
 
 #define PROGRAM_LOAD_ADDRES 0x300000
 
@@ -71,12 +72,12 @@ void cmd_colortest(char **tokens) {
     printf("\n          |()L( ()| |");
     printf("     ");
     for(int i = 0; i < 8; i++) {
-        printf("%C%c", VGA_COLOR(i, 0), '#');
+        printf("%C%c", VGA_COLOR(i, 0), 0x0001);
     }
     printf("\n          |,'  `\".| |");
     printf("     ");
     for(int i = 8; i < 16; i++) {
-        printf("%C%c", VGA_COLOR(i, 0), '#');
+        printf("%C%c", VGA_COLOR(i, 0), 0x0001);
     }
     printf("\n          |.___.',| `");
     printf("\n         .j `--\"' `  `.");
@@ -251,9 +252,9 @@ void int_to_buffer(char* dest, int n, uint16_t* offset) {
 }
 
 void cmd_help(char **tokens) {
-    clear_screen();
     int page = 1;
-    if (tokens[1] != 0) {
+    
+    if (tokens[1] != NULL) {
         char* page_str = tokens[1];
         page = 0;
         while (*page_str >= '0' && *page_str <= '9') {
@@ -263,77 +264,44 @@ void cmd_help(char **tokens) {
         if (page == 0) page = 1;
     }
 
-    int max_commands_in_page = 10;
     int length = 0;
     while(commands[length].name != NULL) length++;
     
+    int max_commands_in_page = 10;
     int max_pages = (length + max_commands_in_page - 1) / max_commands_in_page;
     if (max_pages == 0) max_pages = 1;
 
     if (page > max_pages || page < 1) {
-        printf("Error: Page must be between 1 and ");
-        printnumber(max_pages);
-        printf("\n");
+        printf("Error: Page must be between 1 and %d\n", max_pages);
         return;
     }
 
-    static char line_buffers[14][80]; 
-    char* lines_ptr[15];
-
+    printf("=== Help (Page %d of %d) ===\n\n", page, max_pages);
+    
     int start_index = (page - 1) * max_commands_in_page;
     int end_index = start_index + max_commands_in_page;
-    int current_line = 0;
-
+    
     for (int i = start_index; i < end_index && i < length; i++) {
-        uint16_t offset = 0;
-        
-        str_copy_to_buffer(line_buffers[current_line], commands[i].name, &offset);
-        str_copy_to_buffer(line_buffers[current_line], " - ", &offset);
-        str_copy_to_buffer(line_buffers[current_line], commands[i].description, &offset);
-        
-        lines_ptr[current_line] = line_buffers[current_line];
-        current_line++;
+        printf("%s - %s\n", commands[i].name, commands[i].description);
     }
-
+    
     if (max_pages > 1) {
-        line_buffers[current_line][0] = '\0'; 
-        lines_ptr[current_line] = line_buffers[current_line];
-        current_line++;
-
-        uint16_t offset = 0;
-        str_copy_to_buffer(line_buffers[current_line], "Nav: ", &offset);
+        printf("\n");
+        printf("Navigation: ");
         
         if (page > 1) {
-            str_copy_to_buffer(line_buffers[current_line], "prev: help ", &offset);
-            int_to_buffer(line_buffers[current_line], page - 1, &offset);
+            printf("prev: help %d", page - 1);
             if (page < max_pages) {
-                str_copy_to_buffer(line_buffers[current_line], " | ", &offset);
+                printf(" | ");
             }
         }
         
         if (page < max_pages) {
-            str_copy_to_buffer(line_buffers[current_line], "next: help ", &offset);
-            int_to_buffer(line_buffers[current_line], page + 1, &offset);
+            printf("next: help %d", page + 1);
         }
         
-        lines_ptr[current_line] = line_buffers[current_line];
-        current_line++;
+        printf("\n");
     }
-
-    lines_ptr[current_line] = NULL;
-
-    char title_buffer[40];
-    uint16_t title_offset = 0;
-    str_copy_to_buffer(title_buffer, "Help (Page ", &title_offset);
-    int_to_buffer(title_buffer, page, &title_offset);
-    str_copy_to_buffer(title_buffer, " of ", &title_offset);
-    int_to_buffer(title_buffer, max_pages, &title_offset);
-    str_copy_to_buffer(title_buffer, ")", &title_offset);
-    
-    draw_text_box_ex(lines_ptr, title_buffer, 
-                     1, 1, 2, 2,
-                     0x07, 0x0F, 0x0E,
-                     0);
 }
 
 void cmd_setbgcolor(char** tokens){
@@ -446,6 +414,7 @@ int is_executable(char* filename) {
 
 void cmd_exec(char **tokens){
     keyboard_flush();
+    set_current_output_window(0);
     if(!tokens[1]){
         printf("Usage: exec <filename>\n");
         return;
@@ -472,6 +441,13 @@ void cmd_exec(char **tokens){
         program(argc, &tokens[1]);
 
         keyboard_flush();
+        extern Window consoleWin;
+        draw_window(
+            &consoleWin, consoleWin.x, consoleWin.cursor_y,
+            consoleWin.width, consoleWin.height,
+            VGA32_COLOR_CYAN, consoleWin.bg_color, 1
+        );
+        set_current_output_window(&consoleWin);
     } else {
         printf("File not found!\n");
     }

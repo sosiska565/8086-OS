@@ -53,11 +53,9 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
 
     init_vesa();
     init_gfx_console();
-    //pci_scan();
-    clear_screen_vesa(VGA32_COLOR_BLUE);
-    printf("Screen: %dx%d\n", get_screen_width(), get_screen_height());
-    draw_rect_filled((get_screen_width() - 510) / 2, (get_screen_height() - 260) / 2, 510, 210, VGA32_COLOR_WHITE);
-    draw_rect_filled((get_screen_width() - 500) / 2, (get_screen_height() - 250) / 2, 500, 200, VGA32_COLOR_DARK_GREY);
+
+    clear_screen_vesa(VGA32_COLOR_BLACK);
+    pci_scan();
     getch();
     
     setup.main();

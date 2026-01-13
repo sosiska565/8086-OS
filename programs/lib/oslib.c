@@ -209,7 +209,7 @@ char scancode_to_ascii(uint8_t scancode){
     return c;
 }
 
-void my_memcpy(void* dest, void* src, int size) {
+void memcpy(void* dest, void* src, int size) {
     uint8_t* d = (uint8_t*)dest;
     uint8_t* s = (uint8_t*)src;
     for(int i = 0; i < size; i++) {
@@ -247,4 +247,32 @@ void printf(const char* format, ...){
     );
 
     va_end(args);
+}
+
+void draw_rect_filled(Rect *rect){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(25), "b"(rect)
+    );
+}
+
+int get_screen_width(void){
+    int w;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(w)
+        : "a"(26)
+    );
+    return w;
+}
+
+int get_screen_height(void){
+    int h;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(h)
+        : "a"(27)
+    );
+    return h;
 }

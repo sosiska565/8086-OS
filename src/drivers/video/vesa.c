@@ -23,9 +23,7 @@ void init_vesa(void) {
 void put_pixel(int x, int y, uint32_t color) {
     if (video_memory == 0) return;
     if (x < 0 || x >= screen_width || y < 0 || y >= screen_height) return;
-
     uint8_t *pixel_addr = (uint8_t*)video_memory + (y * screen_pitch) + (x * (screen_bpp / 8));
-    
     *(uint32_t*)pixel_addr = color;
 }
 

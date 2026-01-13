@@ -74,7 +74,8 @@ C_FILES = src/kernel.c \
 	src/drivers/pci/pci.c \
 	src/drivers/video/bga/gfx_console.c \
 	src/drivers/video/graphics.c \
-	src/drivers/video/vesa.c
+	src/drivers/video/vesa.c \
+	src/drivers/video/bga/font.c
 
 ASM_FILES = boot/kernel.asm boot/gdt.asm src/interrupt/interrupts.asm
 
@@ -96,9 +97,9 @@ endif
 LIB_FINAL_OBJS = $(LIB_ENTRY_OBJ) $(LIB_C_OBJS)
 
 USER_C_FILES = \
-	programs/user/game.c \
 	programs/user/nani.c \
-	programs/user/rasm.c
+	programs/user/rasm.c \
+	programs/user/imgvwr.c
 
 ifeq ($(DETECTED_OS),Windows)
     USER_OBJS = $(patsubst $(USER_DIR)$(PATHSEP)%.c, $(BIN_DIR)$(PATHSEP)%.o, $(USER_C_FILES))
@@ -200,6 +201,13 @@ ifeq ($(DETECTED_OS),Windows)
 	@copy kernel iso\boot\kernel.bin >$(DEVNULL)
 	@echo set timeout=0 > iso\boot\grub\grub.cfg
 	@echo set default=0 >> iso\boot\grub\grub.cfg
+	@echo "insmod vbe" >> iso/boot/grub/grub.cfg
+	@echo "insmod vga" >> iso/boot/grub/grub.cfg
+	@echo "insmod video_bochs" >> iso/boot/grub/grub.cfg
+	@echo "insmod video_cirrus" >> iso/boot/grub/grub.cfg
+	
+	@echo "set gfxmode=auto" >> iso/boot/grub/grub.cfg
+	@echo "set gfxpayload=keep" >> iso/boot/grub/grub.cfg
 	@echo menuentry 'OS' { multiboot /boot/kernel.bin } >> iso\boot\grub\grub.cfg
 	@grub-mkrescue -o $(ISO) iso 2>$(DEVNULL)
 else ifeq ($(DETECTED_OS),Darwin)
@@ -207,6 +215,13 @@ else ifeq ($(DETECTED_OS),Darwin)
 	@cp kernel iso/boot/kernel.bin
 	@echo "set timeout=0" > iso/boot/grub/grub.cfg
 	@echo "set default=0" >> iso/boot/grub/grub.cfg
+	@echo "insmod vbe" >> iso/boot/grub/grub.cfg
+	@echo "insmod vga" >> iso/boot/grub/grub.cfg
+	@echo "insmod video_bochs" >> iso/boot/grub/grub.cfg
+	@echo "insmod video_cirrus" >> iso/boot/grub/grub.cfg
+	
+	@echo "set gfxmode=auto" >> iso/boot/grub/grub.cfg
+	@echo "set gfxpayload=keep" >> iso/boot/grub/grub.cfg
 	@echo "menuentry 'OS' { multiboot /boot/kernel.bin }" >> iso/boot/grub/grub.cfg
 	@i686-elf-grub-mkrescue -o $(ISO) iso 2>$(DEVNULL)
 else
@@ -214,6 +229,13 @@ else
 	@cp kernel iso/boot/kernel.bin
 	@echo "set timeout=0" > iso/boot/grub/grub.cfg
 	@echo "set default=0" >> iso/boot/grub/grub.cfg
+	@echo "insmod vbe" >> iso/boot/grub/grub.cfg
+	@echo "insmod vga" >> iso/boot/grub/grub.cfg
+	@echo "insmod video_bochs" >> iso/boot/grub/grub.cfg
+	@echo "insmod video_cirrus" >> iso/boot/grub/grub.cfg
+	
+	@echo "set gfxmode=auto" >> iso/boot/grub/grub.cfg
+	@echo "set gfxpayload=keep" >> iso/boot/grub/grub.cfg
 	@echo "menuentry 'OS' { multiboot /boot/kernel.bin }" >> iso/boot/grub/grub.cfg
 	@grub-mkrescue -o $(ISO) iso 2>$(DEVNULL)
 endif
