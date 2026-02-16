@@ -21,20 +21,20 @@ void pci_scan(void){
             if(vendor_id == 0xFFFF) continue;
 
             printf("Found device! Bus: ");
-            printnumber(bus);
+            printf("%d", bus);
             printf(" device: ");
-            printnumber(dev);
+            printf("%d", dev);
             printf(" [Vendor: ");
-            printhex(vendor_id);
+            printf("%X", vendor_id);
             printf(" Device: ");
-            printhex(device_id);
+            printf("%X", device_id);
 
             uint32_t class_reg = pci_read(bus, dev, 0, 0x08);
             uint8_t class_code = (class_reg >> 24) & 0xFF;
             uint8_t subclass = (class_reg >> 16) & 0xFF;
             
             printf(" Class: ");
-            printhex(class_code);
+            printf("%X", class_code);
             printf("]");
             printf("\n");
         }

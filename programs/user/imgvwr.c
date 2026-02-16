@@ -1,5 +1,5 @@
 #include "oslib.h"
-#include "strings.h"
+#include "string_lib.h"
 
 #pragma pack(push, 1)
 
@@ -40,7 +40,7 @@ void main(int argc, char **argv){
     int filesize = get_file_size(argv[1]);
     if(filesize <= 0) return;
 
-    uint8_t *buffer = (uint8_t*)malloc(filesize);
+    uint8_t *buffer = (uint8_t*)malloc(filesize + 512);
     if(!buffer) return;
 
     read_file(argv[1], buffer);

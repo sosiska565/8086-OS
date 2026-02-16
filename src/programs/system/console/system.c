@@ -14,8 +14,10 @@
 #include "utils/utils.h"
 #include "global.h"
 #include "drivers/video/graphics.h"
+#include "drivers/video/vesa.h"
+#include "multitask/task.h"
 
-#define PROGRAM_LOAD_ADDRES 0x300000
+#define PROGRAM_LOAD_ADDRES 0x400000
 
 //test var
 void* ptr;
@@ -69,18 +71,12 @@ void cmd_colortest(char **tokens) {
     printf("%s", processor);
     printf("\n          |,.  ,-.  |");
     printf("     RAM: %d MB", (int)(total_mem_kb / 1024));
-    printf("\n          |()L( ()| |");
+    printf("\n          |(%C0%C)L(%C0%C)| |", VGA32_COLOR_LIGHT_BLUE, VGA32_COLOR_WHITE, VGA32_COLOR_LIGHT_BLUE, VGA32_COLOR_WHITE);
     printf("     ");
-    for(int i = 0; i < 8; i++) {
-        printf("%C%c", VGA_COLOR(i, 0), 0x0001);
-    }
-    printf("\n          |,'  `\".| |");
-    printf("     ");
-    for(int i = 8; i < 16; i++) {
-        printf("%C%c", VGA_COLOR(i, 0), 0x0001);
-    }
-    printf("\n          |.___.',| `");
-    printf("\n         .j `--\"' `  `.");
+    printf("%s%d%s%d", "Screen resolution: ", get_screen_width(), "x", get_screen_height());
+    printf("\n          |%C,'  `\".%C| |", VGA32_COLOR_YELLOW, VGA32_COLOR_WHITE);
+    printf("\n          |%C.___.',%C| `", VGA32_COLOR_YELLOW, VGA32_COLOR_WHITE);
+    printf("\n         .j %C`--\"' %C`  `.", VGA32_COLOR_YELLOW, VGA32_COLOR_WHITE);
     printf("\n        / '        '   \\");
     printf("\n       / /          `   `.");
     printf("\n      / /            `    .");
@@ -91,7 +87,15 @@ void cmd_colortest(char **tokens) {
     printf("\n|       `.`,        |      `.");
     printf("\n|         `.    __.j         )");
     printf("\n|__        |--\"\"___|      ,-'");
+    printf("     ");
+    for(int i = 0; i < 8; i++) {
+        printf("%C%c%c", VGA_COLOR(i, 0), 0x0001, 0x0001);
+    }
     printf("\n   `\"--...,+\"\"\"\"   `._,.-'");
+    printf("        ");
+    for(int i = 8; i < 16; i++) {
+        printf("%C%c%c", VGA_COLOR(i, 0), 0x0001, 0x0001);
+    }
     
     printf("\n");
 }
@@ -413,8 +417,7 @@ int is_executable(char* filename) {
 }
 
 void cmd_exec(char **tokens){
-    keyboard_flush();
-    set_current_output_window(0);
+    // set_current_output_window(0);
     if(!tokens[1]){
         printf("Usage: exec <filename>\n");
         return;
@@ -425,31 +428,27 @@ void cmd_exec(char **tokens){
         return;
     }
 
-    uint8_t* load_addr = (uint8_t*)PROGRAM_LOAD_ADDRES;
-    
-    for(int i = 0; i < 65536; i++) load_addr[i] = 0;
+    int file_size = fat32_get_file_size(tokens[1]);
+    if (file_size <= 0) {
+        printf("File not found or empty!\n");
+        return;
+    }
 
+    uint8_t* load_addr = (uint8_t*)PROGRAM_LOAD_ADDRES;
+    for(int i=0; i<file_size+4096; i++) load_addr[i] = 0;
     int bytes_read = fat32_read_file(tokens[1], load_addr);
 
     if(bytes_read > 0){
-        program_entry_t program = (program_entry_t)PROGRAM_LOAD_ADDRES;
+        keyboard_flush();
         int argc = 0;
         while (tokens[1 + argc] != 0) {
             argc++;
         }
 
-        program(argc, &tokens[1]);
-
-        keyboard_flush();
-        extern Window consoleWin;
-        draw_window(
-            &consoleWin, consoleWin.x, consoleWin.cursor_y,
-            consoleWin.width, consoleWin.height,
-            VGA32_COLOR_CYAN, consoleWin.bg_color, 1
-        );
-        set_current_output_window(&consoleWin);
-    } else {
-        printf("File not found!\n");
+        int pid = create_process((void (*)(int, char**))load_addr, argc, &tokens[1]);
+        if(strcmp(tokens[argc], "&") != 0) {
+            wait_process(pid);
+        }
     }
 }
 

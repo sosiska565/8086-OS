@@ -5,6 +5,7 @@
 #include "global.h"
 #include "drivers/video/vesa.h"
 #include "drivers/video/graphics.h"
+#include "multitask/task.h"
 
 #define LINES 25
 #define COLUMNS_IN_LINE 80
@@ -144,6 +145,9 @@ void clear_screen(void) {
     } else {
         clear_screen_vesa(0x00000000);
     }
+    set_cursor_position(0, 0);
+    current_output_window->cursor_x = 0;
+    current_output_window->cursor_y = 0;
 }
 
 void clear_screen_colored(uint8_t color) {
@@ -482,8 +486,8 @@ void set_current_color(vga_color_t color){
 } 
 
 void _putchar(char c) {
-    if (current_output_window != 0) {
-        window_putc(current_output_window, c);
+    if (current_task != 0 && current_task->window != 0) {
+        window_putc(current_task->window, c);
     } 
     else {
         gfx_putc(c); 
@@ -533,21 +537,12 @@ void _print_number(int n, int base, int is_signed) {
 }
 
 void _set_console_color(unsigned int color) {
-    if (current_output_window != 0) {
-        if (color <= 15) {
-            current_output_window->text_color = vga_to_rgb[color];
-        } 
-        else {
-            current_output_window->text_color = color;
-        }
-        
+    Window *target = (current_task && current_task->window) ? current_task->window : current_output_window;
+
+    if (target != 0) {
+        target->text_color = (color <= 15) ? vga_to_rgb[color] : color;
     } else {
-        if (color <= 15) {
-            gfx_set_color(vga_to_rgb[color]);
-        } 
-        else {
-            gfx_set_color(color);
-        }
+        gfx_set_color((color <= 15) ? vga_to_rgb[color] : color);
     }
 }
 

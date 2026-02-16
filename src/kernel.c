@@ -18,6 +18,8 @@
 #include "drivers/video/bga/gfx_console.h"
 #include "drivers/video/vesa.h"
 #include "drivers/video/graphics.h"
+#include "multitask/task.h"
+#include "memory/paging.h"
 
 #include "drivers/file/ATA/ATA.h"
 
@@ -32,34 +34,49 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
         panic("Magic value is not correct");
     }
 
-    clear_screen();
     pic_remap();
     idt_install();
     idt_init();
     timer_install();
+    
 
     __asm__ volatile("sti");
 
     mbi = (struct multiboot_info*) mb_info_addr;
 
     //run setup
-
-    //init
-    heap_init();
-    heap_dump();
-    fat32_init();
-    srand(get_ticks());
-    // mouse_init();
-
     init_vesa();
     init_gfx_console();
-
-    clear_screen_vesa(VGA32_COLOR_BLACK);
-    pci_scan();
-    getch();
+    printf("gfx console initialized successfully\n");
+    printf("vesa initialized successfully\n");
+    printf("timer initialized successfully\n");
+    printf("idt initialized successfully\n");
+    //init
     
+    heap_init();
+    printf("heap initialized successfully\n");
+    heap_dump();
+    init_paging();
+    fat32_init();
+    printf("fat32 initialized successfully\n");
+    srand(get_ticks());
+
+    pci_scan();
+    
+    printf("Please press any key to continue...");
+    wait_scancode();
+
+    wm_init();
+    init_tasking();
+    // mouse_init();
+    //printf("mouse initialized successfully\n");
+
     setup.main();
 
-    console.main();
+    create_process((void (*)(int, char**))console.main, 0, 0);
+
+    while(1) {
+        __asm__ volatile("hlt");
+    }
     return;
 }

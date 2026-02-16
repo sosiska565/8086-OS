@@ -1,6 +1,9 @@
-#include "strings.h"
+#include "string_lib.h"
 #include "oslib.h"
 #include <stddef.h>
+#include <stdarg.h>
+
+#define DEF_COLOR_GFX  0x00FFFFFF
 
 void print_header(int header_bg_color, int header_text_color, char *title){
     int len = 0;
@@ -67,15 +70,17 @@ char *strcat(char *dest, const char *src) {
     return original_dest;
 }
 
-void itoa(int n, char* buffer, int base) {
+void itoa(unsigned int n, char* buffer, int base) {
     int i = 0;
-    if (n == 0) { buffer[0] = '0'; buffer[1] = 0; return; }
+    if (n == 0) { buffer[i++] = '0'; buffer[i] = 0; return; }
+    
     while (n != 0) {
-        int rem = n % base;
+        unsigned int rem = n % base;
         buffer[i++] = (rem > 9) ? (rem - 10) + 'a' : rem + '0';
         n = n / base;
     }
     buffer[i] = 0;
+    
     for(int j = 0; j < i / 2; j++) {
         char tmp = buffer[j];
         buffer[j] = buffer[i - j - 1];

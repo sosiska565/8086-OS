@@ -1,6 +1,9 @@
 #include "drivers/keyboard/keyboardDriver.h"
 #include "drivers/vga/vga.h"
 #include "drivers/io/io.h"
+#include "multitask/task.h"
+#include "drivers/video/graphics.h"
+#include "programs/system/console/console.h"
 
 #define BUFFER_SIZE 256
 
@@ -8,10 +11,10 @@ static uint8_t shift_pressed = 0;
 static uint8_t caps_lock = 0;
 
 static char key_buffer[BUFFER_SIZE];
-static int buffer_count = 0;
+static volatile int buffer_count = 0;
 
 static uint8_t scancode_buffer[BUFFER_SIZE];
-static int scancode_count = 0;
+static volatile int scancode_count = 0;
 
 Scancode_entity us_keymap[] = {
     {0x00, 0, 0, 0, 0, "Error"},
@@ -201,6 +204,27 @@ void keyboard_handler_c(void) {
     } else if (make_code == 0x3A && !is_release) {
         caps_lock = !caps_lock;
     }
+
+    static uint8_t alt_held = 0;
+    if (make_code == 0x38) {
+        alt_held = !is_release;
+    }
+
+    if (alt_held && make_code == 0x0F && !is_release) {
+        wm_switch_focus(); 
+        return;
+    }
+
+    //блядски мега опасная хуйня!
+    if (alt_held && make_code == 0x10 && !is_release){
+        kill_focused_process();
+        keyboard_flush();
+        return;
+    }
+
+    if (alt_held && make_code == 0x14 && !is_release){
+        create_process((void (*)(int, char**))console.main, 0, 0);
+    }
     
     if (!is_release) {
         add_scancode_to_buffer(make_code);
@@ -214,9 +238,16 @@ void keyboard_handler_c(void) {
 
 char getch(void) {
     __asm__ volatile("sti");
-    while (is_buffer_empty()) {
-        __asm__ volatile("pause");
+    
+    while (1) {
+        if (!is_buffer_empty()) {
+            if (focused_window == 0 || current_task->window == focused_window) {
+                break;
+            }
+        }
+        task_scheduler();
     }
+    
     __asm__ volatile("cli");
     char c = get_from_buffer();
     __asm__ volatile("sti");
@@ -225,9 +256,15 @@ char getch(void) {
 
 uint8_t wait_scancode(void) {
     __asm__ volatile("sti");
-    while (is_scancode_buffer_empty()) {
-        __asm__ volatile("pause");
+    while (1) {
+        if (!is_scancode_buffer_empty()) {
+            if (focused_window == 0 || current_task->window == focused_window) {
+                break;
+            }
+        }
+        task_scheduler();
     }
+    
     __asm__ volatile("cli");
     uint8_t code = get_scancode_from_buffer();
     __asm__ volatile("sti");

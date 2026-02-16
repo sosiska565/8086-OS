@@ -15,4 +15,6 @@ _start:
 
     add esp, 8
 
+    call exit
+    
     ret

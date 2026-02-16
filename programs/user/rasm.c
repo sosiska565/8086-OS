@@ -1,18 +1,15 @@
 #include "oslib.h"
-#include "strings.h"
+#include "string_lib.h"
 
 void main(int argc, char **argv){
-    print("not now :)\n");
-    return;
-
     if(argv[1] == 0){
-        print("Usage: rasm.bin <file>\n");
+        printf("Usage: rasm.bin <file> <output file name>\n");
         return;
     }
 
     int filesize = get_file_size(argv[1]);
     if(filesize <= 0){
-        print("File is not found or empty.\n");
+        printf("File is not found or empty.\n");
         return;
     }
     uint8_t *buffer = malloc(filesize + 1);
@@ -27,7 +24,9 @@ void main(int argc, char **argv){
         }
     }
 
-    print(lines_buffer[1]);
+    printf(lines_buffer[1]);
+
+    //write_file(argv[2], (uint8_t*){0xCD, 0x80}, 2);
 
     free(buffer);
 }

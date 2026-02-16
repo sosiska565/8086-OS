@@ -3,12 +3,17 @@
 
 #include <stdint.h>
 
-void mouse_init();
-void mouse_handler_c();
+typedef struct {
+    int x;
+    int y;
+    uint8_t left_button;
+    uint8_t right_button;
+    uint8_t middle_button;
+} MouseState;
 
-extern int mouse_x;
-extern int mouse_y;
-extern uint8_t mouse_left_pressed;
-extern uint8_t mouse_right_pressed;
+void mouse_init(void);
+void mouse_handler_c(void);
+
+extern MouseState mouse;
 
 #endif

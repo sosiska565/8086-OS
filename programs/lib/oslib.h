@@ -20,6 +20,22 @@ typedef enum {
     VGA_COLOR_LIGHT_MAGENTA = 13,
     VGA_COLOR_YELLOW = 14,
     VGA_COLOR_WHITE = 15,
+    VGA32_COLOR_BLACK = 0x00000000,
+    VGA32_COLOR_BLUE = 0x000000FF,
+    VGA32_COLOR_GREEN = 0x0000FF00,
+    VGA32_COLOR_CYAN = 0x0000FFFF,
+    VGA32_COLOR_RED = 0x00FF0000,
+    VGA32_COLOR_MAGENTA = 0x00FF00FF,
+    VGA32_COLOR_BROWN = 0x00640000,
+    VGA32_COLOR_LIGHT_GREY = 0x00D3D3D3,
+    VGA32_COLOR_DARK_GREY = 0x00595959,
+    VGA32_COLOR_LIGHT_BLUE = 0x00ADD8E6,
+    VGA32_COLOR_LIGHT_GREEN = 0x0090EE90,
+    VGA32_COLOR_LIGHT_CYAN = 0x00E0FFFF,
+    VGA32_COLOR_LIGHT_RED = 0x00FFA07A,
+    VGA32_COLOR_LIGHT_MAGENTA = 0x00FFB6C1,
+    VGA32_COLOR_YELLOW = 0x00FFFF00,
+    VGA32_COLOR_WHITE = 0x00FFFFFF,
 } vga_color_t;
 
 #define VGA_COLOR(fg, bg) ((bg << 4) | (fg & 0x0F))
@@ -31,6 +47,30 @@ typedef struct {
     int height;
     uint32_t color;
 } Rect;
+
+typedef struct Window{
+    int id;
+    int x, y;
+    int width, height;
+    uint32_t bg_color;
+    uint32_t border_color;
+
+    int cursor_x, cursor_y;
+    uint32_t text_color;
+
+    struct Window *next;
+
+    char *char_buffer;
+    uint32_t *color_buffer;
+    int rows, cols;    
+} Window;
+
+typedef struct text_struct{
+    int x;
+    int y;
+    char *str;
+    uint32_t color;
+} text_struct;
 
 void print_char(char c);
 void print_char_colored(char c, int color);
@@ -60,9 +100,18 @@ char scancode_to_ascii(uint8_t scancode);
 void memcpy(void* dest, void* src, int size);
 int getScreenWidth(void);
 int getScreenHeight(void);
-void printf(const char* format, ...);
 void draw_rect_filled(Rect *rect);
 int get_screen_width(void);
 int get_screen_height(void);
+void draw_window(Window *win);
+void set_current_active_window(Window *win);
+Window *create_window(uint32_t bg_color);
+void close_window(Window *win);
+void printf(const char* format, ...);
+int strcmp(const char *c1, const char *c2);
+void print_window(Window *win, text_struct* ts);
+void sleep(unsigned long ms);
+int fork(void (*entry)(int, char**), int argc, char** argv);
+void kill(int pid);
 
 #endif

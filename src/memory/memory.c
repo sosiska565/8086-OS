@@ -19,11 +19,11 @@ void heap_init(void){
     heap_start->next = NULL;
 
     printf("Heap initialized at ");
-    printhex((unsigned int)HEAP_START);
+    printf("%X", (unsigned int)HEAP_START);
     printf("\n");
 
     printf("Heap size: ");
-    printnumber(HEAP_SIZE / 1024);
+    printf("%d", HEAP_SIZE / 1024);
     printf(" KB\n");
 }
 

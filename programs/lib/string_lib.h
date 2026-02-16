@@ -3,10 +3,29 @@
 
 #include <stdint.h>
 
+static const uint32_t vga_to_rgb[] = {
+    0x000000,
+    0x0000AA,
+    0x00AA00,
+    0x00AAAA,
+    0xAA0000, 
+    0xAA00AA,
+    0xAA5500,
+    0xAAAAAA,
+    0x555555,
+    0x5555FF,
+    0x55FF55,
+    0x55FFFF,
+    0xFF5555,
+    0xFF55FF,
+    0xFFFF55,
+    0xFFFFFF
+};
+
 void print_header(int header_bg_color, int header_text_color, char *title);
 void print_footer(int footer_bg_color, int footer_text_color, char *text);
 void strcpy(char *dst, char *src);
-void itoa(int n, char* buffer, int base);
+void itoa(unsigned int n, char* buffer, int base);
 char *strcat(char *dest, const char *src);
 int strlen(char *str);
 

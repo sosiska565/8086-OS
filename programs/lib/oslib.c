@@ -237,18 +237,6 @@ int getScreenHeight(void){
     return height;
 }
 
-void printf(const char* format, ...){
-    va_list args;
-    va_start(args, format);
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(24), "b"(format), "c"(args)
-    );
-
-    va_end(args);
-}
-
 void draw_rect_filled(Rect *rect){
     __asm__ volatile(
         "int $0x80"
@@ -275,4 +263,178 @@ int get_screen_height(void){
         : "a"(27)
     );
     return h;
+}
+
+void draw_window(Window *win){
+    __asm__ volatile(
+        "int $0x80"
+        : 
+        : "a"(28), "b"(win)
+    );
+}
+
+void set_current_active_window(Window *win){
+    __asm__ volatile(
+        "int $0x80"
+        : 
+        : "a"(29), "b"(win)
+    );
+}
+
+Window *create_window(uint32_t bg_color){
+    Window* win;
+
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(win)
+        : "a"(30), "b"(bg_color)
+    );
+
+    return win;
+}
+
+void close_window(Window *win){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(31), "b"(win)
+    );
+}
+
+static void itoa_lib(int n, char* buffer, int base) {
+    int i = 0;
+    int isNeg = 0;
+    if (n == 0) { buffer[0] = '0'; buffer[1] = '\0'; return; }
+    if (n < 0 && base == 10) { isNeg = 1; n = -n; }
+
+    while (n != 0) {
+        int rem = n % base;
+        buffer[i++] = (rem > 9) ? (rem - 10) + 'A' : rem + '0';
+        n = n / base;
+    }
+    if (isNeg) buffer[i++] = '-';
+    buffer[i] = '\0';
+
+    int start = 0, end = i - 1;
+    while (start < end) {
+        char temp = buffer[start];
+        buffer[start] = buffer[end];
+        buffer[end] = temp;
+        start++; end--;
+    }
+}
+
+static void itoa_unsigned_lib(unsigned int n, char* buffer, int base) {
+    int i = 0;
+    if (n == 0) { buffer[0] = '0'; buffer[1] = '\0'; return; }
+    while (n != 0) {
+        unsigned int rem = n % base;
+        buffer[i++] = (rem > 9) ? (rem - 10) + 'A' : rem + '0';
+        n = n / base;
+    }
+    buffer[i] = '\0';
+    int start = 0, end = i - 1;
+    while (start < end) {
+        char temp = buffer[start];
+        buffer[start] = buffer[end];
+        buffer[end] = temp;
+        start++; end--;
+    }
+}
+
+void vsprintf(char *str, const char *format, va_list args) {
+    char temp[64];
+    while (*format) {
+        if (*format == '%') {
+            format++;
+            switch (*format) {
+                case 's': {
+                    char *s = va_arg(args, char *);
+                    if (!s) s = "(null)";
+                    while (*s) *str++ = *s++;
+                    break;
+                }
+                case 'd':
+                case 'i': {
+                    int n = va_arg(args, int);
+                    itoa_lib(n, temp, 10);
+                    char *t = temp;
+                    while (*t) *str++ = *t++;
+                    break;
+                }
+                case 'x': {
+                    unsigned int n = va_arg(args, unsigned int);
+                    itoa_unsigned_lib(n, temp, 16);
+                    char *t = temp;
+                    while (*t) *str++ = *t++;
+                    break;
+                }
+                case 'c': {
+                    char c = (char)va_arg(args, int);
+                    *str++ = c;
+                    break;
+                }
+                default:
+                    *str++ = '%';
+                    *str++ = *format;
+                    break;
+            }
+        } else {
+            *str++ = *format;
+        }
+        format++;
+    }
+    *str = '\0';
+}
+
+void printf(const char* format, ...) {
+    char buffer[256];
+    
+    va_list args;
+    va_start(args, format);
+    vsprintf(buffer, format, args);
+    va_end(args);
+
+    print(buffer);
+}
+
+int strcmp(const char *c1, const char *c2) {
+    while (*c1 && (*c1 == *c2)) {
+        c1++;
+        c2++;
+    }
+    return *(const unsigned char*)c1 - *(const unsigned char*)c2;
+}
+
+void print_window(Window *win, text_struct* ts){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(35), "b"(win), "c"(ts)
+    );
+}
+
+void sleep(unsigned long ms){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(36), "b"(ms)
+    );
+}
+
+int fork(void (*entry)(int, char**), int argc, char** argv){
+    int pid;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(pid)
+        : "a"(37), "b"(entry), "c"(argc), "d"(argv)
+    );
+}
+
+void kill(int pid){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(38), "b"(pid)
+    );
 }

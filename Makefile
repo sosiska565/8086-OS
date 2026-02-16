@@ -75,9 +75,11 @@ C_FILES = src/kernel.c \
 	src/drivers/video/bga/gfx_console.c \
 	src/drivers/video/graphics.c \
 	src/drivers/video/vesa.c \
-	src/drivers/video/bga/font.c
+	src/drivers/video/bga/font.c \
+	src/multitask/task.c \
+	src/memory/paging.c
 
-ASM_FILES = boot/kernel.asm boot/gdt.asm src/interrupt/interrupts.asm
+ASM_FILES = boot/kernel.asm boot/gdt.asm src/interrupt/interrupts.asm src/multitask/switch.asm src/memory/paging_a.asm
 
 C_OBJECTS   = $(C_FILES:.c=.o)
 ASM_OBJECTS = $(ASM_FILES:.asm=.o)
@@ -99,7 +101,10 @@ LIB_FINAL_OBJS = $(LIB_ENTRY_OBJ) $(LIB_C_OBJS)
 USER_C_FILES = \
 	programs/user/nani.c \
 	programs/user/rasm.c \
-	programs/user/imgvwr.c
+	programs/user/imgvwr.c \
+	programs/user/test.c \
+	programs/user/test2.c \
+	programs/user/wr.c
 
 ifeq ($(DETECTED_OS),Windows)
     USER_OBJS = $(patsubst $(USER_DIR)$(PATHSEP)%.c, $(BIN_DIR)$(PATHSEP)%.o, $(USER_C_FILES))
@@ -248,7 +253,7 @@ run: clean build-all
 		-drive file=$(DISK_IMG),format=raw,index=0,if=ide,media=disk \
 		-drive file=$(ISO),format=raw,index=1,if=ide,media=cdrom \
 		-boot d \
-		-rtc base=localtime
+		-rtc base=localtime 
 
 debug: clean build-all
 	@echo "[QEMU] Отладка..."
@@ -259,7 +264,7 @@ oncerun:
 		-drive file=$(DISK_IMG),format=raw,index=0,if=ide,media=disk \
 		-drive file=$(ISO),format=raw,index=1,if=ide,media=cdrom \
 		-boot d \
-		-rtc base=localtime
+		-rtc base=localtime 
 
 clean:
 	@echo "[CLEAN] Очистка..."

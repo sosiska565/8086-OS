@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include "drivers/video/vesa.h"
 #include "drivers/video/graphics.h"
+#include "multitask/task.h"
 
 extern int screen_width;
 extern int screen_height;
@@ -21,12 +22,25 @@ typedef struct {
 } Rect;
 
 void syscall_handler_c(struct registers *regs){
-    if(regs->eax == 0) print_char((char)regs->ebx);
-    else if(regs->eax == 1) return;
+    if(regs->eax == 0) {
+        window_putc(current_task->window, (char)regs->ebx);
+    }
+    else if(regs->eax == 1) {
+        keyboard_flush();
+        exit_process();
+    }
     else if(regs->eax == 2) regs->eax = (uint32_t)getch();
     else if(regs->eax == 3) gets((char*)regs->ebx, (int)regs->ecx);
-    else if(regs->eax == 4) regs->eax = (uint32_t)kmalloc((size_t)regs->ebx);
-    else if(regs->eax == 5) kfree((void*)regs->ebx);
+    else if(regs->eax == 4) {
+        void *ptr = kmalloc((size_t)regs->ebx);
+        regs->eax = (uint32_t)ptr;
+        track_allocation(current_task, ptr);
+    }
+    else if(regs->eax == 5) {
+        void *ptr = (void*)regs->ebx;
+        untrack_allocation(current_task, ptr);
+        kfree(ptr);
+    }
     else if(regs->eax == 6) clear_screen();
     else if(regs->eax == 7) print_char_colored((char)regs->ebx, (uint8_t)regs->ecx);
     else if(regs->eax == 8) regs->eax = random();
@@ -52,6 +66,37 @@ void syscall_handler_c(struct registers *regs){
     }
     else if(regs->eax == 26) regs->eax = get_screen_width();
     else if(regs->eax == 27) regs->eax = get_screen_height();
+    else if(regs->eax == 28) {
+        Window *win = (Window*)regs->ebx;
+        draw_window(win, win->x, win->y, win->width, win->height, VGA32_COLOR_CYAN, win->bg_color, 0);
+    }
+    else if(regs->eax == 29){
+        Window *win = (Window*)regs->ebx;
+        set_current_output_window(win);
+    }
+    else if(regs->eax == 30){
+        Window *win = wm_create_window((uint32_t)regs->ebx);
+        
+        if (current_task) {
+            current_task->window = win;
+            current_task->owns_window = 1; 
+        }
+        
+        regs->eax = (uint32_t)win;
+    }
+    else if(regs->eax == 31){
+        wm_close_window((Window *)regs->ebx);
+    }
+    else if(regs->eax == 32) exit_process();
+    else if(regs->eax == 33) keyboard_flush();
+    else if(regs->eax == 34) wait_process((int)regs->ebx);
+    else if(regs->eax == 35) {
+        text_struct *ts = (text_struct*)regs->ecx;
+        window_print((Window*)regs->ebx, ts->x, ts->y, ts->str, ts->color);
+    }
+    else if(regs->eax == 36) task_sleep((int)regs->ebx);
+    else if(regs->eax == 37) regs->eax = create_process((void (*)(int, char**))regs->ebx, (int)regs->ecx, (char**)regs->edx);
+    else if(regs->eax == 38) kill_task(regs->ebx);
     else {
         printf("Unknown syscall!\n");
     }
