@@ -79,7 +79,7 @@ typedef struct process_struct{
     char *name;
 } process_struct;
 
-void print_char(char c);
+void print_char(unsigned int c);
 void print_char_colored(char c, int color);
 void print_colored(char *str, int color);
 void print(char *str);

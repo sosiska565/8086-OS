@@ -1,11 +1,11 @@
 #include <oslib.h>
 #include <stdarg.h>
 
-void print_char(char c){
+void print_char(unsigned int c){
     __asm__ volatile(
         "int $0x80"
         : 
-        : "a"(0), "b"(c) 
+        : "a"(0), "b"(c)
     );
 }
 
@@ -342,7 +342,23 @@ static void itoa_unsigned_lib(unsigned int n, char* buffer, int base) {
     }
 }
 
-void vsprintf(char *str, const char *format, va_list args) {
+const char* utf8_to_unicode(const char* s, unsigned int* code) {
+    unsigned char c = (unsigned char)*s;
+    if (c < 0x80) { 
+        *code = c;
+        return s + 1;
+    } else if ((c & 0xE0) == 0xC0) { 
+        *code = ((c & 0x1F) << 6) | ((unsigned char)s[1] & 0x3F);
+        return s + 2;
+    } else if ((c & 0xF0) == 0xE0) {
+        *code = ((c & 0x0F) << 12) | (((unsigned char)s[1] & 0x3F) << 6) | ((unsigned char)s[2] & 0x3F);
+        return s + 3;
+    }
+    *code = c;
+    return s + 1;
+}
+
+void vsprintf(unsigned int *str, const char *format, va_list args) {
     char temp[64];
     while (*format) {
         if (*format == '%') {
@@ -370,7 +386,7 @@ void vsprintf(char *str, const char *format, va_list args) {
                     break;
                 }
                 case 'c': {
-                    char c = (char)va_arg(args, int);
+                    char c = (unsigned int)va_arg(args, int);
                     *str++ = c;
                     break;
                 }
@@ -380,22 +396,31 @@ void vsprintf(char *str, const char *format, va_list args) {
                     break;
             }
         } else {
-            *str++ = *format;
+            unsigned int code;
+            format = utf8_to_unicode(format, &code);
+            *str++ = code;
+            continue;
         }
         format++;
     }
     *str = '\0';
 }
 
+void print_unicode(unsigned int *str) {
+    for(int i = 0; str[i] != 0; i++){
+        print_char(str[i]);
+    }
+}
+
 void printf(const char* format, ...) {
-    char buffer[256];
+    unsigned int buffer[256];
     
     va_list args;
     va_start(args, format);
     vsprintf(buffer, format, args);
     va_end(args);
 
-    print(buffer);
+    print_unicode(buffer);
 }
 
 int strcmp(const char *c1, const char *c2) {

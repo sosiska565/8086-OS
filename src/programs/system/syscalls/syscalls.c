@@ -23,7 +23,7 @@ typedef struct {
 
 void syscall_handler_c(struct registers *regs){
     if(regs->eax == 0) {
-        window_putc(current_task->window, (char)regs->ebx);
+        window_putc(current_task->window, (unsigned int)regs->ebx);
     }
     else if(regs->eax == 1) {
         keyboard_flush();
