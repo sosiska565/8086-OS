@@ -89,6 +89,11 @@ void heap_dump(void) {
     
     memory_block_t *current = heap_start;
     int block_num = 0;
+
+    if (current == NULL) {
+        printf("OUT OF MEMORY! Wanted: %d bytes\n", current->size);
+        while(1);
+    }
     
     while(current != NULL) {
         printf("Block ");
@@ -114,4 +119,26 @@ void heap_dump(void) {
     }
     
     printf("=================\n\n");
+}
+
+void fast_memcpy(void* dest, const void* src, size_t count_bytes) {
+    size_t dwords = count_bytes / 4;
+    
+    __asm__ volatile (
+        "cld\n"
+        "rep movsl"
+        : 
+        : "S"(src), "D"(dest), "c"(dwords) 
+        : "memory"
+    );
+}
+
+void fast_memset(void* dest, uint32_t val, size_t count_pixels) {
+    __asm__ volatile (
+        "cld\n"
+        "rep stosl"
+        : 
+        : "a"(val), "D"(dest), "c"(count_pixels) 
+        : "memory"
+    );
 }

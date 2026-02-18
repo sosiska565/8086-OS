@@ -28,10 +28,19 @@ typedef struct Task{
     uint32_t wake_tick;
     int parent_id;
     AllocList *allocations;
+    char name[32];
 } Task;
+
+typedef struct process_struct{
+    void (*foo)(int, char**);
+    int argc;
+    char **argv;
+    char *name;
+} process_struct;
 
 extern Task *current_task;
 extern int kill_current_task_flag;
+extern Task *ready_queue;
 void check_kill_flag();
 
 void init_tasking();
@@ -39,7 +48,7 @@ void create_thread(void (*function)(void));
 void task_scheduler();
 void yield();
 void task_exit();
-int create_process(void (*entry)(int, char**), int argc, char **argv);
+int create_process(void (*entry)(int, char**), int argc, char **argv, char *name);
 void exit_process();
 void wait_process(int pid);
 void kill_focused_process();
@@ -47,5 +56,7 @@ void task_sleep(int ms);
 void kill_task(int pid);
 void track_allocation(Task *task, void *ptr);
 void untrack_allocation(Task *task, void *ptr);
+Task* get_task_by_window(Window *win);
+Task* get_focused_task();
 
 #endif

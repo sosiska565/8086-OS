@@ -12,14 +12,10 @@ int next_pid = 0;
 
 int kill_current_task_flag = 0;
 
-
-
 Task *zombie_task = 0; 
 
 void track_allocation(Task *task, void *ptr) {
     if (!task || !ptr) return;
-    
-    
     
     AllocList *node = (AllocList*)kmalloc(sizeof(AllocList));
     node->ptr = ptr;
@@ -80,6 +76,19 @@ void cleanup_zombies() {
     }
 }
 
+void task_set_name(Task* t, char* name) {
+    int i = 0;
+    if (!name) {
+        t->name[0] = 'u'; t->name[1] = 'n'; t->name[2] = 'k'; t->name[3] = 0;
+        return;
+    }
+    while (name[i] && i < 31) {
+        t->name[i] = name[i];
+        i++;
+    }
+    t->name[i] = 0;
+}
+
 void init_tasking() {
     Task *ktask = (Task*)kmalloc(sizeof(Task));
     ktask->id = next_pid++;
@@ -92,20 +101,24 @@ void init_tasking() {
     ktask->parent_id = -1;
     ktask->allocations = 0; 
 
+    task_set_name(ktask, "kernel");
+
     current_task = ktask;
     ready_queue = ktask;
 
     __asm__ volatile ("sti");
 }
 
-int create_process(void (*entry)(int, char**), int argc, char **argv) {
+int create_process(void (*entry)(int, char**), int argc, char **argv, char *name) {
     cleanup_zombies();
 
     Task *new_task = (Task*)kmalloc(sizeof(Task));
     new_task->id = next_pid++;
     new_task->state = TASK_RUNNING;
     new_task->kill_me = 0;
-    new_task->allocations = 0; 
+    new_task->allocations = 0;
+
+    task_set_name(new_task, name);
 
     if (current_task) {
         new_task->parent_id = current_task->id;
@@ -145,12 +158,6 @@ int create_process(void (*entry)(int, char**), int argc, char **argv) {
 
 void task_scheduler() {
     if (!current_task) return;
-    
-    
-    cleanup_zombies();
-
-    
-    
     
     Task *iter = current_task;
     
@@ -268,12 +275,8 @@ void exit_process() {
     while(1);
 }
 
-
-
-
-
 void yield() { task_scheduler(); }
-void create_thread(void (*f)(void)) { create_process((void (*)(int, char**))f, 0, 0); }
+void create_thread(void (*f)(void)) { create_process((void (*)(int, char**))f, 0, 0, "thread"); }
 void task_sleep(int ms) { 
     extern unsigned long get_ticks();
     current_task->wake_tick = get_ticks() + ms;
@@ -297,7 +300,6 @@ void kill_focused_process() {
             kill_children_of(t->id);
             t->state = TASK_DEAD; 
             if (t->window) wm_close_window(t->window);
-            wm_refresh();
         }
     }
     __asm__ volatile("sti");
@@ -335,18 +337,57 @@ void wait_process(int pid) {
 void kill_task(int pid) {
     if (!ready_queue) return;
 
-    Task *curr = ready_queue;
+    Task *t = ready_queue;
+    int found = 0;
+
+    do {
+        if (t->id == pid && t->state != TASK_DEAD) {
+            found = 1;
+            break;
+        }
+        t = t->next;
+    } while (t != ready_queue);
+
+    if (!found) {
+        return;
+    }
     
+    if (t == current_task) {
+        printf("Use 'exit' to stop current process.\n");
+        return;
+    }
+    
+    if (t->id <= 1) { 
+        printf("Permission denied: Cannot kill system process.\n");
+        return;
+    }
+
+    kill_children_of(t->id);
+
+    if (t->window && t->owns_window) {
+        wm_close_window(t->window);
+        t->window = 0;
+    }
+
+    t->state = TASK_DEAD;
+}
+
+Task* get_task_by_window(Window *win) {
+    if (!ready_queue || !win) return 0;
+
+    Task *t = ready_queue;
     
     do {
-        if (curr->id == pid) {
-            
-            
-            
-            curr->state = TASK_DEAD; 
-            
-            return;
+        if (t->window == win && t->state != TASK_DEAD) {
+            return t;
         }
-        curr = curr->next;
-    } while (curr != ready_queue);
+        t = t->next;
+    } while (t != ready_queue);
+
+    return 0;
+}
+
+Task* get_focused_task() {
+    if (focused_window == 0) return 0;
+    return get_task_by_window(focused_window);
 }

@@ -223,7 +223,7 @@ void keyboard_handler_c(void) {
     }
 
     if (alt_held && make_code == 0x14 && !is_release){
-        create_process((void (*)(int, char**))console.main, 0, 0);
+        create_process((void (*)(int, char**))console.main, 0, 0, "console");
     }
     
     if (!is_release) {

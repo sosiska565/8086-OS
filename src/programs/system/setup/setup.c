@@ -18,20 +18,20 @@ Window *setupWin;
 Config *cfg = 0; 
 
 void printInterface(void){
-    ata_identify(ATA_MASTER, &ds);
-    if (ds.name[0] != 0) strcpy(master, ds.name);
+    //ata_identify(ATA_MASTER, &ds);
+    //if (ds.name[0] != 0) strcpy(master, ds.name);
     
-    ata_identify(ATA_SLAVE, &ds);
-    if (ds.name[0] != 0) strcpy(slave, ds.name);
+    //ata_identify(ATA_SLAVE, &ds);
+    //if (ds.name[0] != 0) strcpy(slave, ds.name);
 
     setupWin = wm_create_window(VGA32_COLOR_BLUE);
     set_current_output_window(setupWin);
     
     printf("\n\n\n");
     printf("     Welcome to setup 8086-OS!\n\n\n");
-    printf("     ---Disks list---\n\n");
-    printf("     Master: %s\n", master);
-    printf("     Slave:  %s\n\n\n", slave);
+    //printf("     ---Disks list---\n\n");
+    //printf("     Master: %s\n", master);
+    //printf("     Slave:  %s\n\n\n", slave);
     printf("     Please select the OS mode\n\n");
     printf("     1. Read-only mode (SAFE MODE, no disk access)\n\n");
     printf("     2. Read/write mode (Try to load config)\n\n");
@@ -41,6 +41,7 @@ void printInterface(void){
 void diskStage(void){
 
     printInterface();
+    vesa_render_buffer();
 
     char c = getch();
 

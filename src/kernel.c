@@ -20,6 +20,7 @@
 #include "drivers/video/graphics.h"
 #include "multitask/task.h"
 #include "memory/paging.h"
+#include "programs/system/initd/initd.h"
 
 #include "drivers/file/ATA/ATA.h"
 
@@ -29,7 +30,6 @@ char* path = "/";
 struct multiboot_info* mbi;
 
 void kmain(unsigned long magic, unsigned long mb_info_addr){
-    //init
     if(magic != 0x2BADB002){
         panic("Magic value is not correct");
     }
@@ -38,45 +38,42 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     idt_install();
     idt_init();
     timer_install();
-    
 
     __asm__ volatile("sti");
 
     mbi = (struct multiboot_info*) mb_info_addr;
 
-    //run setup
-    init_vesa();
-    init_gfx_console();
-    printf("gfx console initialized successfully\n");
-    printf("vesa initialized successfully\n");
-    printf("timer initialized successfully\n");
-    printf("idt initialized successfully\n");
-    //init
-    
     heap_init();
-    printf("heap initialized successfully\n");
-    heap_dump();
+    init_vesa();
+    printf("Vesa initialized.\n");
+    printf("Heap initialized.\n");
+
     init_paging();
+    printf("Paging initialized.\n");
+    init_gfx_console();
+    printf("Gfx console initialized.\n");
+
     fat32_init();
-    printf("fat32 initialized successfully\n");
+    printf("FAT32 initialized.\n");
+
     srand(get_ticks());
 
     pci_scan();
-    
-    printf("Please press any key to continue...");
-    wait_scancode();
 
     wm_init();
-    init_tasking();
-    // mouse_init();
-    //printf("mouse initialized successfully\n");
+    printf("Window manager initialized.\n");
 
+    init_tasking();
+    printf("Tasking initialized.\n");
+
+    printf("Please press any key to continue...");
+    getch();
+    
     setup.main();
 
-    create_process((void (*)(int, char**))console.main, 0, 0);
+    create_process(initd, 0, 0, "initd");
 
     while(1) {
         __asm__ volatile("hlt");
     }
-    return;
 }

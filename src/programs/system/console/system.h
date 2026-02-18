@@ -28,5 +28,7 @@ void cmd_exec(char **tokens);
 void cmd_mkfile(char **tokens);
 void cmd_rm(char **tokens);
 void cmd_readsystemcfg(char **tokens);
+void cmd_tasklist(char **tokens);
+void cmd_kill(char **tokens);
 
 #endif

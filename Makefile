@@ -77,7 +77,10 @@ C_FILES = src/kernel.c \
 	src/drivers/video/vesa.c \
 	src/drivers/video/bga/font.c \
 	src/multitask/task.c \
-	src/memory/paging.c
+	src/memory/paging.c \
+	src/graphics/taskbar.c \
+	src/programs/system/initd/initd.c \
+	src/graphics/interface.c
 
 ASM_FILES = boot/kernel.asm boot/gdt.asm src/interrupt/interrupts.asm src/multitask/switch.asm src/memory/paging_a.asm
 

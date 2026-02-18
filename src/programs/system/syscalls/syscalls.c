@@ -95,7 +95,10 @@ void syscall_handler_c(struct registers *regs){
         window_print((Window*)regs->ebx, ts->x, ts->y, ts->str, ts->color);
     }
     else if(regs->eax == 36) task_sleep((int)regs->ebx);
-    else if(regs->eax == 37) regs->eax = create_process((void (*)(int, char**))regs->ebx, (int)regs->ecx, (char**)regs->edx);
+    else if(regs->eax == 37) {
+        process_struct *p = (process_struct*)regs->ebx;
+        regs->eax = create_process((void (*)(int, char**))p->foo, p->argc, (char**)p->argv, (char*)p->name);
+    }
     else if(regs->eax == 38) kill_task(regs->ebx);
     else {
         printf("Unknown syscall!\n");

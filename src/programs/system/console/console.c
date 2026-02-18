@@ -15,7 +15,6 @@
 char history[HISTORY_SIZE][CMD_MAX_LEN];
 int history_count = 0;
 int history_browse_idx = 0;
-Window *consoleWin;
 
 void add_to_history(const char* cmd) {
     if (cmd[0] == '\0') return;
@@ -74,26 +73,29 @@ void draw_console_cursor(Window *win, int state) {
             8, 8,
             color
         );
+        vesa_render_rect(win->x + win->cursor_x, win->y + win->cursor_y, 8, 8);
     }
 }
 
 int console_main(void) {
     keyboard_flush();
     char *empty_args[] = {NULL};
-    clear_screen_vesa(0x00000000);
     
-    consoleWin = wm_create_window(VGA32_COLOR_BLACK);
-    current_task->window = consoleWin; 
-    wm_set_focused_window(consoleWin);
-
-    cmd_colortest(empty_args);
+    Window *my_win = wm_create_window(VGA32_COLOR_BLACK);
+    
+    current_task->window = my_win; 
+    current_task->owns_window = 1; 
+    
+    wm_set_focused_window(my_win);
+    
     printf("\n");
     
-    console.should_exit = 0;
+    int local_should_exit = 0;
 
-    while(!console.should_exit) { 
-        current_task->window = consoleWin;
+    while(!local_should_exit) { 
+        current_task->window = my_win;
         printf("%s> ", path);
+        draw_console_cursor(my_win, 1);
 
         char command[CMD_MAX_LEN];
         memset(command, 0, CMD_MAX_LEN);
@@ -102,16 +104,20 @@ int console_main(void) {
         history_browse_idx = history_count;
 
         while(1) {
-            draw_console_cursor(consoleWin, 1);
+            draw_console_cursor(my_win, 1);
 
             uint8_t scancode = wait_scancode();
 
-            draw_console_cursor(consoleWin, 0);
+            draw_console_cursor(my_win, 0);
 
             if (scancode == 0x1C) {
                 command[pos] = '\0';
                 printf("\n");
                 add_to_history(command);
+                
+                if (strcmp(command, "exit") == 0) {
+                    local_should_exit = 1;
+                }
                 break;
             }
 
@@ -162,7 +168,7 @@ int console_main(void) {
             }
         }
         
-        if(command[0] == '\0') continue;
+        if(command[0] == '\0' || local_should_exit) continue;
         
         char **tokens = parse_str(command, ' ');
         execute_command(tokens);

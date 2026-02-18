@@ -422,12 +422,12 @@ void sleep(unsigned long ms){
     );
 }
 
-int fork(void (*entry)(int, char**), int argc, char** argv){
+int fork(process_struct *p){
     int pid;
     __asm__ volatile(
         "int $0x80"
         : "=a"(pid)
-        : "a"(37), "b"(entry), "c"(argc), "d"(argv)
+        : "a"(37), "b"(p)
     );
 }
 

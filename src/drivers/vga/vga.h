@@ -118,6 +118,7 @@ void set_current_color(vga_color_t color);
 int strlen(char *str);
 void printf(const char* format, ...);
 void vprintf(const char* format, va_list args);
+void itoa(int num, char buff[]);
 
 //псевдо графика
 void draw_text_box_ex(char* lines[], char* title, 

@@ -18,7 +18,7 @@ void mainProc(){
 }
 
 static int main(void){
-    create_process((void (*)(int, char**))mainProc, 0, 0);
+    create_process((void (*)(int, char**))mainProc, 0, 0, "mainproc");
     return 0;
 }
 

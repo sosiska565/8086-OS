@@ -17,7 +17,7 @@
 #include "drivers/video/vesa.h"
 #include "multitask/task.h"
 
-#define PROGRAM_LOAD_ADDRES 0x400000
+#define PROGRAM_LOAD_ADDRES 0x2000000
 
 //test var
 void* ptr;
@@ -51,6 +51,8 @@ command_t commands[] = {
     {"mkfile",      cmd_mkfile,      "Make file (mkfile <file name> <text>)"},
     {"rm",      cmd_rm,      "Remove file (rm <file name>)"},
     {"readsystemcfg", cmd_readsystemcfg, "Update system configs"},
+    {"tasklist", cmd_tasklist, "Show task list"},
+    {"kill", cmd_kill, "Kill process"},
     
     {NULL, NULL, NULL}
 };
@@ -63,36 +65,53 @@ void cmd_colortest(char **tokens) {
     unsigned long long total_mem_kb = (unsigned long long)mbi->mem_lower + mbi->mem_upper;
     char processor[13];
     get_cpu_vendor(processor);
-    printf("            .-\"\"\"-.");
-    printf("     OS:");
+    
+    printf("                                               .+.-*          ");
+    printf("OS:");
     printf("8086-OS V0.5");
-    printf("\n           '       \\");
-    printf("     CPU: ");
+    printf("\n    +-                                       .#     =-        ");
+    printf("CPU: ");
     printf("%s", processor);
-    printf("\n          |,.  ,-.  |");
-    printf("     RAM: %d MB", (int)(total_mem_kb / 1024));
-    printf("\n          |(%C0%C)L(%C0%C)| |", VGA32_COLOR_LIGHT_BLUE, VGA32_COLOR_WHITE, VGA32_COLOR_LIGHT_BLUE, VGA32_COLOR_WHITE);
-    printf("     ");
-    printf("%s%d%s%d", "Screen resolution: ", get_screen_width(), "x", get_screen_height());
-    printf("\n          |%C,'  `\".%C| |", VGA32_COLOR_YELLOW, VGA32_COLOR_WHITE);
-    printf("\n          |%C.___.',%C| `", VGA32_COLOR_YELLOW, VGA32_COLOR_WHITE);
-    printf("\n         .j %C`--\"' %C`  `.", VGA32_COLOR_YELLOW, VGA32_COLOR_WHITE);
-    printf("\n        / '        '   \\");
-    printf("\n       / /          `   `.");
-    printf("\n      / /            `    .");
-    printf("\n     / /              l   |");
-    printf("\n    . ,               |   |");
-    printf("\n    ,\"`.             .|   |");
-    printf("\n _.'   ``.          | `..-'l");
-    printf("\n|       `.`,        |      `.");
-    printf("\n|         `.    __.j         )");
-    printf("\n|__        |--\"\"___|      ,-'");
-    printf("     ");
+    printf("\n.   +   .*-                                 .#        .$      ");
+    printf("RAM: %d MB", (int)(total_mem_kb / 1024));
+    printf("\n  +:       =:                             #-           #.     ");
+    printf("\n  -          .*    -===+=+-.  =:=       -*              #     ");
+    printf("\n :.         .#-:             :*- .=    *:               $.    ");
+    printf("\n *             #               .   :# $                 -:    ");
+    printf("\n +              .#.                  +.                  -    ");
+    printf("\n.-            :=                                         -    ");
+    printf("\n.-          +=                                           =    ");
+    printf("\n.:        =:                                            --    ");
+    printf("\n.#       -++=:.:                                        *.    ");
+    printf("\n $                                                      *     ");
+    printf("\n -                                                      -     ");
+    printf("\n  =                 .+@+           .@@@@@@=.           *      ");
+    printf("\n  --            =#$+@@@@              @@@@$.=$:       :.      ");
+    printf("\n   =.       -#$=. : @@@@           :$@@@@@@  :*      +        ");
+    printf("\n    -:      $     @@@@@@           .@@@@@@$  :*     *         ");
+    printf("\n  .$-::.    +=    +@@@@:             #@@@+   *         .==.   ");
+    printf("\n    ==       :     .++$$*-                     :   --         ");
+    printf("\n       *#   -+.                             .  +.   *         ");
+    printf("\n       .-    --                                     ::        ");
+    printf("\n       =                  +=+                    ++==:        ");
+    printf("\n      -:-++#                                .+:*..+           ");
+    printf("\n          $  .#$.                         :=                  ");
+    printf("\n          .       ==--:.              +*$=*-                  ");
+    printf("\n                   #==#@@            *$*+==#.                 ");
+    printf("\n                  :+==+*$:.     .##++======*:                 ");
+    printf("\n                  :+=======================#:                 ");
+    printf("\n           =+++==-:#+==================+++: :-                ");
+    printf("\n             =       -+*##*+===+***#*=:      =                ");
+    printf("\n               @.            +-:::+           @               ");
+    printf("\n             +              .-:::::=          ..              ");
+    printf("\n               :*            +:::::-           +              ");
+    printf("\n                -       -.    =*+*:             -             ");
+    printf("\n               +.       *              =        -             ");
+    printf("\n               #        $              =.       -:            ");
     for(int i = 0; i < 8; i++) {
         printf("%C%c%c", VGA_COLOR(i, 0), 0x0001, 0x0001);
     }
-    printf("\n   `\"--...,+\"\"\"\"   `._,.-'");
-    printf("        ");
+    printf("\n               .        +              :.        :            ");
     for(int i = 8; i < 16; i++) {
         printf("%C%c%c", VGA_COLOR(i, 0), 0x0001, 0x0001);
     }
@@ -435,7 +454,7 @@ void cmd_exec(char **tokens){
     }
 
     uint8_t* load_addr = (uint8_t*)PROGRAM_LOAD_ADDRES;
-    for(int i=0; i<file_size+4096; i++) load_addr[i] = 0;
+    fast_memset(load_addr, 0, 1024 * 1024);
     int bytes_read = fat32_read_file(tokens[1], load_addr);
 
     if(bytes_read > 0){
@@ -445,7 +464,7 @@ void cmd_exec(char **tokens){
             argc++;
         }
 
-        int pid = create_process((void (*)(int, char**))load_addr, argc, &tokens[1]);
+        int pid = create_process((void (*)(int, char**))load_addr, argc, &tokens[1], tokens[1]);
         if(strcmp(tokens[argc], "&") != 0) {
             wait_process(pid);
         }
@@ -499,4 +518,48 @@ void cmd_readsystemcfg(char **tokens) {
 
     config_free(cfg);
     kfree(file_buffer);
+}
+
+void cmd_tasklist(char **tokens){
+    if (!ready_queue) return;
+    Task *t = ready_queue;
+    
+    printf("PID   State      Parent   Name\n");
+    printf("---   -----      ------   ----\n");
+    
+    do {
+        if (t->state != TASK_DEAD) {
+            printf("%d", t->id);
+            if(t->id < 10) printf("     ");
+            else if(t->id < 100) printf("    ");
+            else printf("   ");
+
+            if (t->state == TASK_RUNNING) printf("RUN        ");
+            else if (t->state == TASK_SLEEPING) printf("SLEEP      ");
+            else printf("READY      ");
+            
+            if(t->parent_id == -1) printf("NONE     ");
+            else {
+                printf("%d", t->parent_id);
+                if(t->parent_id < 10) printf("        ");
+                else printf("       ");
+            }
+
+            printf("%s\n", t->name);
+        }
+        t = t->next;
+    } while (t != ready_queue);
+}
+
+void cmd_kill(char **tokens){
+    if(!tokens[1]){
+        printf("Usage: kill <PID>");
+        return;
+    }
+
+    if(!ready_queue) return;
+
+    int pid = strtn(tokens[1]);
+
+    kill_task(pid);
 }

@@ -17,10 +17,10 @@ Window *head = 0;
 int window_count = 0;
 int next_id = 1;
 Window *focused_window = 0;
+char *focused_task;
 
 void wm_set_focused_window(Window *win) {
     focused_window = win;
-    wm_refresh();
 }
 
 void set_current_output_window(Window *win) {
@@ -44,8 +44,16 @@ void draw_rect(int x, int y, int w, int h, uint32_t color) {
 
 void draw_rect_filled(int x, int y, int w, int h, uint32_t color) {
     for (int i = 0; i < h; i++) {
+        int cy = y + i;
+        if (cy >= get_screen_height()) break;
+        if (cy < 0) continue;
+        
         for (int j = 0; j < w; j++) {
-            put_pixel(x + j, y + i, color);
+            int cx = x + j;
+            if (cx >= get_screen_width()) break;
+            if (cx < 0) continue;
+            
+            put_pixel(cx, cy, color);
         }
     }
 }
@@ -209,49 +217,6 @@ void window_scroll(Window *win){
     window_redraw_content(win);
 }
 
-void window_putc(Window *win, char c) {
-    if (win == 0) return;
-
-    int max_cols = get_screen_width() / FONT_W;
-    
-    int col_idx = win->cursor_x / FONT_W;
-    int row_idx = win->cursor_y / FONT_H;
-
-    if (c == '\n') {
-        win->cursor_x = 0;
-        win->cursor_y += 8;
-    } 
-    else if (c == '\b') {
-        if (win->cursor_x >= 8) {
-            win->cursor_x -= 8;
-            col_idx = win->cursor_x / FONT_W;
-            
-            for(int y = 0; y < 8; y++) {
-                for(int x = 0; x < 8; x++) {
-                    window_put_pixel(win, win->cursor_x + x, win->cursor_y + y, win->bg_color);
-                }
-            }
-            buffer_write(win, col_idx, row_idx, ' ', win->bg_color);
-        }
-    }
-    else {
-        window_draw_char(win, win->cursor_x, win->cursor_y, c, win->text_color);
-
-        buffer_write(win, col_idx, row_idx, c, win->text_color);
-        
-        win->cursor_x += 8;
-    }
-
-    if (win->cursor_x >= win->width - 8) {
-        win->cursor_x = 0;
-        win->cursor_y += 8;
-    }
-
-    if (win->cursor_y >= win->height - 8) {
-        window_scroll(win);
-    }
-}
-
 
 void wm_init(){
     head = 0;
@@ -266,9 +231,12 @@ void draw_window(Window *win, int x, int y, int w, int h, uint32_t color_frame, 
 }
 
 void wm_refresh(){
-    clear_screen_vesa(0x000000);
+    draw_rect_filled(0, 8, get_screen_width(), get_screen_height() - 8, VGA32_COLOR_BLACK);
 
-    if(window_count == 0) return;
+    if(window_count == 0) {
+        vesa_render_buffer();
+        return;
+    }
 
     int cols = 1;
     if (window_count > 1) cols = 2;
@@ -298,9 +266,8 @@ void wm_refresh(){
         curr->cols = curr->width / 8;
         curr->rows = curr->height / 8;
 
-        uint32_t frame_color = (curr == focused_window) ? 0x00FF00 : 0x555555;
+        uint32_t frame_color = (curr == focused_window) ? VGA32_COLOR_MAGENTA : VGA32_COLOR_DARK_GREY;
 
-        // Рисуем тело окна
         draw_rect_filled(curr->x - 2, curr->y - 2, curr->width + 4, curr->height + 4, frame_color);
         draw_rect_filled(curr->x, curr->y, curr->width, curr->height, curr->bg_color);
         
@@ -309,6 +276,8 @@ void wm_refresh(){
         curr = curr->next;
         i++;
     }
+
+    vesa_render_rect(0, 8, get_screen_width(), get_screen_height() - 8);
 }
 
 Window* wm_create_window(uint32_t bg_color) {
@@ -387,4 +356,63 @@ void wm_switch_focus() {
     keyboard_flush();
     wm_set_focused_window(focused_window);
     wm_refresh();
+}
+
+void wm_render_window(Window *win) {
+    if (win == 0) return;
+    vesa_render_rect(win->x - 3, win->y - 25, win->width + 6, win->height + 30);
+}
+
+void window_render_char_rect(Window *win, int col, int row) {
+    if (!win) return;
+    
+    int x_start = win->x + col * 8;
+    int y_start = win->y + row * 8;
+    
+    vesa_render_rect(x_start, y_start, 8, 8);
+}
+
+void window_putc(Window *win, char c) {
+    if (win == 0) return;
+
+    int col_idx = win->cursor_x / 8;
+    int row_idx = win->cursor_y / 8;
+
+    if (c == '\n') {
+        win->cursor_x = 0;
+        win->cursor_y += 8;
+    } 
+    else if (c == '\b') {
+        if (win->cursor_x >= 8) {
+            win->cursor_x -= 8;
+            col_idx = win->cursor_x / 8;
+
+            buffer_write(win, col_idx, row_idx, ' ', win->bg_color);
+            
+            for(int y = 0; y < 8; y++) 
+                for(int x = 0; x < 8; x++) 
+                     window_put_pixel(win, win->cursor_x + x, win->cursor_y + y, win->bg_color);
+            
+            window_render_char_rect(win, col_idx, row_idx);
+        }
+    }
+    else {
+        buffer_write(win, col_idx, row_idx, c, win->text_color);
+
+        window_draw_char(win, win->cursor_x, win->cursor_y, c, win->text_color);
+        
+        window_render_char_rect(win, col_idx, row_idx);
+
+        win->cursor_x += 8;
+    }
+
+    if (win->cursor_x >= win->width - 8) {
+        win->cursor_x = 0;
+        win->cursor_y += 8;
+    }
+    
+    if (win->cursor_y >= win->height - 8) {
+        window_scroll(win);
+        vesa_render_rect(win->x, win->y, win->width, win->height);
+    }
 }

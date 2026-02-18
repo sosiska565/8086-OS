@@ -10,8 +10,11 @@ static int debug_ticks = 0;
 void timer_handler_c(void){
     ticks++;
 
-    check_kill_flag();
-    task_scheduler();
+    if(ticks % 5 == 0){
+        check_kill_flag();
+        task_scheduler();
+    }
+    
 
     outb(0x20, 0x20);
 }

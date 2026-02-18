@@ -54,5 +54,6 @@ Window* wm_create_window(uint32_t bg_color);
 void wm_refresh();
 void wm_switch_focus();
 void wm_init();
+void wm_render_window(Window *win);
 
 #endif

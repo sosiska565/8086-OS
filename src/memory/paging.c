@@ -2,6 +2,7 @@
 #include "memory/memory.h"
 #include "drivers/vga/vga.h"
 #include "drivers/video/vesa.h"
+#include "multiboot.h"
 
 page_directory_t *kernel_dir = 0;
 page_directory_t *current_dir = 0;
@@ -47,7 +48,7 @@ void init_paging() {
     }
     
     uint32_t i = 0;
-    for(i = 0; i < 0x8000000; i += 4096) {
+    for(i = 0; i < 0x4000000; i += 4096) {
         paging_map(i, i, 3);
     }
     extern uint32_t *video_memory; 

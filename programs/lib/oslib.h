@@ -72,6 +72,13 @@ typedef struct text_struct{
     uint32_t color;
 } text_struct;
 
+typedef struct process_struct{
+    void (*foo)(int, char**);
+    int argc;
+    char **argv;
+    char *name;
+} process_struct;
+
 void print_char(char c);
 void print_char_colored(char c, int color);
 void print_colored(char *str, int color);
@@ -111,7 +118,7 @@ void printf(const char* format, ...);
 int strcmp(const char *c1, const char *c2);
 void print_window(Window *win, text_struct* ts);
 void sleep(unsigned long ms);
-int fork(void (*entry)(int, char**), int argc, char** argv);
+int fork(process_struct *p);
 void kill(int pid);
 
 #endif

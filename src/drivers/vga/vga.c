@@ -588,6 +588,40 @@ void printf(const char* format, ...) {
     va_end(args);
 }
 
+void reverse(char str[], int length) {
+    int start = 0;
+    int end = length - 1;
+    while (start < end) {
+        char temp = str[start];
+        str[start] = str[end];
+        str[end] = temp;
+        start++;
+        end--;
+    }
+}
+
+void itoa(int num, char buffer[]){
+    int i = 0, isNegative = 0;
+
+    if(num < 0) {
+        isNegative = 1;
+        num = -num;
+    }
+
+    do {
+        buffer[i++] = (num % 10) + '0';
+        num /= 10;
+    } while(num > 0);
+
+    if(isNegative) {
+        buffer[i++] = '-';
+    }
+
+    buffer[i] = '\0';\
+
+    reverse(buffer, i);
+}
+
 //псевдо графика
 void draw_text_box_ex(char* lines[], char* title, 
                       uint8_t padding_top, uint8_t padding_bottom,
