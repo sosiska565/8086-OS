@@ -9,10 +9,11 @@ extern uint32_t *video_memory;
 void init_vesa();
 void put_pixel(int x, int y, uint32_t color);
 void clear_screen_vesa(uint32_t color);
-void vesa_draw_char(int x, int y, char c, uint32_t color, uint32_t bgcolor);
+void vesa_draw_char(int x, int y, unsigned int c, uint32_t color, uint32_t bgcolor);
 int get_screen_width(void);
 int get_screen_height(void);
 void vesa_render_buffer();
 void vesa_render_rect(int x, int y, int w, int h);
+char utf8_converter(int c);
 
 #endif

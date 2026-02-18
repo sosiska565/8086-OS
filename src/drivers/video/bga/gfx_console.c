@@ -41,7 +41,7 @@ void gfx_scroll(void) {
     }
 }
 
-void gfx_putc(char c) {
+void gfx_putc(unsigned int c) {
     if (c == '\n') {
         term_x = 0;
         term_y++;

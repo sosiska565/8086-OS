@@ -113,7 +113,7 @@ int strtn(char *str);
 void strcpy(char *s1, char *s2);
 void *memset(void *ptr, int value, size_t num);
 char* toupper(char *str);
-char toupper_char(char c);
+char toupper_char(unsigned int c);
 void set_current_color(vga_color_t color);
 int strlen(char *str);
 void printf(const char* format, ...);

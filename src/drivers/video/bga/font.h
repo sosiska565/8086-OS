@@ -1,6 +1,6 @@
 #ifndef FONT_H
 #define FONT_H
 
-extern char font8x8_basic[128][8];
+extern char font8x8_basic[1104][8];
 
 #endif

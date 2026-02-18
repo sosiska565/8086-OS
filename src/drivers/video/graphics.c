@@ -9,6 +9,8 @@
 #define FONT_W 8
 #define FONT_H 8
 
+#define WINDOW_BORDER_ACTIVE_COLOR 0x4682B4
+
 static int abs(int i) { return i < 0 ? -i : i; }
 static void swap(int* a, int* b) { int t = *a; *a = *b; *b = t; }
 
@@ -104,7 +106,7 @@ void draw_circle_filled(int x0, int y0, int radius, uint32_t color) {
     }
 }
 
-void buffer_write(Window *win, int col, int row, char c, uint32_t color) {
+void buffer_write(Window *win, int col, int row, unsigned int c, uint32_t color) {
     int max_cols = get_screen_width() / FONT_W;
     
     if (!win->char_buffer || !win->color_buffer) return;
@@ -119,9 +121,9 @@ void window_put_pixel(Window *win, int x, int y, uint32_t color){
     put_pixel(win->x + x, win->y + y, color);
 }
 
-void window_draw_char(Window *win, int x, int y, char c, uint32_t color) {
+void window_draw_char(Window *win, int x, int y, unsigned int c, uint32_t color) {
     if(!win) return;
-    uint8_t *glyph = (uint8_t*)font8x8_basic[(int)((unsigned char)c)];
+    uint8_t *glyph = (uint8_t*)font8x8_basic[(int)(c)];
 
     for (int row = 0; row < 8; row++) {
         for (int col = 0; col < 8; col++) {
@@ -141,7 +143,7 @@ void window_redraw_content(Window *win) {
     for (int r = 0; r < win->rows; r++) {
         for (int c = 0; c < win->cols; c++) {
             int idx = r * max_cols + c;
-            char symb = win->char_buffer[idx];
+            unsigned int symb = win->char_buffer[idx];
             uint32_t color = win->color_buffer[idx];
             
             if (symb != 0 && symb != ' ') {
@@ -266,7 +268,7 @@ void wm_refresh(){
         curr->cols = curr->width / 8;
         curr->rows = curr->height / 8;
 
-        uint32_t frame_color = (curr == focused_window) ? VGA32_COLOR_MAGENTA : VGA32_COLOR_DARK_GREY;
+        uint32_t frame_color = (curr == focused_window) ? WINDOW_BORDER_ACTIVE_COLOR : VGA32_COLOR_DARK_GREY;
 
         draw_rect_filled(curr->x - 2, curr->y - 2, curr->width + 4, curr->height + 4, frame_color);
         draw_rect_filled(curr->x, curr->y, curr->width, curr->height, curr->bg_color);
@@ -294,7 +296,7 @@ Window* wm_create_window(uint32_t bg_color) {
     int max_rows = max_h / FONT_H;
     int total_chars = max_cols * max_rows;
 
-    win->char_buffer = (char*)kmalloc(total_chars);
+    win->char_buffer = (unsigned int*)kmalloc(total_chars * sizeof(unsigned int));
     win->color_buffer = (uint32_t*)kmalloc(total_chars * 4);
     
     for(int i = 0; i < total_chars; i++) {
@@ -372,7 +374,7 @@ void window_render_char_rect(Window *win, int col, int row) {
     vesa_render_rect(x_start, y_start, 8, 8);
 }
 
-void window_putc(Window *win, char c) {
+void window_putc(Window *win, unsigned int c) {
     if (win == 0) return;
 
     int col_idx = win->cursor_x / 8;

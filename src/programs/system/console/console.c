@@ -87,7 +87,7 @@ int console_main(void) {
     current_task->owns_window = 1; 
     
     wm_set_focused_window(my_win);
-    
+    printf("Привет мир! Сосисте все пенис!");
     printf("\n");
     
     int local_should_exit = 0;

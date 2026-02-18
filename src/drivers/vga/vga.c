@@ -476,7 +476,7 @@ char* toupper(char *str){
 }
 
 
-char toupper_char(char c) {
+char toupper_char(unsigned int c) {
     if (c >= 'a' && c <= 'z') return c - 32;
     return c;
 }
@@ -485,10 +485,10 @@ void set_current_color(vga_color_t color){
     current_color = color;
 } 
 
-void _putchar(char c) {
+void _putchar(unsigned int c) {
     if (current_task != 0 && current_task->window != 0) {
         window_putc(current_task->window, c);
-    } 
+    }
     else {
         gfx_putc(c); 
     }
@@ -536,6 +536,27 @@ void _print_number(int n, int base, int is_signed) {
     }
 }
 
+const char* utf8_to_unicode(const char* s, unsigned int* code) {
+    unsigned char c = (unsigned char)*s;
+    if (c < 0x80) {
+        *code = c;
+        return s + 1;
+    } else if ((c & 0xE0) == 0xC0) {
+        *code = ((c & 0x1F) << 6) | ((unsigned char)s[1] & 0x3F);
+        return s + 2;
+    }
+    *code = c;
+    return s + 1;
+}
+
+void print_utf8_string(const char* s) {
+    while (*s) {
+        unsigned int code;
+        s = utf8_to_unicode(s, &code);
+        _putchar(code);
+    }
+}
+
 void _set_console_color(unsigned int color) {
     Window *target = (current_task && current_task->window) ? current_task->window : current_output_window;
 
@@ -552,10 +573,10 @@ void vprintf(const char* format, va_list args) {
         if (*format == '%') {
             format++;
             switch (*format) {
-                case 'c': _putchar((char)va_arg(args, int)); break;
+                case 'c': _putchar((unsigned int)va_arg(args, int)); break;
                 case 's': {
                     char* s = va_arg(args, char*);
-                    _puts(s ? s : "(null)"); 
+                    print_utf8_string(s);
                     break;
                 }
                 case 'd': 
@@ -571,7 +592,10 @@ void vprintf(const char* format, va_list args) {
                 default:  _putchar('%'); _putchar(*format); break;
             }
         } else {
-            _putchar(*format);
+            unsigned int code = 0;
+            format = utf8_to_unicode(format, &code);
+            _putchar(code);
+            continue;
         }
         format++;
     }

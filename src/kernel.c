@@ -66,7 +66,8 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     init_tasking();
     printf("Tasking initialized.\n");
 
-    printf("Please press any key to continue...");
+    printf("Please press any key to continue...\n");
+    //utf8_converter((int)L'А');
     getch();
     
     setup.main();
