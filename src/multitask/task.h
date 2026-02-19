@@ -44,6 +44,7 @@ extern Task *ready_queue;
 void check_kill_flag();
 
 void init_tasking();
+void cleanup_zombies();
 void create_thread(void (*function)(void));
 void task_scheduler();
 void yield();

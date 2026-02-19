@@ -463,3 +463,9 @@ void kill(int pid){
         : "a"(38), "b"(pid)
     );
 }
+
+void window_refresh(Window *win) {
+     __asm__ volatile(
+        "int $0x80" : : "a"(39), "b"(win)
+    );
+}

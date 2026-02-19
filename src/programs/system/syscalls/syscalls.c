@@ -100,6 +100,7 @@ void syscall_handler_c(struct registers *regs){
         regs->eax = create_process((void (*)(int, char**))p->foo, p->argc, (char**)p->argv, (char*)p->name);
     }
     else if(regs->eax == 38) kill_task(regs->ebx);
+    else if(regs->eax == 39) wm_render_window((Window*)regs->ebx);
     else {
         printf("Unknown syscall!\n");
     }

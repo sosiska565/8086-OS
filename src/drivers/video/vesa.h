@@ -5,6 +5,7 @@
 
 extern int screen_pitch;
 extern uint32_t *video_memory;
+extern uint32_t *back_buffer;
 
 void init_vesa();
 void put_pixel(int x, int y, uint32_t color);

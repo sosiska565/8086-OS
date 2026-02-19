@@ -145,9 +145,11 @@ void clear_screen(void) {
     } else {
         clear_screen_vesa(0x00000000);
     }
-    set_cursor_position(0, 0);
     current_output_window->cursor_x = 0;
     current_output_window->cursor_y = 0;
+    
+    vesa_render_rect(0, 8, get_screen_width(), get_screen_height() - 8);
+    wm_refresh();
 }
 
 void clear_screen_colored(uint8_t color) {
@@ -608,6 +610,7 @@ void printf(const char* format, ...) {
     va_start(args, format);
     
     vprintf(format, args);
+    vesa_render_buffer();
     
     va_end(args);
 }

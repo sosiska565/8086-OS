@@ -256,7 +256,8 @@ run: clean build-all
 		-drive file=$(DISK_IMG),format=raw,index=0,if=ide,media=disk \
 		-drive file=$(ISO),format=raw,index=1,if=ide,media=cdrom \
 		-boot d \
-		-rtc base=localtime 
+		-rtc base=localtime \
+		-m 2g
 
 debug: clean build-all
 	@echo "[QEMU] Отладка..."

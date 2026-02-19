@@ -3,6 +3,7 @@
 #include "drivers/vga/vga.h"
 #include "drivers/video/graphics.h"
 #include "drivers/io/io.h"
+#include "drivers/timer/timer.h"
 
 extern void switch_to_task(Task *next, Task *prev);
 
@@ -61,19 +62,19 @@ void free_task_memory(Task *task) {
 
 
 void free_task_struct(Task *t) {
-    
+    if (!t) return;
     free_task_memory(t);
-    
-    kfree((void*)t->stack_start);
-    
+    if (t->stack_start) kfree((void*)t->stack_start);
     kfree(t);
 }
 
 void cleanup_zombies() {
+    __asm__ volatile("cli");
     if (zombie_task != 0) {
         free_task_struct(zombie_task);
         zombie_task = 0;
     }
+    __asm__ volatile("sti");
 }
 
 void task_set_name(Task* t, char* name) {
@@ -114,7 +115,7 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
 
     Task *new_task = (Task*)kmalloc(sizeof(Task));
     new_task->id = next_pid++;
-    new_task->state = TASK_RUNNING;
+    new_task->state = TASK_READY;
     new_task->kill_me = 0;
     new_task->allocations = 0;
 
@@ -157,69 +158,33 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
 
 
 void task_scheduler() {
-    if (!current_task) return;
-    
-    Task *iter = current_task;
-    
-    
-    int max_loops = 1000; 
+    cleanup_zombies();
+    if (!current_task || !ready_queue) return;
 
-    while (max_loops-- > 0) {
-        Task *next = iter->next;
-        
-        
-        if (next == current_task) {
-             
-             if (current_task->state == TASK_RUNNING) return; 
-             
-        }
+    Task *prev = current_task;
+    Task *next = prev->next;
 
-        if (next->state == TASK_DEAD) {
-            
-            Task *dead_guy = next;
-            
-            
-            iter->next = dead_guy->next;
-            
-            
-            if (ready_queue == dead_guy) ready_queue = iter->next;
+    while (1) {
+        if (next->state == TASK_RUNNING || next->state == TASK_READY) break;
 
-            
-            free_task_struct(dead_guy);
-            
-            
-            continue; 
-        }
-
-        
         if (next->state == TASK_SLEEPING) {
-            extern unsigned long get_ticks();
             if (get_ticks() >= next->wake_tick) {
                 next->state = TASK_RUNNING;
-            } else {
-                iter = next; 
-                continue;
+                break;
             }
         }
         
-        if (next->state == TASK_RUNNING || next->state == TASK_READY) {
-            
-            if (next == current_task) return; 
-
-            Task *prev = current_task;
-            current_task = next;
-            switch_to_task(next, prev);
-            return;
+        next = next->next;
+        if (next == prev) {
+            if (prev->state == TASK_RUNNING) return;
+            break; 
         }
-
-        iter = next;
     }
-    
-    
-    __asm__ volatile(
-        "sti\n"
-        "hlt"
-    );
+
+    if (next == prev) return;
+
+    current_task = next;
+    switch_to_task(next, prev);
 }
 
 
@@ -261,24 +226,19 @@ void exit_process() {
 
     task_to_kill->state = TASK_DEAD;
     
-    
-    
-    
-    
-    
     zombie_task = task_to_kill;
 
     Task *next_live = task_to_kill->next;
     current_task = next_live;
     
     switch_to_task(next_live, task_to_kill);
-    while(1);
+    while(1) { __asm__ volatile("hlt"); }
 }
 
 void yield() { task_scheduler(); }
 void create_thread(void (*f)(void)) { create_process((void (*)(int, char**))f, 0, 0, "thread"); }
 void task_sleep(int ms) { 
-    extern unsigned long get_ticks();
+    if(!current_task) return;
     current_task->wake_tick = get_ticks() + ms;
     current_task->state = TASK_SLEEPING;
     task_scheduler(); 
@@ -329,7 +289,7 @@ void wait_process(int pid) {
 
         if (!found) break;
 
-        task_scheduler(); 
+        task_sleep(20);
     }
 }
 
@@ -376,7 +336,6 @@ Task* get_task_by_window(Window *win) {
     if (!ready_queue || !win) return 0;
 
     Task *t = ready_queue;
-    
     do {
         if (t->window == win && t->state != TASK_DEAD) {
             return t;

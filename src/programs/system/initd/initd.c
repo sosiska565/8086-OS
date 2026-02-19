@@ -11,6 +11,7 @@ void initd(int argc, char **argv){
     create_process((void (*)(int, char**))console.main, 0, 0, "console");
 
     while(1){
-        yield();
+        cleanup_zombies();
+        __asm__ volatile("hlt");
     };
 }

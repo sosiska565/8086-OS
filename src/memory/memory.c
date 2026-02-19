@@ -28,6 +28,7 @@ void heap_init(void){
 }
 
 void* kmalloc(size_t size){
+    __asm__ volatile("cli");
     if(size % 4 != 0){
         size = size + (4 - size % 4);
     }
@@ -49,17 +50,20 @@ void* kmalloc(size_t size){
 
             current->is_free = 0;
 
+            __asm__ volatile("sti");
             return (void*)(current + 1);
         }
 
         current = current->next;
     }
 
+    __asm__ volatile("sti");
     printn("kmalloc: out of memory!\n");
     return NULL;
 }
 
 void kfree(void* ptr){
+    __asm__ volatile("cli");
     if(ptr == NULL){
         return;
     }
@@ -82,6 +86,7 @@ void kfree(void* ptr){
         current->size += sizeof(memory_block_t) + block->size;
         current->next = block->next;
     }
+    __asm__ volatile("sti");
 }
 
 void heap_dump(void) {
@@ -122,6 +127,7 @@ void heap_dump(void) {
 }
 
 void fast_memcpy(void* dest, const void* src, size_t count_bytes) {
+    __asm__ volatile("cli");
     size_t dwords = count_bytes / 4;
     
     __asm__ volatile (
@@ -131,9 +137,11 @@ void fast_memcpy(void* dest, const void* src, size_t count_bytes) {
         : "S"(src), "D"(dest), "c"(dwords) 
         : "memory"
     );
+    __asm__ volatile("sti");
 }
 
 void fast_memset(void* dest, uint32_t val, size_t count_pixels) {
+    __asm__ volatile("cli");
     __asm__ volatile (
         "cld\n"
         "rep stosl"
@@ -141,4 +149,5 @@ void fast_memset(void* dest, uint32_t val, size_t count_pixels) {
         : "a"(val), "D"(dest), "c"(count_pixels) 
         : "memory"
     );
+    __asm__ volatile("sti");
 }

@@ -120,5 +120,6 @@ void print_window(Window *win, text_struct* ts);
 void sleep(unsigned long ms);
 int fork(process_struct *p);
 void kill(int pid);
+void window_refresh(Window *win);
 
 #endif

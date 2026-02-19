@@ -7,6 +7,14 @@
 
 #define TASKBAR_COLOR 0x191970
 
+void safe_strncpy(char *dest, const char *src, int n) {
+    int i;
+    for (i = 0; i < n - 1 && src[i] != '\0'; i++) {
+        dest[i] = src[i];
+    }
+    dest[i] = '\0';
+}
+
 void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color){
     for(int i = 0; str[i] != '\0'; i++){
         vesa_draw_char(x, y, str[i], color, bg_color);
@@ -16,10 +24,10 @@ void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color){
 
 void draw_taskbar(int argc, char **argv) {
     char buff[32];
+    char task_name_buffer[32];
+    
     while(1) {
         struct time t = rtc_get_time();
-        Task *active_task = get_task_by_window(focused_window);
-        int task_str_size = strlen(active_task->name);
         
         draw_rect_filled(0, 0, get_screen_width(), 8, TASKBAR_COLOR);
 
@@ -33,13 +41,31 @@ void draw_taskbar(int argc, char **argv) {
         
         itoa(t.second, buff);
         _print_screen(buff, 48, 0, VGA32_COLOR_WHITE, TASKBAR_COLOR);
+
+        __asm__ volatile("cli");
+        
+        Task *active_task = get_task_by_window(focused_window);
+        
+        if (active_task != 0 && active_task->name != 0) {
+            safe_strncpy(task_name_buffer, active_task->name, 31);
+        } else {
+            safe_strncpy(task_name_buffer, "Desktop", 31);
+        }
+        
+        __asm__ volatile("sti");
+        
+        int task_str_size = strlen(task_name_buffer);
+        
         _print_screen(
-            active_task->name,
-            (get_screen_width() - (task_str_size * 8)) /2,
+            task_name_buffer,
+            (get_screen_width() - (task_str_size * 8)) / 2,
             0,
             VGA32_COLOR_WHITE,
             TASKBAR_COLOR
         );
-        task_sleep(500);
+
+        vesa_render_rect(0, 0, get_screen_width(), 8);
+
+        task_sleep(1);
     }
 }

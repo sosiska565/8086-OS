@@ -94,30 +94,18 @@ void vesa_render_rect(int x, int y, int w, int h) {
 }
 
 void vesa_draw_char(int x, int y, unsigned int c, uint32_t color, uint32_t bgcolor) {
-    uint8_t *glyph = font8x8_basic[(int)c];
+    unsigned char idx = (unsigned char)c;
+    uint8_t *glyph = font8x8_basic[(int)idx];
 
     for (int row = 0; row < 8; row++) {
         if ((y + row) >= screen_height) break;
         uint8_t line = glyph[row];
-        
         for (int col = 0; col < 8; col++) {
             if ((x + col) >= screen_width) break;
-
-            int is_pixel_set = (line >> col) & 1;
-            int draw_x = x + col;
-            int draw_y = y + row;
-
-            if (is_pixel_set) {
-                put_pixel(draw_x, draw_y, color);
-            } else {
-                if ((bgcolor & 0xFF000000) == 0) {
-                    put_pixel(draw_x, draw_y, bgcolor);
-                }
-            }
+            if ((line >> col) & 1) put_pixel(x + col, y + row, color);
+            else if ((bgcolor & 0xFF000000) == 0) put_pixel(x + col, y + row, bgcolor);
         }
     }
-
-    vesa_render_buffer();
 }
 
 int get_screen_width(void){ return screen_width; }

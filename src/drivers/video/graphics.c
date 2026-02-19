@@ -162,13 +162,15 @@ void window_clear(Window *win, uint32_t color){
     
     if (win->char_buffer) {
         for(int i = 0; i < total; i++) {
-            win->char_buffer[i] = ' ';
+            win->char_buffer[i] = L' ';
             win->color_buffer[i] = color;
         }
     }
     
     win->cursor_x = 0;
     win->cursor_y = 0;
+
+    wm_render_window(win);
 }
 
 void window_print(Window *win, int x, int y, char *str, uint32_t color) {

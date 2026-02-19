@@ -3,6 +3,7 @@
 #include "drivers/vga/vga.h"
 #include "drivers/video/vesa.h"
 #include "multiboot.h"
+#include "programs/system/console/system.h"
 
 page_directory_t *kernel_dir = 0;
 page_directory_t *current_dir = 0;
@@ -55,7 +56,7 @@ void init_paging() {
     extern int screen_width, screen_height;
     
     uint32_t vesa_addr = (uint32_t)video_memory;
-    uint32_t vesa_size = (screen_width * screen_height * 4) + 4096;
+    uint32_t vesa_size = 0x2000000;
 
     printf("Mapping VESA LFB at 0x%x (size %d)...\n", vesa_addr, vesa_size);
 
@@ -76,14 +77,17 @@ void switch_page_directory(page_directory_t *dir) {
 }
 
 void page_fault_handler_c(struct registers *reg) {
+    __asm__ volatile ("cli");
     uint32_t faulting_address;
     __asm__ volatile("mov %%cr2, %0" : "=r" (faulting_address));
     
     printf("\n[ %CERROR%C ] PAGE FAULT\n", VGA32_COLOR_RED, VGA32_COLOR_WHITE);
     printf("Accessed Address: 0x%x\n", faulting_address);
     printf("Instruction EIP:  0x%x\n", reg->eip);
-    
+
     printf("The kernel halted to protect memory.\n");
     
+    cmd_heapdump(0);
+
     while(1) __asm__ volatile("hlt");
 }
