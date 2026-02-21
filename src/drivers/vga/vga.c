@@ -610,7 +610,6 @@ void printf(const char* format, ...) {
     va_start(args, format);
     
     vprintf(format, args);
-    vesa_render_buffer();
     
     va_end(args);
 }
@@ -619,7 +618,7 @@ void reverse(char str[], int length) {
     int start = 0;
     int end = length - 1;
     while (start < end) {
-        char temp = str[start];
+        unsigned int temp = str[start];
         str[start] = str[end];
         str[end] = temp;
         start++;
@@ -647,6 +646,20 @@ void itoa(int num, char buffer[]){
     buffer[i] = '\0';\
 
     reverse(buffer, i);
+}
+
+void strcat(char *dest, char* str){
+    while(*dest != '\0'){
+        dest++;
+    }
+
+    while(*str != '\0'){
+        *dest = *str;
+        dest++;
+        str++;
+    }
+
+    *dest = '\0';
 }
 
 //псевдо графика

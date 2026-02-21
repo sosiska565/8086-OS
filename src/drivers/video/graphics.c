@@ -35,27 +35,40 @@ void set_current_output_window(Window *win) {
 
 void draw_rect(int x, int y, int w, int h, uint32_t color) {
     for (int i = 0; i < w; i++) {
-        put_pixel(x + i, y, color);
-        put_pixel(x + i, y + h - 1, color);
+        put_pixel(x + i, y, color, 1);
+        put_pixel(x + i, y + h - 1, color, 1);
     }
     for (int i = 0; i < h; i++) {
-        put_pixel(x, y + i, color);
-        put_pixel(x + w - 1, y + i, color);
+        put_pixel(x, y + i, color, 1);
+        put_pixel(x + w - 1, y + i, color, 1);
     }
 }
 
 void draw_rect_filled(int x, int y, int w, int h, uint32_t color) {
+    extern int screen_bpp;
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    int sw = get_screen_width();
+    int sh = get_screen_height();
+    if (x + w > sw) w = sw - x;
+    if (y + h > sh) h = sh - y;
+    if (w <= 0 || h <= 0) return;
+
+    uint8_t bytes_per_pixel = screen_bpp / 8;
+    uint8_t* base = (back_buffer != 0) ? (uint8_t*)back_buffer : (uint8_t*)video_memory;
+
     for (int i = 0; i < h; i++) {
-        int cy = y + i;
-        if (cy >= get_screen_height()) break;
-        if (cy < 0) continue;
+        uint8_t* pixel_ptr = base + ((y + i) * screen_pitch) + (x * bytes_per_pixel);
         
-        for (int j = 0; j < w; j++) {
-            int cx = x + j;
-            if (cx >= get_screen_width()) break;
-            if (cx < 0) continue;
-            
-            put_pixel(cx, cy, color);
+        if (bytes_per_pixel == 4) {
+            fast_memset(pixel_ptr, color, w); 
+        } else {
+            for (int j = 0; j < w; j++) {
+                pixel_ptr[0] = color & 0xFF;
+                pixel_ptr[1] = (color >> 8) & 0xFF;
+                pixel_ptr[2] = (color >> 16) & 0xFF;
+                pixel_ptr += bytes_per_pixel;
+            }
         }
     }
 }
@@ -68,7 +81,7 @@ void draw_line(int x1, int y1, int x2, int y2, uint32_t color) {
     int err = dx + dy;
     
     while (1) {
-        put_pixel(x1, y1, color);
+        put_pixel(x1, y1, color, 1);
         if (x1 == x2 && y1 == y2) break;
         int e2 = 2 * err;
         if (e2 >= dy) { err += dy; x1 += sx; }
@@ -81,10 +94,10 @@ void draw_circle(int x0, int y0, int radius, uint32_t color) {
     int y = radius;
     int d = 3 - 2 * radius;
     while (y >= x) {
-        put_pixel(x0 + x, y0 + y, color); put_pixel(x0 - x, y0 + y, color);
-        put_pixel(x0 + x, y0 - y, color); put_pixel(x0 - x, y0 - y, color);
-        put_pixel(x0 + y, y0 + x, color); put_pixel(x0 - y, y0 + x, color);
-        put_pixel(x0 + y, y0 - x, color); put_pixel(x0 - y, y0 - x, color);
+        put_pixel(x0 + x, y0 + y, color, 1); put_pixel(x0 - x, y0 + y, color, 1);
+        put_pixel(x0 + x, y0 - y, color, 1); put_pixel(x0 - x, y0 - y, color, 1);
+        put_pixel(x0 + y, y0 + x, color, 1); put_pixel(x0 - y, y0 + x, color, 1);
+        put_pixel(x0 + y, y0 - x, color, 1); put_pixel(x0 - y, y0 - x, color, 1);
         x++;
         if (d > 0) { y--; d = d + 4 * (x - y) + 10; }
         else { d = d + 4 * x + 6; }
@@ -118,19 +131,40 @@ void buffer_write(Window *win, int col, int row, unsigned int c, uint32_t color)
 
 void window_put_pixel(Window *win, int x, int y, uint32_t color){
     if(x < 0 || x >= win->width || y < 0 || y >= win->height) return;
-    put_pixel(win->x + x, win->y + y, color);
+    put_pixel(win->x + x, win->y + y, color, 1);
 }
 
 void window_draw_char(Window *win, int x, int y, unsigned int c, uint32_t color) {
-    if(!win) return;
-    uint8_t *glyph = (uint8_t*)font8x8_basic[(int)(c)];
+    extern int screen_bpp;
+    if (!win || !video_memory || c >= 1104) return;
+
+    int abs_x = win->x + x;
+    int abs_y = win->y + y;
+
+    if (abs_x < 0 || abs_y < 0 || 
+        abs_x + 8 > get_screen_width() || 
+        abs_y + 8 > get_screen_height()) return;
+
+    uint8_t *glyph = (uint8_t*)font8x8_basic[c];
+    uint8_t bpp = screen_bpp / 8;
+    
+    uint8_t* buffer = (back_buffer != 0) ? (uint8_t*)back_buffer : (uint8_t*)video_memory;
 
     for (int row = 0; row < 8; row++) {
+        uint8_t* dest = buffer + ((abs_y + row) * screen_pitch) + (abs_x * bpp);
+        uint8_t font_row = glyph[row];
+
         for (int col = 0; col < 8; col++) {
-            int bit = (glyph[row] >> col) & 1;
-            if (bit) {
-                window_put_pixel(win, x + col, y + row, color);
+            if ((font_row >> col) & 1) {
+                if (bpp == 4) {
+                    *(uint32_t*)dest = color;
+                } else if (bpp == 3) {
+                    dest[0] = color & 0xFF;
+                    dest[1] = (color >> 8) & 0xFF;
+                    dest[2] = (color >> 16) & 0xFF;
+                }
             }
+            dest += bpp;
         }
     }
 }

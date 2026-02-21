@@ -4,18 +4,11 @@
 #include "drivers/video/vesa.h"
 #include "multiboot.h"
 #include "programs/system/console/system.h"
+#include "fs/fat/fat32.h"
+#include "drivers/video/bga/gfx_console.h"
 
 page_directory_t *kernel_dir = 0;
 page_directory_t *current_dir = 0;
-
-void *kmalloc_a(uint32_t size){
-    uint32_t addr = (uint32_t)kmalloc(size + 4096);
-    if((addr & 0xFFFFF000) != addr){
-        addr &= 0xFFFFF000;
-        addr += 0x1000;
-    }
-    return (void*)addr;
-}
 
 void paging_map(uint32_t phys, uint32_t virt, uint32_t flags) {
     uint32_t pd_idx = virt >> 22;
@@ -56,7 +49,7 @@ void init_paging() {
     extern int screen_width, screen_height;
     
     uint32_t vesa_addr = (uint32_t)video_memory;
-    uint32_t vesa_size = 0x2000000;
+    uint32_t vesa_size = 1024 * 1024 * 32;
 
     printf("Mapping VESA LFB at 0x%x (size %d)...\n", vesa_addr, vesa_size);
 
@@ -81,13 +74,38 @@ void page_fault_handler_c(struct registers *reg) {
     uint32_t faulting_address;
     __asm__ volatile("mov %%cr2, %0" : "=r" (faulting_address));
     
-    printf("\n[ %CERROR%C ] PAGE FAULT\n", VGA32_COLOR_RED, VGA32_COLOR_WHITE);
-    printf("Accessed Address: 0x%x\n", faulting_address);
-    printf("Instruction EIP:  0x%x\n", reg->eip);
+    printf("\n[ %CERROR%C ] PAGE FAULT", VGA32_COLOR_RED, VGA32_COLOR_WHITE);
+    printf("\nAccessed Address: %x", faulting_address);
+    printf("\nInstruction EIP:  %x", reg->eip);
 
-    printf("The kernel halted to protect memory.\n");
-    
-    cmd_heapdump(0);
+    printf("The kernel halted to protect memory.");
 
-    while(1) __asm__ volatile("hlt");
+    while(1);
+}
+
+page_directory_t* clone_page_directory() {
+    page_directory_t* dir = (page_directory_t*)kmalloc_a(sizeof(page_directory_t));
+    for(int i = 0; i < 1024; i++) {
+        dir->entries[i] = kernel_dir->entries[i];
+    }
+    return dir;
+}
+
+void paging_map_user(page_directory_t *dir, uint32_t phys, uint32_t virt, uint32_t flags) {
+    uint32_t pd_idx = virt >> 22;
+    uint32_t pt_idx = (virt >> 12) & 0x03FF;
+
+    uint32_t *pd_entry = &dir->entries[pd_idx];
+    page_table_t *table;
+
+    if ((*pd_entry & 1) == 0) {
+        table = (page_table_t*)kmalloc_a(sizeof(page_table_t));
+        uint32_t *t_ptr = (uint32_t*)table;
+        for(int i=0; i<1024; i++) t_ptr[i] = 0;
+        *pd_entry = (uint32_t)table | 0x7; // Present, RW, User
+    } else {
+        table = (page_table_t*)(*pd_entry & 0xFFFFF000);
+    }
+
+    table->entries[pt_idx] = (phys & 0xFFFFF000) | (flags | 1);
 }

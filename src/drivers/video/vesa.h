@@ -8,7 +8,7 @@ extern uint32_t *video_memory;
 extern uint32_t *back_buffer;
 
 void init_vesa();
-void put_pixel(int x, int y, uint32_t color);
+void put_pixel(int x, int y, uint32_t color, int tar);
 void clear_screen_vesa(uint32_t color);
 void vesa_draw_char(int x, int y, unsigned int c, uint32_t color, uint32_t bgcolor);
 int get_screen_width(void);

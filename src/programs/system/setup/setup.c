@@ -92,11 +92,10 @@ exit_setup:
     set_current_output_window(0);
 }
 
-static int main(void){
+static void main(int argc, char **argv){
     clear_screen();
     keyboard_flush();
     diskStage();
-    return 0;
 }
 
 Setup setup = {

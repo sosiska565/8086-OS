@@ -3,8 +3,12 @@
 #include "drivers/timer/timer.h"
 #include "memory/memory.h"
 #include "fs/fat/fat32.h"
+#include "global.h"
 
 static unsigned long next = 1;
+
+char sys_log_buffer[65536];
+int sys_log_pos = 0;
 
 void srand(unsigned long seed){
     next = seed;
@@ -173,4 +177,29 @@ void config_save(char *filename, Config *cfg) {
 int get_pixels_in_string(char *str){
     int pixels = strlen(str) * 8;
     return pixels;
+}
+
+void klog(char *msg) {
+    int i = 0;
+    while(msg[i] != '\0' && sys_log_pos < 65534) {
+        sys_log_buffer[sys_log_pos++] = msg[i++];
+    }
+    if(sys_log_pos < 65534) {
+        sys_log_buffer[sys_log_pos++] = '\n';
+    }
+    sys_log_buffer[sys_log_pos] = '\0';
+}
+
+void klog_save() {
+    if (isReadMode == 1) {
+        printf("Cannot save log in Read-Only Mode!\n");
+        return;
+    }
+    
+    int result = fat32_write_file("sys.log", (uint8_t*)sys_log_buffer, sys_log_pos);
+    if (result > 0) {
+        printf("System log saved to sys.log (%d bytes)\n", sys_log_pos);
+    } else {
+        printf("Failed to save sys.log! Error: %d\n", result);
+    }
 }

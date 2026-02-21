@@ -60,11 +60,11 @@ mouse_handler:
 
 page_fault_handler:
     pusha
-
+    push esp                
     call page_fault_handler_c
-
-    popa
     add esp, 4
+    popa
+    add esp, 4 
     iret
 
 ignore_handler:

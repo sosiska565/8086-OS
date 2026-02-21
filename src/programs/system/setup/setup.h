@@ -2,7 +2,7 @@
 #define SETUP_H
 
 typedef struct{
-    int (*main)(void);
+    void (*main)(int, char**);
 } Setup;
 
 extern Setup setup;

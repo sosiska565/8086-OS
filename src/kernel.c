@@ -69,11 +69,8 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     printf("Please press any key to continue...\n");
     //utf8_converter((int)L'А');
     vesa_render_rect(0, 0, get_screen_width(), get_screen_height());
-    getch();
-    
-    setup.main();
 
-    create_process(initd, 0, 0, "initd");
+    create_process(initd, 0, 0, "initd", kernel_dir);
 
     while(1) {
         __asm__ volatile("hlt");

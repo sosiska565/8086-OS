@@ -31,10 +31,14 @@ void init_vesa(void) {
     }
 }
 
-void put_pixel(int x, int y, uint32_t color) {
-    uint8_t *target = (uint8_t*)back_buffer;
+void put_pixel(int x, int y, uint32_t color, int tar) {
+    uint8_t *target = 0;
+    if(tar != 0){
+        target = (uint8_t*)back_buffer;
+    }
+     
     if (target == 0) target = (uint8_t*)video_memory;
-    if (target == 0) return;
+    // if (target == 0) return;
 
     if (x < 0 || x >= screen_width || y < 0 || y >= screen_height) return;
 
@@ -58,7 +62,7 @@ void clear_screen_vesa(uint32_t color) {
     } else {
         for(int y = 0; y < screen_height; y++) {
             for(int x = 0; x < screen_width; x++) {
-                put_pixel(x, y, color);
+                put_pixel(x, y, color, 1);
             }
         }
     }
@@ -94,16 +98,29 @@ void vesa_render_rect(int x, int y, int w, int h) {
 }
 
 void vesa_draw_char(int x, int y, unsigned int c, uint32_t color, uint32_t bgcolor) {
-    unsigned char idx = (unsigned char)c;
-    uint8_t *glyph = font8x8_basic[(int)idx];
+    int idx = (int)c;
+    if(idx >= 1104) idx = '?'; 
+    uint8_t *glyph = font8x8_basic[idx];
+
+    int bpp_bytes = screen_bpp / 8;
+    uint8_t *target = back_buffer ? (uint8_t*)back_buffer : (uint8_t*)video_memory;
 
     for (int row = 0; row < 8; row++) {
         if ((y + row) >= screen_height) break;
         uint8_t line = glyph[row];
+        uint8_t *pixel_addr = target + ((y + row) * screen_pitch) + (x * bpp_bytes);
+        
         for (int col = 0; col < 8; col++) {
             if ((x + col) >= screen_width) break;
-            if ((line >> col) & 1) put_pixel(x + col, y + row, color);
-            else if ((bgcolor & 0xFF000000) == 0) put_pixel(x + col, y + row, bgcolor);
+            
+            if ((line >> col) & 1) {
+                if (bpp_bytes == 4) *(uint32_t*)pixel_addr = color;
+                else { pixel_addr[0] = color; pixel_addr[1] = color>>8; pixel_addr[2] = color>>16; }
+            } else if ((bgcolor & 0xFF000000) == 0) {
+                if (bpp_bytes == 4) *(uint32_t*)pixel_addr = bgcolor;
+                else { pixel_addr[0] = bgcolor; pixel_addr[1] = bgcolor>>8; pixel_addr[2] = bgcolor>>16; }
+            }
+            pixel_addr += bpp_bytes;
         }
     }
 }

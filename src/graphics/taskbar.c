@@ -64,8 +64,20 @@ void draw_taskbar(int argc, char **argv) {
             TASKBAR_COLOR
         );
 
+        char date[32];
+        date[0] = '\0';
+        itoa(t.day, buff);
+        strcat(date, buff);
+        strcat(date, "/");
+        itoa(t.month, buff);
+        strcat(date, buff);
+        strcat(date, "/");
+        itoa(t.year, buff);
+        strcat(date, buff);
+        _print_screen(date, get_screen_width() - (strlen(date) * 8), 0, VGA32_COLOR_WHITE, TASKBAR_COLOR);
+
         vesa_render_rect(0, 0, get_screen_width(), 8);
 
-        task_sleep(1);
+        task_sleep(100);
     }
 }

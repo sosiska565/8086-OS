@@ -17,7 +17,7 @@
 #include "drivers/video/vesa.h"
 #include "multitask/task.h"
 
-#define PROGRAM_LOAD_ADDRES 0x2000000
+#define PROGRAM_LOAD_ADDRES 0x40000000
 
 //test var
 void* ptr;
@@ -436,38 +436,42 @@ int is_executable(char* filename) {
 }
 
 void cmd_exec(char **tokens){
-    // set_current_output_window(0);
     if(!tokens[1]){
         printf("Usage: exec <filename>\n");
         return;
     }
-
-    if (!is_executable(tokens[1])) {
-        printf("Error: File is not executable (must be .bin)\n");
-        return;
-    }
+    if (!is_executable(tokens[1])) return;
 
     int file_size = fat32_get_file_size(tokens[1]);
-    if (file_size <= 0) {
-        printf("File not found or empty!\n");
-        return;
-    }
+    if (file_size <= 0) return;
 
-    uint8_t* load_addr = (uint8_t*)PROGRAM_LOAD_ADDRES;
-    fast_memset(load_addr, 0, 1024 * 1024);
-    int bytes_read = fat32_read_file(tokens[1], load_addr);
+    uint32_t phys_addr = (uint32_t)kmalloc_a(file_size + 4096);
+    fast_memset((void*)phys_addr, 0, (file_size + 4096) / 4);
+    int bytes_read = fat32_read_file(tokens[1], (uint8_t*)phys_addr);
 
     if(bytes_read > 0){
         keyboard_flush();
         int argc = 0;
-        while (tokens[1 + argc] != 0) {
-            argc++;
+        while (tokens[1 + argc] != 0) argc++;
+
+        page_directory_t *app_pd = clone_page_directory();
+        
+        uint32_t size_aligned = (file_size + 4095) & ~4095;
+        for(uint32_t i = 0; i < size_aligned; i += 4096) {
+            paging_map_user(app_pd, phys_addr + i, PROGRAM_LOAD_ADDRES + i, 7);
         }
 
-        int pid = create_process((void (*)(int, char**))load_addr, argc, &tokens[1], tokens[1]);
-        if(strcmp(tokens[argc], "&") != 0) {
-            wait_process(pid);
-        }
+        int pid = create_process((void (*)(int, char**))PROGRAM_LOAD_ADDRES, argc, &tokens[1], tokens[1], app_pd);
+        
+        Task *t = ready_queue;
+        do {
+            if (t->id == pid) { t->app_phys_addr = phys_addr; break; }
+            t = t->next;
+        } while (t != ready_queue);
+
+        if(strcmp(tokens[argc], "&") != 0) wait_process(pid);
+    } else {
+        kfree_a((void*)phys_addr);
     }
 }
 

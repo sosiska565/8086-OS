@@ -21,7 +21,7 @@ unsigned long get_ticks(void){
 }
 
 void timer_install(void) {
-    unsigned int divisor = 1193180 / 50; 
+    unsigned int divisor = 1193180 / 1000;
     
     outb(0x43, 0x36);
     

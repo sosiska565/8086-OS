@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "drivers/video/graphics.h"
+#include "memory/paging.h"
 
 typedef enum {
     TASK_RUNNING,
@@ -29,6 +30,8 @@ typedef struct Task{
     int parent_id;
     AllocList *allocations;
     char name[32];
+    struct page_directory_t *page_dir;
+    uint32_t app_phys_addr;
 } Task;
 
 typedef struct process_struct{
@@ -49,7 +52,7 @@ void create_thread(void (*function)(void));
 void task_scheduler();
 void yield();
 void task_exit();
-int create_process(void (*entry)(int, char**), int argc, char **argv, char *name);
+int create_process(void (*entry)(int, char**), int argc, char **argv, char *name, struct page_directory_t *pd);
 void exit_process();
 void wait_process(int pid);
 void kill_focused_process();

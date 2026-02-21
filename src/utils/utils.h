@@ -26,4 +26,7 @@ void config_save(char *filename, Config *cfg);
 void config_set_value(Config *cfg, char *key, char *new_val);
 int get_pixels_in_string(char *str);
 
+void klog(char *msg);
+void klog_save(void);
+
 #endif

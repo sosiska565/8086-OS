@@ -50,12 +50,14 @@ void gfx_putc(unsigned int c) {
         if (term_x > 0) term_x--;
         for(int y=0; y<FONT_H; y++) {
             for(int x=0; x<FONT_W; x++) {
-                put_pixel(term_x * FONT_W + x, term_y * FONT_H + y, term_bg_color);
+                put_pixel(term_x * FONT_W + x, term_y * FONT_H + y, term_bg_color, 1);
             }
         }
+        vesa_render_rect(term_x * FONT_W, term_y * FONT_H, FONT_W, FONT_H);
     } 
     else if (c >= 32) {
         vesa_draw_char(term_x * FONT_W, term_y * FONT_H, c, term_fg_color, term_bg_color);
+        vesa_render_rect(term_x * FONT_W, term_y * FONT_H, FONT_W, FONT_H);
         term_x++;
     }
 
@@ -66,6 +68,7 @@ void gfx_putc(unsigned int c) {
 
     if (term_y >= term_rows) {
         gfx_scroll();
+        vesa_render_rect(term_x * FONT_W, term_y * FONT_H, FONT_W, FONT_H);
         term_y = term_rows - 1;
     }
 }

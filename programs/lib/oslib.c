@@ -2,305 +2,171 @@
 #include <stdarg.h>
 
 void print_char(unsigned int c){
-    __asm__ volatile(
-        "int $0x80"
-        : 
-        : "a"(0), "b"(c)
-    );
+    __asm__ volatile("int $0x80" : : "a"(0), "b"(c));
 }
-
 void print_char_colored(char c, int color){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(7), "b"(c), "c"(color)
-    );
+    __asm__ volatile("int $0x80" : : "a"(7), "b"(c), "c"(color));
 }
-
 void print_colored(char *str, int color){
     for(int i = 0; str[i] != '\0'; i++) print_char_colored(str[i], color);
 }
-
 void print(char *str){
     for(int i = 0; str[i] != '\0'; i++){
         print_char(str[i]);
     }
 }
-
 void exit(void){
-    __asm__ volatile(
-        "int $0x80"
-        : 
-        : "a"(1)
-    );
+    __asm__ volatile("int $0x80" : : "a"(1));
 }
 
-char getc(void) {
-    char c;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(c)
-        : "a"(2)
-    );
+unsigned int getc(void) {
+    unsigned int c;
+    __asm__ volatile("int $0x80" : "=a"(c) : "a"(2));
     return c;
 }
 
 void gets(char *buffer, int max_len){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(3), "b"(buffer), "c"(max_len)
-    );
+    int pos = 0;
+    while(1) {
+        unsigned int c = getc();
+        if (c == '\n') {
+            buffer[pos] = '\0';
+            print("\n");
+            return;
+        } else if (c == '\b') {
+            if (pos > 0) {
+                pos--;
+                while (pos > 0 && (buffer[pos] & 0xC0) == 0x80) pos--;
+                buffer[pos] = '\0';
+                print("\b \b");
+            }
+        } else if (c != 0) {
+            char tmp[4];
+            int bytes = 0;
+            if (c < 0x80) { tmp[0] = c; bytes = 1; }
+            else if (c < 0x800) { tmp[0] = 0xC0 | (c >> 6); tmp[1] = 0x80 | (c & 0x3F); bytes = 2; }
+            else { tmp[0] = 0xE0 | (c >> 12); tmp[1] = 0x80 | ((c >> 6) & 0x3F); tmp[2] = 0x80 | (c & 0x3F); bytes = 3; }
+            
+            if (pos + bytes < max_len - 1) {
+                for(int i=0; i<bytes; i++) buffer[pos++] = tmp[i];
+                print_char(c);
+            }
+        }
+    }
 }
 
 void *malloc(int size){
     void *ptr;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(ptr)
-        : "a"(4), "b"(size)
-    );
+    __asm__ volatile("int $0x80" : "=a"(ptr) : "a"(4), "b"(size));
     return ptr;
 }
-
 void free(void *ptr){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(5), "b"(ptr)
-    );
+    __asm__ volatile("int $0x80" : : "a"(5), "b"(ptr));
 }
-
 void cls(void){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(6)
-    );
+    __asm__ volatile("int $0x80" : : "a"(6));
 }
-
 unsigned long random(void){
     unsigned long rnd;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(rnd)
-        : "a"(8)
-    );
+    __asm__ volatile("int $0x80" : "=a"(rnd) : "a"(8));
     return rnd;
 }
-
 void print_number(int number){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(9), "b"(number)
-    );
+    __asm__ volatile("int $0x80" : : "a"(9), "b"(number));
 }
-
 unsigned long randmm(unsigned long min, unsigned long max){
     return min + random() % (max - min + 1);
 }
-
 void set_cursor_position(unsigned int x, unsigned int y){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(11), "b"(x), "c"(y)
-    );
+    __asm__ volatile("int $0x80" : : "a"(11), "b"(x), "c"(y));
 }
-
 void set_background_color(vga_color_t color){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(12), "b"(color)
-    );
+    __asm__ volatile("int $0x80" : : "a"(12), "b"(color));
 }
-
 void set_text_color(vga_color_t color){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(13), "b"(color)
-    );
+    __asm__ volatile("int $0x80" : : "a"(13), "b"(color));
 }
-
 void get_cursor_xy(unsigned int *x, unsigned int *y){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(14), "b"(x), "c"(y)
-    );
+    __asm__ volatile("int $0x80" : : "a"(14), "b"(x), "c"(y));
 }
-
 vga_color_t get_current_color(void){
     vga_color_t color;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(color)
-        : "a"(15)
-    );
+    __asm__ volatile("int $0x80" : "=a"(color) : "a"(15));
     return color;
 }
-
 void set_current_color(vga_color_t color){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(16), "b"(color)
-    );
+    __asm__ volatile("int $0x80" : : "a"(16), "b"(color));
 }
-
 int read_file(char *file_name, uint8_t *file_buffer){
     int sizefile;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(sizefile)
-        : "a"(10), "b"(file_name), "c"(file_buffer)
-    );
+    __asm__ volatile("int $0x80" : "=a"(sizefile) : "a"(10), "b"(file_name), "c"(file_buffer));
     return sizefile;
 }
-
 void printhex(unsigned int num){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(17), "b"(num)
-    );
+    __asm__ volatile("int $0x80" : : "a"(17), "b"(num));
 }
-
 int get_file_size(char *file_name){
     int size;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(size)
-        : "a"(18), "b"(file_name)
-    );
+    __asm__ volatile("int $0x80" : "=a"(size) : "a"(18), "b"(file_name));
     return size;
 }
-
 uint8_t get_scanecode(void){
     int scanecode;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(scanecode)
-        : "a"(19)
-    );
+    __asm__ volatile("int $0x80" : "=a"(scanecode) : "a"(19));
     return scanecode;
 }
-
 int write_file(char *filename, uint8_t *buffer, uint32_t size){
     int error;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(error)
-        : "a"(20), "b"(filename), "c"(buffer), "d"(size)
-    );
+    __asm__ volatile("int $0x80" : "=a"(error) : "a"(20), "b"(filename), "c"(buffer), "d"(size));
     return error;
 }
-
 char scancode_to_ascii(uint8_t scancode){
     char c;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(c)
-        : "a"(21), "b"(scancode)
-    );
+    __asm__ volatile("int $0x80" : "=a"(c) : "a"(21), "b"(scancode));
     return c;
 }
-
 void memcpy(void* dest, void* src, int size) {
     uint8_t* d = (uint8_t*)dest;
     uint8_t* s = (uint8_t*)src;
-    for(int i = 0; i < size; i++) {
-        d[i] = s[i];
-    }
+    for(int i = 0; i < size; i++) { d[i] = s[i]; }
 }
-
 int getScreenWidth(void){
     int width;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(width)
-        : "a"(22)
-    );
+    __asm__ volatile("int $0x80" : "=a"(width) : "a"(22));
     return width;
 }
-
 int getScreenHeight(void){
     int height;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(height)
-        : "a"(23)
-    );
+    __asm__ volatile("int $0x80" : "=a"(height) : "a"(23));
     return height;
 }
-
 void draw_rect_filled(Rect *rect){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(25), "b"(rect)
-    );
+    __asm__ volatile("int $0x80" : : "a"(25), "b"(rect));
 }
-
 int get_screen_width(void){
     int w;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(w)
-        : "a"(26)
-    );
+    __asm__ volatile("int $0x80" : "=a"(w) : "a"(26));
     return w;
 }
-
 int get_screen_height(void){
     int h;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(h)
-        : "a"(27)
-    );
+    __asm__ volatile("int $0x80" : "=a"(h) : "a"(27));
     return h;
 }
-
 void draw_window(Window *win){
-    __asm__ volatile(
-        "int $0x80"
-        : 
-        : "a"(28), "b"(win)
-    );
+    __asm__ volatile("int $0x80" : : "a"(28), "b"(win));
 }
-
 void set_current_active_window(Window *win){
-    __asm__ volatile(
-        "int $0x80"
-        : 
-        : "a"(29), "b"(win)
-    );
+    __asm__ volatile("int $0x80" : : "a"(29), "b"(win));
 }
-
 Window *create_window(uint32_t bg_color){
     Window* win;
-
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(win)
-        : "a"(30), "b"(bg_color)
-    );
-
+    __asm__ volatile("int $0x80" : "=a"(win) : "a"(30), "b"(bg_color));
     return win;
 }
-
 void close_window(Window *win){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(31), "b"(win)
-    );
+    __asm__ volatile("int $0x80" : : "a"(31), "b"(win));
 }
-
 static void itoa_lib(int n, char* buffer, int base) {
     int i = 0;
     int isNeg = 0;
@@ -323,7 +189,6 @@ static void itoa_lib(int n, char* buffer, int base) {
         start++; end--;
     }
 }
-
 static void itoa_unsigned_lib(unsigned int n, char* buffer, int base) {
     int i = 0;
     if (n == 0) { buffer[0] = '0'; buffer[1] = '\0'; return; }
@@ -341,7 +206,6 @@ static void itoa_unsigned_lib(unsigned int n, char* buffer, int base) {
         start++; end--;
     }
 }
-
 const char* utf8_to_unicode(const char* s, unsigned int* code) {
     unsigned char c = (unsigned char)*s;
     if (c < 0x80) { 
@@ -357,7 +221,6 @@ const char* utf8_to_unicode(const char* s, unsigned int* code) {
     *code = c;
     return s + 1;
 }
-
 void vsprintf(unsigned int *str, const char *format, va_list args) {
     char temp[64];
     while (*format) {
@@ -405,24 +268,19 @@ void vsprintf(unsigned int *str, const char *format, va_list args) {
     }
     *str = '\0';
 }
-
 void print_unicode(unsigned int *str) {
     for(int i = 0; str[i] != 0; i++){
         print_char(str[i]);
     }
 }
-
 void printf(const char* format, ...) {
     unsigned int buffer[256];
-    
     va_list args;
     va_start(args, format);
     vsprintf(buffer, format, args);
     va_end(args);
-
     print_unicode(buffer);
 }
-
 int strcmp(const char *c1, const char *c2) {
     while (*c1 && (*c1 == *c2)) {
         c1++;
@@ -430,42 +288,20 @@ int strcmp(const char *c1, const char *c2) {
     }
     return *(const unsigned char*)c1 - *(const unsigned char*)c2;
 }
-
 void print_window(Window *win, text_struct* ts){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(35), "b"(win), "c"(ts)
-    );
+    __asm__ volatile("int $0x80" : : "a"(35), "b"(win), "c"(ts));
 }
-
 void sleep(unsigned long ms){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(36), "b"(ms)
-    );
+    __asm__ volatile("int $0x80" : : "a"(36), "b"(ms));
 }
-
 int fork(process_struct *p){
     int pid;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a"(pid)
-        : "a"(37), "b"(p)
-    );
+    __asm__ volatile("int $0x80" : "=a"(pid) : "a"(37), "b"(p));
+    return pid;
 }
-
 void kill(int pid){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(38), "b"(pid)
-    );
+    __asm__ volatile("int $0x80" : : "a"(38), "b"(pid));
 }
-
 void window_refresh(Window *win) {
-     __asm__ volatile(
-        "int $0x80" : : "a"(39), "b"(win)
-    );
+    __asm__ volatile("int $0x80" : : "a"(39), "b"(win));
 }

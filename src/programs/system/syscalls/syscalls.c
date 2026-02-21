@@ -21,7 +21,7 @@ typedef struct {
     uint32_t color;
 } Rect;
 
-void syscall_handler_c(struct registers *regs){
+void syscall_handler_c(struct syscall_registers *regs){
     if(regs->eax == 0) {
         window_putc(current_task->window, (unsigned int)regs->ebx);
     }
@@ -97,7 +97,7 @@ void syscall_handler_c(struct registers *regs){
     else if(regs->eax == 36) task_sleep((int)regs->ebx);
     else if(regs->eax == 37) {
         process_struct *p = (process_struct*)regs->ebx;
-        regs->eax = create_process((void (*)(int, char**))p->foo, p->argc, (char**)p->argv, (char*)p->name);
+        regs->eax = create_process((void (*)(int, char**))p->foo, p->argc, (char**)p->argv, (char*)p->name, kernel_dir);
     }
     else if(regs->eax == 38) kill_task(regs->ebx);
     else if(regs->eax == 39) wm_render_window((Window*)regs->ebx);

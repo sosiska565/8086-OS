@@ -10,79 +10,16 @@
 static uint8_t shift_pressed = 0;
 static uint8_t caps_lock = 0;
 
-static char key_buffer[BUFFER_SIZE];
+
+static unsigned int key_buffer[BUFFER_SIZE];
 static volatile int buffer_count = 0;
 
 static uint8_t scancode_buffer[BUFFER_SIZE];
 static volatile int scancode_count = 0;
 
-Scancode_entity us_keymap[] = {
-    {0x00, 0, 0, 0, 0, "Error"},
-    {0x01, 0, 0, 0, 0, "ESC"},
-    {0x02, '1', '!', '~', '1', "1"},
-    {0x03, '2', '@', '`', '2', "2"},
-    {0x04, '3', '#', 0, '3', "3"},
-    {0x05, '4', '$', 0, '4', "4"},
-    {0x06, '5', '%', 0, '5', "5"},
-    {0x07, '6', '^', 0, '6', "6"},
-    {0x08, '7', '&', 0, '7', "7"},
-    {0x09, '8', '*', 0, '8', "8"},
-    {0x0A, '9', '(', 0, '9', "9"},
-    {0x0B, '0', ')', 0, '0', "0"},
-    {0x0C, '-', '_', 0, '-', "-"},
-    {0x0D, '=', '+', 0, '=', "="},
-    {0x0E, '\b', '\b', '\b', '\b', "Backspace"},
-    {0x0F, '\t', '\t', '\t', '\t', "Tab"},
-    
-    {0x10, 'q', 'Q', 0, 'Q', "Q"},
-    {0x11, 'w', 'W', 0, 'W', "W"},
-    {0x12, 'e', 'E', 0, 'E', "E"},
-    {0x13, 'r', 'R', 0, 'R', "R"},
-    {0x14, 't', 'T', 0, 'T', "T"},
-    {0x15, 'y', 'Y', 0, 'Y', "Y"},
-    {0x16, 'u', 'U', 0, 'U', "U"},
-    {0x17, 'i', 'I', 0, 'I', "I"},
-    {0x18, 'o', 'O', 0, 'O', "O"},
-    {0x19, 'p', 'P', 0, 'P', "P"},
-    {0x1A, '[', '{', 0, '[', "["},
-    {0x1B, ']', '}', 0, ']', "]"},
-    {0x1C, '\n', '\n', '\n', '\n', "Enter"},
-    
-    {0x1D, 0, 0, 0, 0, "Left Ctrl"},
-    {0x1E, 'a', 'A', 0, 'A', "A"},
-    {0x1F, 's', 'S', 0, 'S', "S"},
-    {0x20, 'd', 'D', 0, 'D', "D"},
-    {0x21, 'f', 'F', 0, 'F', "F"},
-    {0x22, 'g', 'G', 0, 'G', "G"},
-    {0x23, 'h', 'H', 0, 'H', "H"},
-    {0x24, 'j', 'J', 0, 'J', "J"},
-    {0x25, 'k', 'K', 0, 'K', "K"},
-    {0x26, 'l', 'L', 0, 'L', "L"},
-    {0x27, ';', ':', 0, ';', ";"},
-    {0x28, '\'', '"', 0, '\'', "'"},
-    {0x29, '`', '~', 0, '`', "`"},
-    {0x2A, 0, 0, 0, 0, "Left Shift"},
-    
-    {0x2B, '\\', '|', 0, '\\', "\\"},
-    {0x2C, 'z', 'Z', 0, 'Z', "Z"},
-    {0x2D, 'x', 'X', 0, 'X', "X"},
-    {0x2E, 'c', 'C', 0, 'C', "C"},
-    {0x2F, 'v', 'V', 0, 'V', "V"},
-    {0x30, 'b', 'B', 0, 'B', "B"},
-    {0x31, 'n', 'N', 0, 'N', "N"},
-    {0x32, 'm', 'M', 0, 'M', "M"},
-    {0x33, ',', '<', 0, ',', ","},
-    {0x34, '.', '>', 0, '.', "."},
-    {0x35, '/', '?', 0, '/', "/"},
-    {0x36, 0, 0, 0, 0, "Right Shift"},
-    {0x37, '*', '*', '*', '*', "Keypad *"},
-    {0x38, 0, 0, 0, 0, "Left Alt"},
-    {0x39, ' ', ' ', ' ', ' ', "Space"},
-    
-    {0x3A, 0, 0, 0, 0, "CapsLock"},
-};
+static uint8_t current_layout = 0;
 
-static void add_to_buffer(char c) {
+static void add_to_buffer(unsigned int c) {
     if (buffer_count < BUFFER_SIZE) {
         key_buffer[buffer_count] = c;
         buffer_count++;
@@ -93,9 +30,9 @@ static int is_buffer_empty(void) {
     return buffer_count == 0;
 }
 
-static char get_from_buffer(void) {
+static unsigned int get_from_buffer(void) {
     if (buffer_count > 0) {
-        char c = key_buffer[0];
+        unsigned int c = key_buffer[0];
         for (int i = 1; i < buffer_count; i++) {
             key_buffer[i-1] = key_buffer[i];
         }
@@ -128,13 +65,13 @@ static uint8_t get_scancode_from_buffer(void) {
     return 0;
 }
 
-static char get_letter(char lower, char upper, uint8_t shift, uint8_t caps) {
+static unsigned int get_letter(unsigned int lower, unsigned int upper, uint8_t shift, uint8_t caps) {
     if (shift) return upper;
     if (caps) return upper;
     return lower;
 }
 
-char scancode_to_char(uint8_t scancode) {
+unsigned int scancode_to_char(uint8_t scancode) {
     if (scancode & 0x80) return 0;
     
     switch(scancode) {
@@ -193,9 +130,55 @@ char scancode_to_char(uint8_t scancode) {
     }
 }
 
+unsigned int scancode_to_char_ru(uint8_t scancode) {
+    if (scancode & 0x80) return 0;
+    
+    switch(scancode) {
+        case 0x10: return get_letter(0x0439, 0x0419, shift_pressed, caps_lock); 
+        case 0x11: return get_letter(0x0446, 0x0426, shift_pressed, caps_lock); 
+        case 0x12: return get_letter(0x0443, 0x0423, shift_pressed, caps_lock); 
+        case 0x13: return get_letter(0x043A, 0x041A, shift_pressed, caps_lock); 
+        case 0x14: return get_letter(0x0435, 0x0415, shift_pressed, caps_lock); 
+        case 0x15: return get_letter(0x043D, 0x041D, shift_pressed, caps_lock); 
+        case 0x16: return get_letter(0x0433, 0x0413, shift_pressed, caps_lock); 
+        case 0x17: return get_letter(0x0448, 0x0428, shift_pressed, caps_lock); 
+        case 0x18: return get_letter(0x0449, 0x0429, shift_pressed, caps_lock); 
+        case 0x19: return get_letter(0x0437, 0x0417, shift_pressed, caps_lock); 
+        case 0x1A: return get_letter(0x0445, 0x0425, shift_pressed, caps_lock); 
+        case 0x1B: return get_letter(0x044A, 0x042A, shift_pressed, caps_lock); 
+        case 0x1E: return get_letter(0x0444, 0x0424, shift_pressed, caps_lock); 
+        case 0x1F: return get_letter(0x044B, 0x042B, shift_pressed, caps_lock); 
+        case 0x20: return get_letter(0x0432, 0x0412, shift_pressed, caps_lock); 
+        case 0x21: return get_letter(0x0430, 0x0410, shift_pressed, caps_lock); 
+        case 0x22: return get_letter(0x043F, 0x041F, shift_pressed, caps_lock); 
+        case 0x23: return get_letter(0x0440, 0x0420, shift_pressed, caps_lock); 
+        case 0x24: return get_letter(0x043E, 0x041E, shift_pressed, caps_lock); 
+        case 0x25: return get_letter(0x043B, 0x041B, shift_pressed, caps_lock); 
+        case 0x26: return get_letter(0x0434, 0x0414, shift_pressed, caps_lock); 
+        case 0x27: return get_letter(0x0436, 0x0416, shift_pressed, caps_lock); 
+        case 0x28: return get_letter(0x044D, 0x042D, shift_pressed, caps_lock); 
+        case 0x2C: return get_letter(0x044F, 0x042F, shift_pressed, caps_lock); 
+        case 0x2D: return get_letter(0x0447, 0x0427, shift_pressed, caps_lock); 
+        case 0x2E: return get_letter(0x0441, 0x0421, shift_pressed, caps_lock); 
+        case 0x2F: return get_letter(0x043C, 0x041C, shift_pressed, caps_lock); 
+        case 0x30: return get_letter(0x0438, 0x0418, shift_pressed, caps_lock); 
+        case 0x31: return get_letter(0x0442, 0x0422, shift_pressed, caps_lock); 
+        case 0x32: return get_letter(0x044C, 0x042C, shift_pressed, caps_lock); 
+        case 0x33: return get_letter(0x0431, 0x0411, shift_pressed, caps_lock); 
+        case 0x34: return get_letter(0x044E, 0x042E, shift_pressed, caps_lock); 
+        case 0x35: return shift_pressed ? ',' : '.';
+        case 0x29: return get_letter(0x0435, 0x0415, shift_pressed, caps_lock); 
+        default: return scancode_to_char(scancode); 
+    }
+}
+
+unsigned int scancode_to_char_layout(uint8_t scancode) {
+    if (current_layout == 0) return scancode_to_char(scancode);
+    return scancode_to_char_ru(scancode);
+}
+
 void keyboard_handler_c(void) {
     uint8_t scancode = inb(0x60);
-    
     uint8_t is_release = (scancode & 0x80);
     uint8_t make_code = scancode & 0x7F;
     
@@ -210,12 +193,16 @@ void keyboard_handler_c(void) {
         alt_held = !is_release;
     }
 
+    if (alt_held && make_code == 0x39 && !is_release) {
+        current_layout = !current_layout;
+        return; 
+    }
+
     if (alt_held && make_code == 0x0F && !is_release) {
         wm_switch_focus(); 
         return;
     }
 
-    //блядски мега опасная хуйня!
     if (alt_held && make_code == 0x10 && !is_release){
         kill_focused_process();
         keyboard_flush();
@@ -223,33 +210,29 @@ void keyboard_handler_c(void) {
     }
 
     if (alt_held && make_code == 0x14 && !is_release){
-        create_process((void (*)(int, char**))console.main, 0, 0, "console");
+        create_process((void (*)(int, char**))console.main, 0, 0, "console", kernel_dir);
+        return;
     }
     
     if (!is_release) {
         add_scancode_to_buffer(make_code);
-
-        char c = scancode_to_char(make_code);
+        unsigned int c = scancode_to_char_layout(make_code);
         if (c != 0) {
             add_to_buffer(c);
         }
     }
 }
 
-char getch(void) {
+unsigned int getch(void) {
     __asm__ volatile("sti");
-    
     while (1) {
         if (!is_buffer_empty()) {
-            if (focused_window == 0 || current_task->window == focused_window) {
-                break;
-            }
+            if (focused_window == 0 || current_task->window == focused_window) break;
         }
         task_scheduler();
     }
-    
     __asm__ volatile("cli");
-    char c = get_from_buffer();
+    unsigned int c = get_from_buffer();
     __asm__ volatile("sti");
     return c;
 }
@@ -258,13 +241,10 @@ uint8_t wait_scancode(void) {
     __asm__ volatile("sti");
     while (1) {
         if (!is_scancode_buffer_empty()) {
-            if (focused_window == 0 || current_task->window == focused_window) {
-                break;
-            }
+            if (focused_window == 0 || current_task->window == focused_window) break;
         }
         task_scheduler();
     }
-    
     __asm__ volatile("cli");
     uint8_t code = get_scancode_from_buffer();
     __asm__ volatile("sti");
@@ -273,10 +253,8 @@ uint8_t wait_scancode(void) {
 
 void gets(char* buffer, int max_len) {
     int pos = 0;
-    
     while (1) {
-        char c = getch();
-        
+        unsigned int c = getch();
         if (c == '\n') {
             buffer[pos] = '\0';
             printf("\n");
@@ -285,15 +263,21 @@ void gets(char* buffer, int max_len) {
         else if (c == '\b') {
             if (pos > 0) {
                 pos--;
+                while (pos > 0 && (buffer[pos] & 0xC0) == 0x80) pos--;
+                buffer[pos] = '\0';
                 printf("\b \b");
             }
         }
-        else if (pos < max_len - 1) {
-            if(c >= 32 && c <= 126) {
-                buffer[pos] = c;
-                pos++;
-                char str[2] = {c, '\0'};
-                printf(str);
+        else if (c != 0) {
+            char tmp[4];
+            int bytes = 0;
+            if (c < 0x80) { tmp[0] = c; bytes = 1; }
+            else if (c < 0x800) { tmp[0] = 0xC0 | (c >> 6); tmp[1] = 0x80 | (c & 0x3F); bytes = 2; }
+            else { tmp[0] = 0xE0 | (c >> 12); tmp[1] = 0x80 | ((c >> 6) & 0x3F); tmp[2] = 0x80 | (c & 0x3F); bytes = 3; }
+            
+            if (pos + bytes < max_len - 1) {
+                for(int i=0; i<bytes; i++) buffer[pos++] = tmp[i];
+                printf("%c", c);
             }
         }
     }
@@ -301,9 +285,7 @@ void gets(char* buffer, int max_len) {
 
 void keyboard_flush(void) {
     __asm__ volatile("cli");
-    
     buffer_count = 0;
     scancode_count = 0;
-    
     __asm__ volatile("sti");
 }

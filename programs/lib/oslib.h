@@ -54,12 +54,9 @@ typedef struct Window{
     int width, height;
     uint32_t bg_color;
     uint32_t border_color;
-
     int cursor_x, cursor_y;
     uint32_t text_color;
-
     struct Window *next;
-
     char *char_buffer;
     uint32_t *color_buffer;
     int rows, cols;    
@@ -84,7 +81,7 @@ void print_char_colored(char c, int color);
 void print_colored(char *str, int color);
 void print(char *str);
 void exit(void);
-char getc(void);
+unsigned int getc(void);
 void gets(char *buffer, int max_len);
 void *malloc(int size);
 void free(void *ptr);

@@ -119,6 +119,7 @@ int strlen(char *str);
 void printf(const char* format, ...);
 void vprintf(const char* format, va_list args);
 void itoa(int num, char buff[]);
+void strcat(char *dest, char* str);
 
 //псевдо графика
 void draw_text_box_ex(char* lines[], char* title, 

@@ -4,6 +4,7 @@
 #include "drivers/video/graphics.h"
 #include "drivers/io/io.h"
 #include "drivers/timer/timer.h"
+#include "utils/utils.h"
 
 extern void switch_to_task(Task *next, Task *prev);
 
@@ -58,23 +59,68 @@ void free_task_memory(Task *task) {
     task->allocations = 0;
 }
 
-
-
-
 void free_task_struct(Task *t) {
     if (!t) return;
     free_task_memory(t);
+    
+    if (t->page_dir && t->page_dir != kernel_dir) {
+        for (int i = 256; i < 1024; i++) {
+            if (t->page_dir->entries[i] & 1) {
+                if (t->page_dir->entries[i] != kernel_dir->entries[i]) {
+                    void *pt = (void*)(t->page_dir->entries[i] & 0xFFFFF000);
+                    kfree_a(pt);
+                }
+            }
+        }
+        kfree_a(t->page_dir);
+    }
+    
+    if (t->app_phys_addr) kfree_a((void*)t->app_phys_addr);
+    
     if (t->stack_start) kfree((void*)t->stack_start);
     kfree(t);
 }
 
+
 void cleanup_zombies() {
-    __asm__ volatile("cli");
+    uint32_t flags = save_flags();
+
     if (zombie_task != 0) {
         free_task_struct(zombie_task);
         zombie_task = 0;
     }
-    __asm__ volatile("sti");
+
+    if (ready_queue) {
+        Task *curr = ready_queue;
+        Task *prev = ready_queue;
+        
+        while (prev->next != ready_queue) prev = prev->next;
+
+        Task *start = ready_queue;
+        do {
+            if (curr->state == TASK_DEAD) {
+                if (curr == ready_queue) {
+                    ready_queue = curr->next;
+                    start = ready_queue;
+                }
+                prev->next = curr->next;
+                
+                Task *to_free = curr;
+                curr = curr->next;
+                
+                if (ready_queue == to_free) ready_queue = 0; 
+                
+                free_task_struct(to_free);
+                
+                if (!ready_queue) break;
+            } else {
+                prev = curr;
+                curr = curr->next;
+            }
+        } while (curr != start && ready_queue != 0);
+    }
+
+    restore_flags(flags);
 }
 
 void task_set_name(Task* t, char* name) {
@@ -100,7 +146,9 @@ void init_tasking() {
     ktask->window = 0;
     ktask->owns_window = 0;
     ktask->parent_id = -1;
-    ktask->allocations = 0; 
+    ktask->allocations = 0;
+    ktask->page_dir = kernel_dir;
+    ktask->app_phys_addr = 0; 
 
     task_set_name(ktask, "kernel");
 
@@ -110,7 +158,7 @@ void init_tasking() {
     __asm__ volatile ("sti");
 }
 
-int create_process(void (*entry)(int, char**), int argc, char **argv, char *name) {
+int create_process(void (*entry)(int, char**), int argc, char **argv, char *name, struct page_directory_t *pd) {
     cleanup_zombies();
 
     Task *new_task = (Task*)kmalloc(sizeof(Task));
@@ -118,6 +166,8 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
     new_task->state = TASK_READY;
     new_task->kill_me = 0;
     new_task->allocations = 0;
+    new_task->page_dir = pd ? pd : kernel_dir;
+    new_task->app_phys_addr = 0;
 
     task_set_name(new_task, name);
 
@@ -130,10 +180,10 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
     }
     new_task->owns_window = 0;
 
-    uint32_t *stack = (uint32_t*)kmalloc(8192);
+    uint32_t *stack = (uint32_t*)kmalloc(65536);
     new_task->stack_start = (uint32_t)stack;
 
-    uint32_t *esp = stack + 2048;
+    uint32_t *esp = stack + (65536 / 4);
     extern void exit_process(); 
 
     *(--esp) = (uint32_t)argv;
@@ -153,11 +203,17 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
     new_task->next = temp;
     __asm__ volatile("sti");
 
+    char log_buf[64];
+    strcpy(log_buf, "Process Created: ");
+    strcat(log_buf, name);
+    klog(log_buf);
+
     return new_task->id;
 }
 
 
 void task_scheduler() {
+    uint32_t flags = save_flags();
     cleanup_zombies();
     if (!current_task || !ready_queue) return;
 
@@ -166,29 +222,31 @@ void task_scheduler() {
 
     while (1) {
         if (next->state == TASK_RUNNING || next->state == TASK_READY) break;
-
-        if (next->state == TASK_SLEEPING) {
-            if (get_ticks() >= next->wake_tick) {
-                next->state = TASK_RUNNING;
-                break;
-            }
+        if (next->state == TASK_SLEEPING && get_ticks() >= next->wake_tick) {
+            next->state = TASK_RUNNING;
+            break;
         }
-        
         next = next->next;
         if (next == prev) {
-            if (prev->state == TASK_RUNNING) return;
-            break; 
+            if (prev->state == TASK_RUNNING) break;
+            return; 
         }
     }
 
-    if (next == prev) return;
+    if (next == prev) {
+        restore_flags(flags);
+        return;
+    }
 
     current_task = next;
+    
+    if (next->page_dir && next->page_dir != current_dir) {
+        switch_page_directory(next->page_dir);
+    }
+
     switch_to_task(next, prev);
+    restore_flags(flags);
 }
-
-
-
 
 void kill_children_of(int pid) {
     if (!ready_queue) return;
@@ -213,30 +271,35 @@ void exit_process() {
 
     Task *task_to_kill = current_task;
     
-    
     Task *prev = ready_queue;
     while (prev->next != task_to_kill) { prev = prev->next; }
     prev->next = task_to_kill->next;
     if (ready_queue == task_to_kill) ready_queue = task_to_kill->next;
-
     
     if (task_to_kill->window && task_to_kill->owns_window) {
         wm_close_window(task_to_kill->window);
     }
 
     task_to_kill->state = TASK_DEAD;
-    
     zombie_task = task_to_kill;
 
     Task *next_live = task_to_kill->next;
     current_task = next_live;
+    
+    klog("Process Exited/Killed.");
+
+    if (next_live->page_dir) {
+        switch_page_directory(next_live->page_dir);
+    } else {
+        switch_page_directory(kernel_dir);
+    }
     
     switch_to_task(next_live, task_to_kill);
     while(1) { __asm__ volatile("hlt"); }
 }
 
 void yield() { task_scheduler(); }
-void create_thread(void (*f)(void)) { create_process((void (*)(int, char**))f, 0, 0, "thread"); }
+void create_thread(void (*f)(void)) { create_process((void (*)(int, char**))f, 0, 0, "thread", kernel_dir); }
 void task_sleep(int ms) { 
     if(!current_task) return;
     current_task->wake_tick = get_ticks() + ms;
