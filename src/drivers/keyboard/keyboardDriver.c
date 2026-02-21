@@ -17,7 +17,7 @@ static volatile int buffer_count = 0;
 static uint8_t scancode_buffer[BUFFER_SIZE];
 static volatile int scancode_count = 0;
 
-static uint8_t current_layout = 0;
+uint8_t current_layout = 0;
 
 static void add_to_buffer(unsigned int c) {
     if (buffer_count < BUFFER_SIZE) {

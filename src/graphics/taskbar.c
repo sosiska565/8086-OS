@@ -4,6 +4,7 @@
 #include "drivers/vga/vga.h"
 #include "multitask/task.h"
 #include "drivers/rtc/rtc.h"
+#include "drivers/keyboard/keyboardDriver.h"
 
 #define TASKBAR_COLOR 0x191970
 
@@ -66,6 +67,8 @@ void draw_taskbar(int argc, char **argv) {
 
         char date[32];
         date[0] = '\0';
+        strcat(date, current_layout == 0 ? "ENG" : "RU");
+        strcat(date, " | ");
         itoa(t.day, buff);
         strcat(date, buff);
         strcat(date, "/");

@@ -12,6 +12,8 @@ typedef struct {
     char *desc;
 } Scancode_entity;
 
+extern uint8_t current_layout;
+
 void keyboard_handler_c(void);
 unsigned int getch(void);
 void gets(char* buffer, int max_len);
