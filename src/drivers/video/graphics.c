@@ -423,22 +423,27 @@ void window_putc(Window *win, unsigned int c) {
     else if (c == '\b') {
         if (win->cursor_x >= 8) {
             win->cursor_x -= 8;
-            col_idx = win->cursor_x / 8;
-
-            buffer_write(win, col_idx, row_idx, ' ', win->bg_color);
-            
-            for(int y = 0; y < 8; y++) 
-                for(int x = 0; x < 8; x++) 
-                     window_put_pixel(win, win->cursor_x + x, win->cursor_y + y, win->bg_color);
-            
-            window_render_char_rect(win, col_idx, row_idx);
+        } else if (win->cursor_y >= 8) {
+            win->cursor_x = (win->cols - 1) * 8;
+            win->cursor_y -= 8;
+        } else {
+            return;
         }
+        
+        col_idx = win->cursor_x / 8;
+        row_idx = win->cursor_y / 8;
+
+        buffer_write(win, col_idx, row_idx, ' ', win->bg_color);
+        
+        for(int y = 0; y < 8; y++) 
+            for(int x = 0; x < 8; x++) 
+                 window_put_pixel(win, win->cursor_x + x, win->cursor_y + y, win->bg_color);
+        
+        window_render_char_rect(win, col_idx, row_idx);
     }
     else {
         buffer_write(win, col_idx, row_idx, c, win->text_color);
-
         window_draw_char(win, win->cursor_x, win->cursor_y, c, win->text_color);
-        
         window_render_char_rect(win, col_idx, row_idx);
 
         win->cursor_x += 8;

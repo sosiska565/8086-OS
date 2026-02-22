@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define NULL 0
+
 typedef enum {
     VGA_COLOR_BLACK = 0,
     VGA_COLOR_BLUE = 1,
@@ -100,7 +102,7 @@ void printhex(unsigned int num);
 int get_file_size(char *file_name);
 uint8_t get_scanecode(void);
 int write_file(char *filename, uint8_t *buffer, uint32_t size);
-char scancode_to_ascii(uint8_t scancode);
+unsigned int scancode_to_ascii(uint8_t scancode);
 void memcpy(void* dest, void* src, int size);
 int getScreenWidth(void);
 int getScreenHeight(void);
@@ -118,5 +120,7 @@ void sleep(unsigned long ms);
 int fork(process_struct *p);
 void kill(int pid);
 void window_refresh(Window *win);
+void window_redraw_content(Window *win);
+void window_draw_char(Window *win, text_struct *ts, unsigned int c);
 
 #endif

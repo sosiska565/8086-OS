@@ -127,7 +127,3 @@ void vesa_draw_char(int x, int y, unsigned int c, uint32_t color, uint32_t bgcol
 
 int get_screen_width(void){ return screen_width; }
 int get_screen_height(void){ return screen_height; }
-
-char utf8_converter(int c){
-    printf("%x", c);
-}

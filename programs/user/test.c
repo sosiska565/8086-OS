@@ -1,8 +1,6 @@
 #include "oslib.h"
 
-// Функция генерирует цвет радуги (от 0 до 1529)
 uint32_t get_rainbow_color(int pos) {
-    // Закольцовываем позицию
     while (pos < 0) pos += 1530;
     pos = pos % 1530;
 

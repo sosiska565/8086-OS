@@ -5,6 +5,7 @@
 #include "multitask/task.h"
 #include "drivers/rtc/rtc.h"
 #include "drivers/keyboard/keyboardDriver.h"
+#include "utils/utils.h"
 
 #define TASKBAR_COLOR 0x191970
 
@@ -17,8 +18,10 @@ void safe_strncpy(char *dest, const char *src, int n) {
 }
 
 void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color){
-    for(int i = 0; str[i] != '\0'; i++){
-        vesa_draw_char(x, y, str[i], color, bg_color);
+    while (*str) {
+        unsigned int code;
+        str = utf8_to_unicode(str, &code);
+        vesa_draw_char(x, y, code, color, bg_color);
         x += 8;
     }
 }
@@ -67,7 +70,7 @@ void draw_taskbar(int argc, char **argv) {
 
         char date[32];
         date[0] = '\0';
-        strcat(date, current_layout == 0 ? "ENG" : "RU");
+        strcat(date, current_layout == 0 ? "ENG" : "РУ");
         strcat(date, " | ");
         itoa(t.day, buff);
         strcat(date, buff);

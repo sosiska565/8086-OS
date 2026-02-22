@@ -15,6 +15,5 @@ int get_screen_width(void);
 int get_screen_height(void);
 void vesa_render_buffer();
 void vesa_render_rect(int x, int y, int w, int h);
-char utf8_converter(int c);
 
 #endif

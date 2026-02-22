@@ -55,5 +55,6 @@ void wm_refresh();
 void wm_switch_focus();
 void wm_init();
 void wm_render_window(Window *win);
+void window_redraw_content(Window *win);
 
 #endif

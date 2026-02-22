@@ -47,7 +47,15 @@ void gfx_putc(unsigned int c) {
         term_y++;
     } 
     else if (c == '\b') {
-        if (term_x > 0) term_x--;
+        if (term_x > 0) {
+            term_x--;
+        } else if (term_y > 0) {
+            term_x = term_cols - 1;
+            term_y--;
+        } else {
+            return;
+        }
+        
         for(int y=0; y<FONT_H; y++) {
             for(int x=0; x<FONT_W; x++) {
                 put_pixel(term_x * FONT_W + x, term_y * FONT_H + y, term_bg_color, 1);
@@ -68,7 +76,7 @@ void gfx_putc(unsigned int c) {
 
     if (term_y >= term_rows) {
         gfx_scroll();
-        vesa_render_rect(term_x * FONT_W, term_y * FONT_H, FONT_W, FONT_H);
+        vesa_render_rect(0, 0, screen_width, screen_height);
         term_y = term_rows - 1;
     }
 }

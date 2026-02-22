@@ -6,6 +6,7 @@
 #include "drivers/video/vesa.h"
 #include "drivers/video/graphics.h"
 #include "multitask/task.h"
+#include "utils/utils.h"
 
 #define LINES 25
 #define COLUMNS_IN_LINE 80
@@ -106,7 +107,12 @@ unsigned int get_cursor_position(void) {
 }
 
 void set_cursor_position(unsigned int x, unsigned int y) {
-    gfx_set_cursor((int)x, (int)y);
+    if(current_task->window != 0){
+        current_task->window->cursor_x = x;
+        current_task->window->cursor_y = y;
+    } else {
+        gfx_set_cursor((int)x, (int)y);
+    }
 }
 
 void move_cursor_next_line(void) {
@@ -140,16 +146,11 @@ void scroll_screen(void) {
 }
 
 void clear_screen(void) {
-    if(current_output_window != 0){
-        window_clear(current_output_window, current_output_window->bg_color);
+    if(current_task->window != 0){
+        window_clear(current_task->window, current_task->window->bg_color);
     } else {
         clear_screen_vesa(0x00000000);
     }
-    current_output_window->cursor_x = 0;
-    current_output_window->cursor_y = 0;
-    
-    vesa_render_rect(0, 8, get_screen_width(), get_screen_height() - 8);
-    wm_refresh();
 }
 
 void clear_screen_colored(uint8_t color) {
@@ -536,19 +537,6 @@ void _print_number(int n, int base, int is_signed) {
     while (--i >= 0) {
         _putchar(buffer[i]);
     }
-}
-
-const char* utf8_to_unicode(const char* s, unsigned int* code) {
-    unsigned char c = (unsigned char)*s;
-    if (c < 0x80) {
-        *code = c;
-        return s + 1;
-    } else if ((c & 0xE0) == 0xC0) {
-        *code = ((c & 0x1F) << 6) | ((unsigned char)s[1] & 0x3F);
-        return s + 2;
-    }
-    *code = c;
-    return s + 1;
 }
 
 void print_utf8_string(const char* s) {

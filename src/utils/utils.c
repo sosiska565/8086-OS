@@ -203,3 +203,16 @@ void klog_save() {
         printf("Failed to save sys.log! Error: %d\n", result);
     }
 }
+
+const char* utf8_to_unicode(const char* s, unsigned int* code) {
+    unsigned char c = (unsigned char)*s;
+    if (c < 0x80) {
+        *code = c;
+        return s + 1;
+    } else if ((c & 0xE0) == 0xC0) {
+        *code = ((c & 0x1F) << 6) | ((unsigned char)s[1] & 0x3F);
+        return s + 2;
+    }
+    *code = c;
+    return s + 1;
+}

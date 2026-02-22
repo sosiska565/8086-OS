@@ -30,5 +30,6 @@ void cmd_rm(char **tokens);
 void cmd_readsystemcfg(char **tokens);
 void cmd_tasklist(char **tokens);
 void cmd_kill(char **tokens);
+void cmd_writemode(char **tokens);
 
 #endif

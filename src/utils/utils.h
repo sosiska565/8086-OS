@@ -29,4 +29,6 @@ int get_pixels_in_string(char *str);
 void klog(char *msg);
 void klog_save(void);
 
+const char* utf8_to_unicode(const char* s, unsigned int* code);
+
 #endif

@@ -53,6 +53,7 @@ command_t commands[] = {
     {"readsystemcfg", cmd_readsystemcfg, "Update system configs"},
     {"tasklist", cmd_tasklist, "Show task list"},
     {"kill", cmd_kill, "Kill process"},
+    {"writemode", cmd_writemode, "Enable Read/Write disk mode"},
     
     {NULL, NULL, NULL}
 };
@@ -352,7 +353,6 @@ void cmd_setbgcolor(char** tokens){
 
 void cmd_clear(char **tokens) {
     clear_screen();
-    set_cursor_position(0,0);
 }
 
 void cmd_exit(char **tokens) {
@@ -445,8 +445,11 @@ void cmd_exec(char **tokens){
     int file_size = fat32_get_file_size(tokens[1]);
     if (file_size <= 0) return;
 
-    uint32_t phys_addr = (uint32_t)kmalloc_a(file_size + 4096);
-    fast_memset((void*)phys_addr, 0, (file_size + 4096) / 4);
+    uint32_t alloc_size = file_size + 1024 * 1024; 
+    
+    uint32_t phys_addr = (uint32_t)kmalloc_a(alloc_size);
+    fast_memset((void*)phys_addr, 0, alloc_size / 4);
+    
     int bytes_read = fat32_read_file(tokens[1], (uint8_t*)phys_addr);
 
     if(bytes_read > 0){
@@ -456,7 +459,7 @@ void cmd_exec(char **tokens){
 
         page_directory_t *app_pd = clone_page_directory();
         
-        uint32_t size_aligned = (file_size + 4095) & ~4095;
+        uint32_t size_aligned = (alloc_size + 4095) & ~4095;
         for(uint32_t i = 0; i < size_aligned; i += 4096) {
             paging_map_user(app_pd, phys_addr + i, PROGRAM_LOAD_ADDRES + i, 7);
         }
@@ -482,12 +485,31 @@ void cmd_mkfile(char **tokens) {
     }
     
     char* filename = tokens[1];
+    char text_buf[512];
+    text_buf[0] = '\0';
     
-    if (fat32_write_file(filename, "", 0) == 1) {
-        printf("File created successfully!\n");
-    } else {
-        printf("Error creating file.\n");
+    if (tokens[2]) {
+        int i = 2;
+        while(tokens[i]) {
+            strcat(text_buf, tokens[i]);
+            if (tokens[i+1]) strcat(text_buf, " ");
+            i++;
+        }
     }
+    
+    int res = fat32_write_file(filename, (uint8_t*)text_buf, strlen(text_buf));
+    if (res == 1) {
+        printf("File '%s' created successfully!\n", filename);
+    } else if (res == -1) {
+        printf("%CError: OS is in READ-ONLY mode! Type 'writemode' to enable.%C\n", VGA32_COLOR_RED, VGA32_COLOR_WHITE);
+    } else {
+        printf("%CError creating file. Code: %d%C\n", VGA32_COLOR_RED, res, VGA32_COLOR_WHITE);
+    }
+}
+
+void cmd_writemode(char **tokens) {
+    isReadMode = 0;
+    printf("%CRead/Write mode ENABLED! You can now create and save files.%C\n", VGA32_COLOR_GREEN, VGA32_COLOR_WHITE);
 }
 
 void cmd_rm(char **tokens){

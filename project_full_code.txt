@@ -90,6 +90,11 @@ section .bss
     resb 8192
 stack_space:
 
+--- START OF FILE ./disk/a.asm ---
+
+mov eax, 100
+int 0x80
+
 --- START OF FILE ./disk/game.c ---
 
 int main(void){
@@ -219,7 +224,8 @@ USER_C_FILES = \
 	programs/user/imgvwr.c \
 	programs/user/test.c \
 	programs/user/test2.c \
-	programs/user/wr.c
+	programs/user/wr.c \
+	programs/user/eblo.c
 
 ifeq ($(DETECTED_OS),Windows)
     USER_OBJS = $(patsubst $(USER_DIR)$(PATHSEP)%.c, $(BIN_DIR)$(PATHSEP)%.o, $(USER_C_FILES))
@@ -685,8 +691,8 @@ int write_file(char *filename, uint8_t *buffer, uint32_t size){
     __asm__ volatile("int $0x80" : "=a"(error) : "a"(20), "b"(filename), "c"(buffer), "d"(size));
     return error;
 }
-char scancode_to_ascii(uint8_t scancode){
-    char c;
+unsigned int scancode_to_ascii(uint8_t scancode){
+    unsigned int c;
     __asm__ volatile("int $0x80" : "=a"(c) : "a"(21), "b"(scancode));
     return c;
 }
@@ -870,6 +876,12 @@ void kill(int pid){
 void window_refresh(Window *win) {
     __asm__ volatile("int $0x80" : : "a"(39), "b"(win));
 }
+void window_redraw_content(Window *win) {
+    __asm__ volatile("int $0x80" : : "a"(40), "b"(win));
+}
+void window_draw_char(Window *win, text_struct *ts, unsigned int c){
+    __asm__ volatile("int $0x80" : : "a"(41), "b"(win), "c"(ts), "d"(c));
+}
 
 --- START OF FILE ./programs/lib/oslib.h ---
 
@@ -877,6 +889,8 @@ void window_refresh(Window *win) {
 #define LIB_H
 
 #include <stdint.h>
+
+#define NULL 0
 
 typedef enum {
     VGA_COLOR_BLACK = 0,
@@ -975,7 +989,7 @@ void printhex(unsigned int num);
 int get_file_size(char *file_name);
 uint8_t get_scanecode(void);
 int write_file(char *filename, uint8_t *buffer, uint32_t size);
-char scancode_to_ascii(uint8_t scancode);
+unsigned int scancode_to_ascii(uint8_t scancode);
 void memcpy(void* dest, void* src, int size);
 int getScreenWidth(void);
 int getScreenHeight(void);
@@ -993,6 +1007,8 @@ void sleep(unsigned long ms);
 int fork(process_struct *p);
 void kill(int pid);
 void window_refresh(Window *win);
+void window_redraw_content(Window *win);
+void window_draw_char(Window *win, text_struct *ts, unsigned int c);
 
 #endif
 
@@ -1283,6 +1299,37 @@ void draw_simple_box(char* lines[], char* title, uint8_t centered);
 
 #endif
 
+--- START OF FILE ./programs/user/eblo.c ---
+
+#include "oslib.h"
+
+void main(){
+    while (1)
+    {
+    }
+}
+
+--- START OF FILE ./programs/user/fmcc.c ---
+
+#include "oslib.h"
+#include "string_lib.h"
+
+void main(int argc, char **argv){
+    if(argc < 2 || strcmp(argv[1], "&") == 0){
+        printf("Usage: exec fmcc.bin <file name>");
+        return;
+    }
+
+    uint8_t file_buff[4096];
+
+    int file_size = read_file(argv[1], file_buff);
+
+    if(file_size <= 0){
+        printf("File empty or not found");
+        return;
+    }
+}
+
 --- START OF FILE ./programs/user/imgvwr.c ---
 
 #include "oslib.h"
@@ -1401,47 +1448,341 @@ void main(int argc, char **argv){
 #include "oslib.h"
 #include "string_lib.h"
 
+#define MAX_TEXT_SIZE 32768
+
 Window *win;
+char text_buffer[MAX_TEXT_SIZE];
+uint32_t char_colors[MAX_TEXT_SIZE];
 
-void draw_interface(int argc, char** argv){
-    text_struct ts;
-    Rect header_rect;
-    char *header = "NANI V1.0";
-    int header_len = strlen(header);
+int text_length = 0;
+int cursor_index = 0;
+int scroll_line = 0;
+int scroll_col = 0; 
+char filename[64];
 
-    while(1){
-        ts.x = ((win->width - (header_len * 8)) / 2);
-        ts.y = 0;
-        ts.color = VGA32_COLOR_YELLOW;
-        ts.str = header;
 
-        header_rect.y = win->y;
-        header_rect.x = win->x;
-        header_rect.height = 8;
-        header_rect.width = win->width;
-        header_rect.color = VGA32_COLOR_BLUE;
+int is_alpha(unsigned int c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
+int is_digit(unsigned int c) { return (c >= '0' && c <= '9'); }
 
-        draw_rect_filled(&header_rect);
-        print_window(win, &ts);
+int is_keyword(char *str, int len) {
+    const char *kw[] = {"int", "void", "char", "if", "else", "while", "for", "return", "struct", "#include", "#define", "static"};
+    for(int i = 0; i < 12; i++) {
+        int kl = strlen((char*)kw[i]);
+        if (kl == len) {
+            int match = 1;
+            for(int j = 0; j < len; j++) {
+                if (str[j] != kw[i][j]) { match = 0; break; }
+            }
+            if (match) return 1;
+        }
+    }
+    return 0;
+}
 
-        sleep(1000);
+
+void draw_text_absolute(int x, int y, char *str, uint32_t color) {
+    while(*str) {
+        text_struct ts;
+        ts.x = x;
+        ts.y = y;
+        ts.color = color;
+        window_draw_char(win, &ts, *str);
+        x += 8;
+        str++;
     }
 }
 
-void main(){
+
+void update_syntax() {
+    int in_comment = 0;
+    int in_string = 0;
+    int in_char = 0;
+
+    for (int i = 0; i < text_length; i++) {
+        unsigned int c = text_buffer[i];
+        char_colors[i] = VGA32_COLOR_WHITE; 
+
+        
+        if (in_comment) {
+            char_colors[i] = VGA32_COLOR_DARK_GREY;
+            if (c == '\n') in_comment = 0;
+            continue;
+        }
+        if (in_string) {
+            char_colors[i] = VGA32_COLOR_LIGHT_GREEN;
+            if (c == '"' && (i == 0 || text_buffer[i-1] != '\\')) in_string = 0;
+            continue;
+        }
+        if (in_char) {
+            char_colors[i] = VGA32_COLOR_LIGHT_GREEN;
+            if (c == '\'' && (i == 0 || text_buffer[i-1] != '\\')) in_char = 0;
+            continue;
+        }
+
+        
+        if (c == '/' && i + 1 < text_length && text_buffer[i+1] == '/') {
+            in_comment = 1;
+            char_colors[i] = VGA32_COLOR_DARK_GREY;
+            continue;
+        }
+        if (c == '"') { in_string = 1; char_colors[i] = VGA32_COLOR_LIGHT_GREEN; continue; }
+        if (c == '\'') { in_char = 1; char_colors[i] = VGA32_COLOR_LIGHT_GREEN; continue; }
+
+        if (is_digit(c)) {
+            char_colors[i] = VGA32_COLOR_LIGHT_RED;
+            continue;
+        }
+
+        
+        if (is_alpha(c) || c == '#') {
+            int len = 0;
+            while (i + len < text_length && (is_alpha(text_buffer[i+len]) || is_digit(text_buffer[i+len]) || text_buffer[i+len] == '#')) {
+                len++;
+            }
+            
+            int kw = is_keyword(&text_buffer[i], len);
+            uint32_t color = kw ? VGA32_COLOR_YELLOW : VGA32_COLOR_WHITE;
+            
+            if (!kw && len > 0 && i + len < text_length && text_buffer[i+len] == '(') {
+                color = VGA32_COLOR_LIGHT_BLUE;
+            }
+
+            for (int j = 0; j < len; j++) char_colors[i+j] = color;
+            i += len - 1; 
+            continue;
+        }
+        
+        
+        if (c == '{' || c == '}' || c == '(' || c == ')' || c == '[' || c == ']' || c == '+' || c == '-' || c == '*' || c == '=' || c == ';' || c == ',') {
+            char_colors[i] = VGA32_COLOR_LIGHT_CYAN;
+        }
+    }
+}
+
+
+void draw_editor() {
+    
+    int cursor_row = 0;
+    int line_start = 0;
+    for(int i = 0; i < cursor_index; i++) {
+        if(text_buffer[i] == '\n') {
+            cursor_row++;
+            line_start = i + 1;
+        }
+    }
+    int cursor_col = cursor_index - line_start;
+
+    
+    int max_visible_lines = (win->height - 16) / 8; 
+    if (cursor_row < scroll_line) scroll_line = cursor_row;
+    if (cursor_row >= scroll_line + max_visible_lines) scroll_line = cursor_row - max_visible_lines + 1;
+
+    
+    int max_visible_cols = (win->width - 36 - 8) / 8;
+    if (max_visible_cols < 1) max_visible_cols = 1;
+    if (cursor_col < scroll_col) scroll_col = cursor_col;
+    if (cursor_col >= scroll_col + max_visible_cols) scroll_col = cursor_col - max_visible_cols + 1;
+
+    
+    Rect bg;
+    bg.x = win->x; bg.y = win->y + 8; bg.width = win->width; bg.height = win->height - 16;
+    bg.color = VGA32_COLOR_BLACK;
+    draw_rect_filled(&bg);
+    
+    
+    Rect margin;
+    margin.x = win->x; margin.y = win->y + 8; margin.width = 32; margin.height = win->height - 16;
+    margin.color = 0x00222222; 
+    draw_rect_filled(&margin);
+
+    update_syntax();
+
+    int current_line = 0;
+    int current_col = 0;
+
+    
+    if (scroll_line == 0) {
+        char lnbuf[8];
+        itoa(1, lnbuf, 10);
+        draw_text_absolute(2, 8, lnbuf, VGA32_COLOR_LIGHT_GREY);
+    }
+
+    
+    for (int i = 0; i < text_length; i++) {
+        unsigned int c = text_buffer[i];
+
+        if (c == '\n') {
+            current_line++;
+            current_col = 0;
+            if (current_line >= scroll_line && current_line < scroll_line + max_visible_lines) {
+                char lnbuf[8];
+                itoa(current_line + 1, lnbuf, 10);
+                draw_text_absolute(2, 8 + (current_line - scroll_line) * 8, lnbuf, VGA32_COLOR_LIGHT_GREY);
+            }
+            continue;
+        }
+
+        
+        if (current_line >= scroll_line && current_line < scroll_line + max_visible_lines) {
+            if (current_col >= scroll_col && current_col < scroll_col + max_visible_cols) {
+                text_struct ts;
+                ts.x = 36 + (current_col - scroll_col) * 8;
+                ts.y = 8 + (current_line - scroll_line) * 8;
+                ts.color = char_colors[i];
+                window_draw_char(win, &ts, c);
+            }
+        }
+        current_col++;
+    }
+
+    
+    Rect top;
+    top.x = win->x; top.y = win->y; top.width = win->width; top.height = 8; top.color = VGA32_COLOR_BLUE;
+    draw_rect_filled(&top);
+    draw_text_absolute(4, 0, " NANI 1.0 - ", VGA32_COLOR_WHITE);
+    draw_text_absolute(100, 0, filename, VGA32_COLOR_YELLOW);
+
+    
+    Rect bot;
+    bot.x = win->x; bot.y = win->y + win->height - 8; bot.width = win->width; bot.height = 8; bot.color = VGA32_COLOR_LIGHT_GREY;
+    draw_rect_filled(&bot);
+    draw_text_absolute(4, win->height - 8, "F5 Save  ESC Exit    Chars: ", VGA32_COLOR_BLACK);
+    
+    char cbuf[16];
+    itoa(text_length, cbuf, 10);
+    draw_text_absolute(230, win->height - 8, cbuf, VGA32_COLOR_BLACK);
+    
+    
+    if (cursor_row >= scroll_line && cursor_row < scroll_line + max_visible_lines &&
+        cursor_col >= scroll_col && cursor_col < scroll_col + max_visible_cols) {
+        
+        int cursor_screen_x = 36 + (cursor_col - scroll_col) * 8;
+        int cursor_screen_y = 8 + (cursor_row - scroll_line) * 8;
+
+        Rect curs;
+        curs.x = win->x + cursor_screen_x; 
+        curs.y = win->y + cursor_screen_y;
+        curs.width = 8; curs.height = 8; curs.color = VGA32_COLOR_WHITE;
+        
+        unsigned int cur_c = (cursor_index < text_length && text_buffer[cursor_index] != '\n') ? text_buffer[cursor_index] : ' ';
+        draw_rect_filled(&curs);
+        
+        text_struct ts;
+        ts.x = cursor_screen_x;
+        ts.y = cursor_screen_y;
+        ts.color = VGA32_COLOR_BLACK;
+        window_draw_char(win, &ts, cur_c);
+    }
+
+    window_refresh(win);
+}
+
+
+void draw_thread(int argc, char** argv) {
+    while(1) {
+        draw_editor();
+        sleep(50);
+    }
+}
+
+
+void insert_char(unsigned int c) {
+    if (text_length >= MAX_TEXT_SIZE - 1) return;
+    for (int i = text_length; i > cursor_index; i--) {
+        text_buffer[i] = text_buffer[i-1];
+    }
+    text_buffer[cursor_index] = c;
+    cursor_index++;
+    text_length++;
+}
+
+void delete_char() {
+    if (cursor_index <= 0) return;
+    for (int i = cursor_index; i < text_length; i++) {
+        text_buffer[i-1] = text_buffer[i];
+    }
+    cursor_index--;
+    text_length--;
+}
+
+void move_cursor_up() {
+    int line_start = cursor_index;
+    while(line_start > 0 && text_buffer[line_start-1] != '\n') line_start--;
+    int col = cursor_index - line_start;
+    
+    if (line_start == 0) { cursor_index = 0; return; }
+    
+    int prev_start = line_start - 1;
+    while(prev_start > 0 && text_buffer[prev_start-1] != '\n') prev_start--;
+    
+    int prev_len = (line_start - 1) - prev_start;
+    cursor_index = prev_start + (col < prev_len ? col : prev_len);
+}
+
+void move_cursor_down() {
+    int line_start = cursor_index;
+    while(line_start > 0 && text_buffer[line_start-1] != '\n') line_start--;
+    int col = cursor_index - line_start;
+    
+    int next_start = cursor_index;
+    while(next_start < text_length && text_buffer[next_start] != '\n') next_start++;
+    if (next_start >= text_length) { cursor_index = text_length; return; }
+    next_start++; 
+    
+    int next_end = next_start;
+    while(next_end < text_length && text_buffer[next_end] != '\n') next_end++;
+    
+    int next_len = next_end - next_start;
+    cursor_index = next_start + (col < next_len ? col : next_len);
+}
+
+void main(int argc, char **argv){
+    if(argc < 2 || strcmp(argv[1], "&") == 0){
+        printf("\nUsage: exec nani.bin <file name>\n");
+        return;
+    }
+
+    strcpy(filename, argv[1]);
+    
+    int fs = get_file_size(filename);
+    if(fs > 0 && fs < MAX_TEXT_SIZE) {
+        read_file(filename, (uint8_t*)text_buffer);
+        text_length = fs;
+        cursor_index = text_length;
+    } else {
+        text_length = 0;
+        cursor_index = 0;
+    }
+
     win = create_window(VGA32_COLOR_BLACK);
 
-    process_struct draw_process;
-    draw_process.foo = draw_interface;
-    draw_process.argc = 0;
-    draw_process.argv = 0;
-    draw_process.name = "draw_proc";
-    int drw_pid = fork(&draw_process);
+    process_struct p;
+    p.foo = draw_thread;
+    p.argc = 0;
+    p.argv = 0;
+    p.name = "nani_draw";
+    int drw_pid = fork(&p);
 
-    char buff[100];
+    while(1) {
+        uint8_t sc = get_scanecode();
+        if (sc & 0x80) continue; 
 
-    while(1){
-        gets(buff, 100);
+        if (sc == 0x01) { 
+            break; 
+        }
+        else if (sc == 0x3F) { 
+            write_file(filename, (uint8_t*)text_buffer, text_length);
+        }
+        else if (sc == 0x48) { move_cursor_up(); }
+        else if (sc == 0x50) { move_cursor_down(); }
+        else if (sc == 0x4B) { if (cursor_index > 0) cursor_index--; }
+        else if (sc == 0x4D) { if (cursor_index < text_length) cursor_index++; }
+        else if (sc == 0x0E) { delete_char(); }
+        else if (sc == 0x1C) { insert_char('\n'); }
+        else {
+            unsigned int c = scancode_to_ascii(sc);
+            if (c != 0) insert_char(c);
+        }
     }
 
     kill(drw_pid);
@@ -1453,9 +1794,383 @@ void main(){
 #include "oslib.h"
 #include "string_lib.h"
 
+#define BASE_ADDRESS 0x40000000
+
+uint8_t machine_code[1024 * 64];
+int code_size = 0;
+static char* next_token = NULL;
+
+char *strtok(char *str) {
+    if(str != NULL) next_token = str;
+    if(next_token == NULL || *next_token == '\0') return NULL;
+
+    while (*next_token == ' ' || *next_token == '\t' || *next_token == '\r' || *next_token == '\n') {
+        next_token++;
+    }
+
+    if(*next_token == '\0') return NULL;
+    char * start = next_token;
+
+    while (*next_token != '\0' && *next_token != ' ' && *next_token != '\t' && *next_token != '\r' && *next_token != '\n') {
+        next_token++;
+    }
+
+    if (*next_token != '\0') {
+        *next_token = '\0';
+        next_token++;
+    }
+    
+    return start;
+}
+
+int parse_int(char *s) {
+    if (s[0] == '0' && s[1] == 'x') {
+        int val = 0;
+        s += 2;
+        while (*s) {
+            char c = *s++;
+            val *= 16;
+            if (c >= '0' && c <= '9') val += c - '0';
+            else if (c >= 'a' && c <= 'f') val += c - 'a' + 10;
+        }
+        return val;
+    } else {
+        int val = 0;
+        int sign = 1;
+        if (*s == '-') { sign = -1; s++; }
+        while (*s >= '0' && *s <= '9') {
+            val = val * 10 + (*s - '0');
+            s++;
+        }
+        return val * sign;
+    }
+}
+
+int get_reg(char *name) {
+    if (strcmp(name, "eax") == 0) return 0;
+    if (strcmp(name, "ecx") == 0) return 1;
+    if (strcmp(name, "edx") == 0) return 2;
+    if (strcmp(name, "ebx") == 0) return 3;
+    if (strcmp(name, "esp") == 0) return 4;
+    if (strcmp(name, "ebp") == 0) return 5;
+    if (strcmp(name, "esi") == 0) return 6;
+    if (strcmp(name, "edi") == 0) return 7;
+    return -1;
+}
+
+int get_mem_reg(char *op) {
+    if (op[0] == '[' && op[strlen(op)-1] == ']') {
+        char temp[32];
+        strcpy(temp, op + 1);
+        temp[strlen(temp)-1] = '\0';
+        return get_reg(temp);
+    }
+    return -1;
+}
+
+typedef struct {
+    char name[32];
+    int address;
+} Label;
+
+Label labels[1024];
+int label_count = 0;
+
+void add_label(char *name, int addr) {
+    strcpy(labels[label_count].name, name);
+    labels[label_count].address = addr;
+    label_count++;
+}
+
+int get_label_addr(char *name) {
+    for (int i = 0; i < label_count; i++) {
+        if (strcmp(labels[i].name, name) == 0) return labels[i].address;
+    }
+    return -1;
+}
+
+int is_mem(char *op, int *addr) {
+    if (op[0] == '[' && op[strlen(op)-1] == ']') {
+        char temp[32];
+        strcpy(temp, op + 1);
+        temp[strlen(temp)-1] = '\0';
+        
+        int reg = get_reg(temp);
+        if (reg >= 0) return 0; 
+        
+        int l_addr = get_label_addr(temp);
+        if (l_addr >= 0) {
+            *addr = l_addr + BASE_ADDRESS;
+            return 1;
+        }
+        *addr = parse_int(temp);
+        return 1;
+    }
+    return 0;
+}
+
+int get_imm(char *op) {
+    int l_addr = get_label_addr(op);
+    if (l_addr >= 0) return l_addr + BASE_ADDRESS;
+    return parse_int(op);
+}
+
+void clean_token(char *token) {
+    int len = strlen(token);
+    if (len > 0 && token[len-1] == ',') {
+        token[len-1] = '\0';
+    }
+}
+
+void str_to_lower(char *str) {
+    while (*str) {
+        if (*str >= 'A' && *str <= 'Z') *str += 32;
+        str++;
+    }
+}
+
+int current_pass = 1;
+int error_count = 0;
+
+void emit8(uint8_t val) {
+    if (current_pass == 2) {
+        if (code_size < sizeof(machine_code)) {
+            machine_code[code_size] = val;
+        }
+    }
+    code_size++;
+}
+
+void emit32(uint32_t val) {
+    emit8(val & 0xFF);
+    emit8((val >> 8) & 0xFF);
+    emit8((val >> 16) & 0xFF);
+    emit8((val >> 24) & 0xFF);
+}
+
+void assemble_line(char *line) {
+    char *comment = line;
+    while (*comment) {
+        if (*comment == ';') {
+            *comment = '\0';
+            break;
+        }
+        comment++;
+    }
+
+    char *inst = strtok(line);
+    if (!inst) return;
+
+    int inst_len = strlen(inst);
+    if (inst[inst_len - 1] == ':') {
+        if (current_pass == 1) {
+            inst[inst_len - 1] = '\0';
+            add_label(inst, code_size);
+        }
+        inst = strtok(NULL);
+        if (!inst) return;
+    }
+
+    if (strcmp(inst, "nop") == 0) {
+        emit8(0x90);
+    } else if (strcmp(inst, "ret") == 0) {
+        emit8(0xC3);
+    } else if (strcmp(inst, "hlt") == 0) {
+        emit8(0xF4);
+    } else if (strcmp(inst, "int") == 0) {
+        char *op = strtok(NULL);
+        if (op) {
+            emit8(0xCD);
+            emit8(parse_int(op));
+        } else {
+            if (current_pass == 2) printf("Error: missing operand for int\n");
+            error_count++;
+        }
+    } else if (strcmp(inst, "push") == 0 || strcmp(inst, "pop") == 0 || strcmp(inst, "inc") == 0 || strcmp(inst, "dec") == 0) {
+        char *op = strtok(NULL);
+        if (op) {
+            clean_token(op);
+            int reg = get_reg(op);
+            if (reg >= 0) {
+                if (strcmp(inst, "push") == 0) emit8(0x50 + reg);
+                else if (strcmp(inst, "pop") == 0) emit8(0x58 + reg);
+                else if (strcmp(inst, "inc") == 0) emit8(0x40 + reg);
+                else if (strcmp(inst, "dec") == 0) emit8(0x48 + reg);
+            } else if (strcmp(inst, "push") == 0) {
+                emit8(0x68);
+                emit32(get_imm(op));
+            } else {
+                if (current_pass == 2) printf("Error: invalid register %s\n", op);
+                error_count++;
+            }
+        } else {
+            if (current_pass == 2) printf("Error: missing operand for %s\n", inst);
+            error_count++;
+        }
+    } else if (strcmp(inst, "jmp") == 0 || strcmp(inst, "call") == 0) {
+        char *op = strtok(NULL);
+        if (op) {
+            if (strcmp(inst, "jmp") == 0) emit8(0xE9);
+            else emit8(0xE8);
+            
+            if (current_pass == 2) {
+                int target = get_label_addr(op);
+                if (target >= 0) {
+                    emit32(target - (code_size + 4));
+                } else {
+                    emit32(parse_int(op) - (code_size + 4));
+                }
+            } else {
+                emit32(0);
+            }
+        } else {
+            if (current_pass == 2) printf("Error: missing operand for %s\n", inst);
+            error_count++;
+        }
+    } else if (inst[0] == 'j') {
+        char *op = strtok(NULL);
+        if (op) {
+            emit8(0x0F);
+            if (strcmp(inst, "je") == 0 || strcmp(inst, "jz") == 0) emit8(0x84);
+            else if (strcmp(inst, "jne") == 0 || strcmp(inst, "jnz") == 0) emit8(0x85);
+            else if (strcmp(inst, "jl") == 0) emit8(0x8C);
+            else if (strcmp(inst, "jle") == 0) emit8(0x8D);
+            else if (strcmp(inst, "jg") == 0) emit8(0x8F);
+            else if (strcmp(inst, "jge") == 0) emit8(0x8E);
+            else if (strcmp(inst, "jb") == 0 || strcmp(inst, "jc") == 0) emit8(0x82);
+            else if (strcmp(inst, "jbe") == 0) emit8(0x86);
+            else if (strcmp(inst, "ja") == 0) emit8(0x87);
+            else if (strcmp(inst, "jae") == 0) emit8(0x83);
+            else {
+                if (current_pass == 2) printf("Error: unknown jump %s\n", inst);
+                error_count++;
+                emit8(0);
+            }
+            
+            if (current_pass == 2) {
+                int target = get_label_addr(op);
+                if (target >= 0) {
+                    emit32(target - (code_size + 4));
+                } else {
+                    emit32(parse_int(op) - (code_size + 4));
+                }
+            } else {
+                emit32(0);
+            }
+        }
+    } else if (strcmp(inst, "mov") == 0 || strcmp(inst, "add") == 0 || strcmp(inst, "sub") == 0 || strcmp(inst, "cmp") == 0 || strcmp(inst, "xor") == 0 || strcmp(inst, "and") == 0 || strcmp(inst, "or") == 0) {
+        char *op1 = strtok(NULL);
+        char *op2 = strtok(NULL);
+        if (op1 && op2) {
+            clean_token(op1);
+            
+            int reg1 = get_reg(op1);
+            int reg2 = get_reg(op2);
+            int mem_reg1 = get_mem_reg(op1);
+            int mem_reg2 = get_mem_reg(op2);
+            int mem_addr1, mem_addr2;
+            int is_mem1 = is_mem(op1, &mem_addr1);
+            int is_mem2 = is_mem(op2, &mem_addr2);
+            
+            if (strcmp(inst, "mov") == 0) {
+                if (reg1 >= 0 && reg2 >= 0) { 
+                    emit8(0x89); emit8(0xC0 | (reg2 << 3) | reg1);
+                } else if (reg1 >= 0 && mem_reg2 >= 0) { 
+                    if (mem_reg2 == 5) { emit8(0x8B); emit8(0x40 | (reg1 << 3) | mem_reg2); emit8(0); }
+                    else if (mem_reg2 == 4) { emit8(0x8B); emit8(0x00 | (reg1 << 3) | mem_reg2); emit8(0x24); }
+                    else { emit8(0x8B); emit8(0x00 | (reg1 << 3) | mem_reg2); }
+                } else if (mem_reg1 >= 0 && reg2 >= 0) { 
+                    if (mem_reg1 == 5) { emit8(0x89); emit8(0x40 | (reg2 << 3) | mem_reg1); emit8(0); }
+                    else if (mem_reg1 == 4) { emit8(0x89); emit8(0x00 | (reg2 << 3) | mem_reg1); emit8(0x24); }
+                    else { emit8(0x89); emit8(0x00 | (reg2 << 3) | mem_reg1); }
+                } else if (reg1 >= 0 && is_mem2) { 
+                    emit8(0x8B); emit8(0x05 | (reg1 << 3)); emit32(mem_addr2);
+                } else if (is_mem1 && reg2 >= 0) { 
+                    emit8(0x89); emit8(0x05 | (reg2 << 3)); emit32(mem_addr1);
+                } else if (reg1 >= 0) { 
+                    emit8(0xB8 + reg1); emit32(get_imm(op2));
+                } else if (mem_reg1 >= 0) { 
+                    if (mem_reg1 == 5) { emit8(0xC7); emit8(0x40 | mem_reg1); emit8(0); emit32(get_imm(op2)); }
+                    else if (mem_reg1 == 4) { emit8(0xC7); emit8(0x00 | mem_reg1); emit8(0x24); emit32(get_imm(op2)); }
+                    else { emit8(0xC7); emit8(0x00 | mem_reg1); emit32(get_imm(op2)); }
+                } else if (is_mem1) {
+                    emit8(0xC7); emit8(0x05); emit32(mem_addr1); emit32(get_imm(op2));
+                } else {
+                    if (current_pass == 2) printf("Error: invalid operands for mov\n");
+                    error_count++;
+                }
+            } else { 
+                uint8_t op_reg_reg, op_reg_imm, ext;
+                if (strcmp(inst, "add") == 0) { op_reg_reg = 0x01; op_reg_imm = 0x81; ext = 0; }
+                else if (strcmp(inst, "or") == 0) { op_reg_reg = 0x09; op_reg_imm = 0x81; ext = 1; }
+                else if (strcmp(inst, "and") == 0) { op_reg_reg = 0x21; op_reg_imm = 0x81; ext = 4; }
+                else if (strcmp(inst, "sub") == 0) { op_reg_reg = 0x29; op_reg_imm = 0x81; ext = 5; }
+                else if (strcmp(inst, "xor") == 0) { op_reg_reg = 0x31; op_reg_imm = 0x81; ext = 6; }
+                else if (strcmp(inst, "cmp") == 0) { op_reg_reg = 0x39; op_reg_imm = 0x81; ext = 7; }
+
+                if (reg1 >= 0 && reg2 >= 0) {
+                    emit8(op_reg_reg); emit8(0xC0 | (reg2 << 3) | reg1);
+                } else if (reg1 >= 0) {
+                    emit8(op_reg_imm); emit8(0xC0 | (ext << 3) | reg1); emit32(get_imm(op2));
+                } else {
+                    if (current_pass == 2) printf("Error: invalid operands for %s\n", inst);
+                    error_count++;
+                }
+            }
+        } else {
+            if (current_pass == 2) printf("Error: missing operands for %s\n", inst);
+            error_count++;
+        }
+    } else if (strcmp(inst, "db") == 0) {
+        char *op = strtok(NULL);
+        while (op) {
+            clean_token(op);
+            emit8(parse_int(op));
+            op = strtok(NULL);
+        }
+    } else if (strcmp(inst, "dd") == 0) {
+        char *op = strtok(NULL);
+        while (op) {
+            clean_token(op);
+            emit32(get_imm(op));
+            op = strtok(NULL);
+        }
+    } else {
+        if (current_pass == 2) printf("Error: unknown instruction %s\n", inst);
+        error_count++;
+    }
+}
+
+void parse_source(uint8_t *buffer) {
+    char *line_start = (char*)buffer;
+    while (*line_start) {
+        char *line_end = line_start;
+        while (*line_end != '\n' && *line_end != '\0') {
+            line_end++;
+        }
+        
+        char saved_char = *line_end;
+        *line_end = '\0';
+
+        int len = line_end - line_start;
+        char *line_copy = malloc(len + 1);
+        if (line_copy) {
+            strcpy(line_copy, line_start);
+            str_to_lower(line_copy);
+            assemble_line(line_copy);
+            free(line_copy);
+        }
+
+        *line_end = saved_char;
+
+        if (saved_char == '\0') break;
+        line_start = line_end + 1;
+    }
+}
+
 void main(int argc, char **argv){
-    if(argv[1] == 0){
-        printf("Usage: rasm.bin <file> <output file name>\n");
+    if(argc < 3){
+        printf("Usage: exec rasm.bin <input.asm> <output.bin>\n");
         return;
     }
 
@@ -1464,21 +2179,38 @@ void main(int argc, char **argv){
         printf("File is not found or empty.\n");
         return;
     }
+    
     uint8_t *buffer = malloc(filesize + 1);
+    if (!buffer) {
+        printf("Out of memory!\n");
+        return;
+    }
+    
     read_file(argv[1], buffer);
     buffer[filesize] = '\0';
 
-    char **lines_buffer;
-    int lines_count = 1;
-    for(int i = 0; i < filesize; i++){
-        if(buffer[i] == '\n'){
-            lines_count++;
+    
+    current_pass = 1;
+    code_size = 0;
+    label_count = 0;
+    error_count = 0;
+    parse_source(buffer);
+
+    
+    current_pass = 2;
+    code_size = 0;
+    parse_source(buffer);
+
+    if (error_count == 0 && code_size > 0) {
+        int err = write_file(argv[2], machine_code, code_size);
+        if(err == 1){
+            printf("Successfully compiled! %s (%d bytes)\n", argv[2], code_size);
+        } else {
+            printf("Error: failed to write output file! Error code: %d\n", err);
         }
+    } else {
+        printf("Compilation failed with %d errors.\n", error_count);
     }
-
-    printf(lines_buffer[1]);
-
-    //write_file(argv[2], (uint8_t*){0xCD, 0x80}, 2);
 
     free(buffer);
 }
@@ -1487,29 +2219,59 @@ void main(int argc, char **argv){
 
 #include "oslib.h"
 
-void main(){
+// Функция генерирует цвет радуги (от 0 до 1529)
+uint32_t get_rainbow_color(int pos) {
+    // Закольцовываем позицию
+    while (pos < 0) pos += 1530;
+    pos = pos % 1530;
+
+    int phase = pos / 255;
+    int offset = pos % 255;
+    int r = 0, g = 0, b = 0;
+
+    if (phase == 0)      { r = 255; g = offset; b = 0; }
+    else if (phase == 1) { r = 255 - offset; g = 255; b = 0; }
+    else if (phase == 2) { r = 0; g = 255; b = offset; }
+    else if (phase == 3) { r = 0; g = 255 - offset; b = 255; }
+    else if (phase == 4) { r = offset; g = 0; b = 255; }
+    else if (phase == 5) { r = 255; g = 0; b = 255 - offset; }
+
+    return (r << 16) | (g << 8) | b;
+}
+
+void main() {
     Window *w = create_window(VGA32_COLOR_BLACK);
     set_current_active_window(w);
 
-    uint32_t color = 0;
+    int time_offset = 0;
     
-    while(1){
+    int speed = 10;
+    int wave_density = 4;
+
+    while (1) {
         for (int y = 0; y < w->height; y++) {
+            
+            int color_pos = (y * wave_density) + time_offset;
+            uint32_t line_color = get_rainbow_color(color_pos);
+
             Rect line;
             line.x = w->x;
             line.y = w->y + y;
             line.width = w->width;
             line.height = 1;
-            line.color = color;
+            line.color = line_color;
             
             draw_rect_filled(&line);
-            
-            color++;
         }
         
         window_refresh(w);
         
-        if(color > 0xFFFFFF) color = 0; 
+        time_offset -= speed; 
+        
+        if (time_offset >= 1530) time_offset -= 1530;
+        if (time_offset < 0) time_offset += 1530;
+
+        sleep(26);
     }
 }
 
@@ -1864,7 +2626,7 @@ static volatile int buffer_count = 0;
 static uint8_t scancode_buffer[BUFFER_SIZE];
 static volatile int scancode_count = 0;
 
-static uint8_t current_layout = 0;
+uint8_t current_layout = 0;
 
 static void add_to_buffer(unsigned int c) {
     if (buffer_count < BUFFER_SIZE) {
@@ -2152,6 +2914,8 @@ typedef struct {
     unsigned int caps;
     char *desc;
 } Scancode_entity;
+
+extern uint8_t current_layout;
 
 void keyboard_handler_c(void);
 unsigned int getch(void);
@@ -2489,6 +3253,7 @@ void sleep(unsigned long ms);
 #include "drivers/video/vesa.h"
 #include "drivers/video/graphics.h"
 #include "multitask/task.h"
+#include "utils/utils.h"
 
 #define LINES 25
 #define COLUMNS_IN_LINE 80
@@ -2589,7 +3354,12 @@ unsigned int get_cursor_position(void) {
 }
 
 void set_cursor_position(unsigned int x, unsigned int y) {
-    gfx_set_cursor((int)x, (int)y);
+    if(current_task->window != 0){
+        current_task->window->cursor_x = x;
+        current_task->window->cursor_y = y;
+    } else {
+        gfx_set_cursor((int)x, (int)y);
+    }
 }
 
 void move_cursor_next_line(void) {
@@ -2623,16 +3393,11 @@ void scroll_screen(void) {
 }
 
 void clear_screen(void) {
-    if(current_output_window != 0){
-        window_clear(current_output_window, current_output_window->bg_color);
+    if(current_task->window != 0){
+        window_clear(current_task->window, current_task->window->bg_color);
     } else {
         clear_screen_vesa(0x00000000);
     }
-    current_output_window->cursor_x = 0;
-    current_output_window->cursor_y = 0;
-    
-    vesa_render_rect(0, 8, get_screen_width(), get_screen_height() - 8);
-    wm_refresh();
 }
 
 void clear_screen_colored(uint8_t color) {
@@ -3019,19 +3784,6 @@ void _print_number(int n, int base, int is_signed) {
     while (--i >= 0) {
         _putchar(buffer[i]);
     }
-}
-
-const char* utf8_to_unicode(const char* s, unsigned int* code) {
-    unsigned char c = (unsigned char)*s;
-    if (c < 0x80) {
-        *code = c;
-        return s + 1;
-    } else if ((c & 0xE0) == 0xC0) {
-        *code = ((c & 0x1F) << 6) | ((unsigned char)s[1] & 0x3F);
-        return s + 2;
-    }
-    *code = c;
-    return s + 1;
 }
 
 void print_utf8_string(const char* s) {
@@ -3558,71 +4310,71 @@ char font8x8_basic[1104][8] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 
     [0x410] = { 0x0C, 0x1E, 0x33, 0x33, 0x3F, 0x33, 0x33, 0x00 }, // А (A)
-    [0x411] = { 0x3F, 0x03, 0x03, 0x3F, 0x33, 0x33, 0x3F, 0x00 }, // Б
-    [0x412] = { 0x3F, 0x66, 0x66, 0x3E, 0x66, 0x66, 0x3F, 0x00 }, // В (B)
-    [0x413] = { 0x3F, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x00 }, // Г
-    [0x414] = { 0x1E, 0x33, 0x33, 0x33, 0x33, 0x3F, 0x33, 0x33 }, // Д
-    [0x415] = { 0x7F, 0x46, 0x16, 0x1E, 0x16, 0x46, 0x7F, 0x00 }, // Е (E)
-    [0x416] = { 0x63, 0x63, 0x36, 0x1C, 0x36, 0x63, 0x63, 0x00 }, // Ж
-    [0x417] = { 0x1E, 0x33, 0x30, 0x1C, 0x30, 0x33, 0x1E, 0x00 }, // З (3)
-    [0x418] = { 0x33, 0x33, 0x37, 0x3B, 0x3D, 0x33, 0x33, 0x00 }, // И
-    [0x419] = { 0x3C, 0x00, 0x33, 0x37, 0x3B, 0x3D, 0x33, 0x00 }, // Й
-    [0x41A] = { 0x67, 0x66, 0x36, 0x1E, 0x36, 0x66, 0x67, 0x00 }, // К (K)
-    [0x41B] = { 0x1E, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x00 }, // Л
-    [0x41C] = { 0x63, 0x77, 0x7F, 0x7F, 0x6B, 0x63, 0x63, 0x00 }, // М (M)
-    [0x41D] = { 0x33, 0x33, 0x33, 0x3F, 0x33, 0x33, 0x33, 0x00 }, // Н (H)
-    [0x41E] = { 0x1C, 0x36, 0x63, 0x63, 0x63, 0x36, 0x1C, 0x00 }, // О (O)
-    [0x41F] = { 0x3F, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x00 }, // П
-    [0x420] = { 0x3F, 0x66, 0x66, 0x3E, 0x06, 0x06, 0x0F, 0x00 }, // Р (P)
-    [0x421] = { 0x3C, 0x66, 0x03, 0x03, 0x03, 0x66, 0x3C, 0x00 }, // С (C)
-    [0x422] = { 0x3F, 0x2D, 0x0C, 0x0C, 0x0C, 0x0C, 0x1E, 0x00 }, // Т (T)
-    [0x423] = { 0x33, 0x33, 0x33, 0x1E, 0x0C, 0x0C, 0x1E, 0x00 }, // У (Y)
-    [0x424] = { 0x1E, 0x33, 0x7F, 0xDB, 0x7F, 0x33, 0x1E, 0x00 }, // Ф
-    [0x425] = { 0x63, 0x63, 0x36, 0x1C, 0x1C, 0x36, 0x63, 0x00 }, // Х (X)
-    [0x426] = { 0x33, 0x33, 0x33, 0x33, 0x3F, 0x33, 0x3F, 0x30 }, // Ц
-    [0x427] = { 0x33, 0x33, 0x33, 0x3E, 0x30, 0x30, 0x30, 0x00 }, // Ч
-    [0x428] = { 0x6B, 0x6B, 0x6B, 0x6B, 0x6B, 0x6B, 0x7F, 0x00 }, // Ш
-    [0x429] = { 0x6B, 0x6B, 0x6B, 0x6B, 0x6B, 0x6B, 0x7F, 0x03 }, // Щ
-    [0x42A] = { 0x0F, 0x06, 0x06, 0x1E, 0x36, 0x36, 0x1F, 0x00 }, // Ъ
-    [0x42B] = { 0x33, 0x33, 0x33, 0x3B, 0x33, 0x33, 0x3B, 0x00 }, // Ы
-    [0x42C] = { 0x03, 0x03, 0x03, 0x1F, 0x33, 0x33, 0x1F, 0x00 }, // Ь
-    [0x42D] = { 0x1E, 0x30, 0x30, 0x1E, 0x30, 0x30, 0x1E, 0x00 }, // Э
-    [0x42E] = { 0x6E, 0x6B, 0x6B, 0x7B, 0x6B, 0x6B, 0x6E, 0x00 }, // Ю
-    [0x42F] = { 0x1E, 0x33, 0x33, 0x1E, 0x36, 0x66, 0x67, 0x00 }, // Я
+    [0x411] = { 0x3E, 0x02, 0x02, 0x1E, 0x22, 0x22, 0x1E, 0x00 }, // Б
+    [0x412] = { 0x1E, 0x22, 0x22, 0x1E, 0x22, 0x22, 0x1E, 0x00 }, // В (B)
+    [0x413] = { 0x3E, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x00 }, // Г
+    [0x414] = { 0x18, 0x24, 0x24, 0x24, 0x7E, 0x81, 0x81, 0x00 }, // Д
+    [0x415] = { 0x3E, 0x02, 0x02, 0x1E, 0x02, 0x02, 0x3E, 0x00 }, // Е (E)
+    [0x416] = { 0x49, 0x49, 0x2A, 0x1C, 0x2A, 0x49, 0x49, 0x00 }, // Ж
+    [0x417] = { 0x1E, 0x22, 0x20, 0x18, 0x20, 0x22, 0x1E, 0x00 }, // З (3)
+    [0x418] = { 0x41, 0x61, 0x51, 0x49, 0x45, 0x43, 0x41, 0x00 }, // И
+    [0x419] = { 0x1C, 0x41, 0x51, 0x49, 0x45, 0x43, 0x41, 0x00 }, // Й
+    [0x41A] = { 0x21, 0x11, 0x09, 0x03, 0x09, 0x11, 0x21, 0x00 }, // К (K)
+    [0x41B] = { 0x18, 0x24, 0x24, 0x24, 0x24, 0x22, 0x21, 0x00 }, // Л
+    [0x41C] = { 0x41, 0x63, 0x55, 0x49, 0x41, 0x41, 0x41, 0x00 }, // М (M)
+    [0x41D] = { 0x41, 0x41, 0x41, 0x7F, 0x41, 0x41, 0x41, 0x00 }, // Н (H)
+    [0x41E] = { 0x1C, 0x22, 0x41, 0x41, 0x41, 0x22, 0x1C, 0x00 }, // О (O)
+    [0x41F] = { 0x7F, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x00 }, // П
+    [0x420] = { 0x3F, 0x41, 0x41, 0x3F, 0x01, 0x01, 0x01, 0x00 }, // Р (P)
+    [0x421] = { 0x3C, 0x42, 0x01, 0x01, 0x01, 0x42, 0x3C, 0x00 }, // С (C)
+    [0x422] = { 0x7F, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x00 }, // Т (T)
+    [0x423] = { 0x41, 0x41, 0x22, 0x14, 0x08, 0x04, 0x03, 0x00 }, // У (Y)
+    [0x424] = { 0x18, 0x7E, 0x99, 0x99, 0x7E, 0x18, 0x18, 0x00 }, // Ф
+    [0x425] = { 0x41, 0x22, 0x14, 0x08, 0x14, 0x22, 0x41, 0x00 }, // Х (X)
+    [0x426] = { 0x41, 0x41, 0x41, 0x41, 0x41, 0x7F, 0xC0, 0x40 }, // Ц
+    [0x427] = { 0x41, 0x41, 0x41, 0x7E, 0x40, 0x40, 0x40, 0x00 }, // Ч
+    [0x428] = { 0x49, 0x49, 0x49, 0x49, 0x49, 0x49, 0x7F, 0x00 }, // Ш
+    [0x429] = { 0x49, 0x49, 0x49, 0x49, 0x49, 0x7F, 0xC0, 0x40 }, // Щ
+    [0x42A] = { 0x03, 0x02, 0x02, 0x1E, 0x22, 0x22, 0x1E, 0x00 }, // Ъ
+    [0x42B] = { 0x01, 0x01, 0x01, 0x4F, 0x51, 0x51, 0x4F, 0x00 }, // Ы
+    [0x42C] = { 0x01, 0x01, 0x01, 0x0F, 0x11, 0x11, 0x0F, 0x00 }, // Ь
+    [0x42D] = { 0x3C, 0x42, 0x40, 0x7C, 0x40, 0x42, 0x3C, 0x00 }, // Э
+    [0x42E] = { 0x71, 0x89, 0x89, 0x8F, 0x89, 0x89, 0x71, 0x00 }, // Ю
+    [0x42F] = { 0x3E, 0x41, 0x41, 0x7E, 0x48, 0x44, 0x42, 0x00 }, // Я
 
     // --- Кириллица строчные (U+0430 - U+044F) ---
-    [0x430] = { 0x00, 0x00, 0x1E, 0x30, 0x3E, 0x33, 0x6E, 0x00 }, // а (a)
-    [0x431] = { 0x1E, 0x03, 0x03, 0x1F, 0x33, 0x33, 0x1F, 0x00 }, // б
-    [0x432] = { 0x03, 0x03, 0x1F, 0x33, 0x33, 0x33, 0x1F, 0x00 }, // в
-    [0x433] = { 0x00, 0x00, 0x3F, 0x03, 0x03, 0x03, 0x03, 0x00 }, // г
-    [0x434] = { 0x00, 0x1E, 0x33, 0x33, 0x33, 0x3F, 0x33, 0x33 }, // д
-    [0x435] = { 0x00, 0x00, 0x1E, 0x33, 0x3F, 0x03, 0x1E, 0x00 }, // е (e)
-    [0x436] = { 0x00, 0x00, 0x63, 0x36, 0x1C, 0x36, 0x63, 0x00 }, // ж
-    [0x437] = { 0x00, 0x00, 0x1E, 0x30, 0x1C, 0x30, 0x1E, 0x00 }, // з
-    [0x438] = { 0x00, 0x00, 0x33, 0x33, 0x3B, 0x3D, 0x33, 0x00 }, // и
-    [0x439] = { 0x1E, 0x00, 0x33, 0x33, 0x3B, 0x3D, 0x33, 0x00 }, // й
-    [0x43A] = { 0x00, 0x03, 0x33, 0x1B, 0x0F, 0x1B, 0x33, 0x00 }, // к
-    [0x43B] = { 0x00, 0x00, 0x1E, 0x33, 0x33, 0x33, 0x33, 0x00 }, // л
-    [0x43C] = { 0x00, 0x00, 0x33, 0x7F, 0x7F, 0x6B, 0x63, 0x00 }, // м (m)
-    [0x43D] = { 0x00, 0x00, 0x33, 0x33, 0x3F, 0x33, 0x33, 0x00 }, // н
-    [0x43E] = { 0x00, 0x00, 0x1E, 0x33, 0x33, 0x33, 0x1E, 0x00 }, // о (o)
-    [0x43F] = { 0x00, 0x00, 0x3F, 0x33, 0x33, 0x33, 0x33, 0x00 }, // п
-    [0x440] = { 0x00, 0x00, 0x3B, 0x66, 0x66, 0x3E, 0x06, 0x0F }, // р (p)
-    [0x441] = { 0x00, 0x00, 0x1E, 0x33, 0x03, 0x33, 0x1E, 0x00 }, // с (c)
-    [0x442] = { 0x00, 0x00, 0x3F, 0x0C, 0x0C, 0x0C, 0x0C, 0x00 }, // т
-    [0x443] = { 0x00, 0x00, 0x33, 0x33, 0x33, 0x3E, 0x30, 0x1F }, // у (y)
-    [0x444] = { 0x00, 0x00, 0x1C, 0x3E, 0x6B, 0x3E, 0x1C, 0x00 }, // ф
-    [0x445] = { 0x00, 0x00, 0x63, 0x36, 0x1C, 0x36, 0x63, 0x00 }, // х (x)
-    [0x446] = { 0x00, 0x33, 0x33, 0x33, 0x3B, 0x3B, 0x3F, 0x30 }, // ц
-    [0x447] = { 0x00, 0x00, 0x33, 0x33, 0x3E, 0x30, 0x30, 0x00 }, // ч
-    [0x448] = { 0x00, 0x00, 0x6B, 0x6B, 0x6B, 0x6B, 0x7F, 0x00 }, // ш
-    [0x449] = { 0x00, 0x00, 0x6B, 0x6B, 0x6B, 0x6B, 0x7F, 0x03 }, // щ
-    [0x44A] = { 0x1E, 0x0C, 0x0C, 0x1E, 0x33, 0x33, 0x1E, 0x00 }, // ъ
-    [0x44B] = { 0x00, 0x00, 0x33, 0x33, 0x3B, 0x33, 0x3B, 0x00 }, // ы
-    [0x44C] = { 0x00, 0x00, 0x03, 0x03, 0x1F, 0x33, 0x1F, 0x00 }, // ь
-    [0x44D] = { 0x00, 0x00, 0x1E, 0x30, 0x1E, 0x30, 0x1E, 0x00 }, // э
-    [0x44E] = { 0x00, 0x00, 0x6E, 0x6B, 0x7B, 0x6B, 0x6E, 0x00 }, // ю
-    [0x44F] = { 0x00, 0x00, 0x1E, 0x33, 0x1E, 0x33, 0x33, 0x00 }  // я
+    [0x430] = { 0x00, 0x00, 0x1E, 0x21, 0x3E, 0x21, 0x5E, 0x00 }, // а (a)
+    [0x431] = { 0x00, 0x1C, 0x02, 0x1E, 0x22, 0x22, 0x1E, 0x00 }, // б
+    [0x432] = { 0x00, 0x00, 0x1E, 0x22, 0x1E, 0x22, 0x1E, 0x00 }, // в
+    [0x433] = { 0x00, 0x00, 0x3E, 0x02, 0x02, 0x02, 0x02, 0x00 }, // г
+    [0x434] = { 0x00, 0x00, 0x18, 0x24, 0x24, 0x7E, 0x81, 0x00 }, // д
+    [0x435] = { 0x00, 0x00, 0x1E, 0x21, 0x3F, 0x01, 0x1E, 0x00 }, // е (e)
+    [0x436] = { 0x00, 0x00, 0x49, 0x2A, 0x1C, 0x2A, 0x49, 0x00 }, // ж
+    [0x437] = { 0x00, 0x00, 0x1E, 0x20, 0x18, 0x20, 0x1E, 0x00 }, // з
+    [0x438] = { 0x00, 0x00, 0x21, 0x31, 0x29, 0x25, 0x23, 0x00 }, // и
+    [0x439] = { 0x00, 0x0C, 0x21, 0x31, 0x29, 0x25, 0x23, 0x00 }, // й
+    [0x43A] = { 0x00, 0x00, 0x11, 0x09, 0x07, 0x09, 0x11, 0x00 }, // к
+    [0x43B] = { 0x00, 0x00, 0x18, 0x24, 0x24, 0x22, 0x21, 0x00 }, // л
+    [0x43C] = { 0x00, 0x00, 0x41, 0x63, 0x55, 0x49, 0x41, 0x00 }, // м (m)
+    [0x43D] = { 0x00, 0x00, 0x21, 0x21, 0x3F, 0x21, 0x21, 0x00 }, // н
+    [0x43E] = { 0x00, 0x00, 0x1E, 0x21, 0x21, 0x21, 0x1E, 0x00 }, // о (o)
+    [0x43F] = { 0x00, 0x00, 0x3F, 0x21, 0x21, 0x21, 0x21, 0x00 }, // п
+    [0x440] = { 0x00, 0x00, 0x1F, 0x21, 0x21, 0x1F, 0x01, 0x01 }, // р (p)
+    [0x441] = { 0x00, 0x00, 0x1E, 0x01, 0x01, 0x01, 0x1E, 0x00 }, // с (c)
+    [0x442] = { 0x00, 0x00, 0x1F, 0x04, 0x04, 0x04, 0x04, 0x00 }, // т
+    [0x443] = { 0x00, 0x00, 0x21, 0x21, 0x22, 0x14, 0x08, 0x04 }, // у (y)
+    [0x444] = { 0x00, 0x00, 0x08, 0x3E, 0x49, 0x49, 0x3E, 0x08 }, // ф
+    [0x445] = { 0x00, 0x00, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x00 }, // х (x)
+    [0x446] = { 0x00, 0x00, 0x21, 0x21, 0x21, 0x3F, 0xC0, 0x40 }, // ц
+    [0x447] = { 0x00, 0x00, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x00 }, // ч
+    [0x448] = { 0x00, 0x00, 0x49, 0x49, 0x49, 0x7F, 0x00, 0x00 }, // ш
+    [0x449] = { 0x00, 0x00, 0x49, 0x49, 0x49, 0x7F, 0xC0, 0x40 }, // щ
+    [0x44A] = { 0x00, 0x00, 0x03, 0x02, 0x1E, 0x22, 0x1E, 0x00 }, // ъ
+    [0x44B] = { 0x00, 0x00, 0x01, 0x01, 0x4F, 0x51, 0x4F, 0x00 }, // ы
+    [0x44C] = { 0x00, 0x00, 0x01, 0x01, 0x0F, 0x11, 0x0F, 0x00 }, // ь
+    [0x44D] = { 0x00, 0x00, 0x0E, 0x08, 0x1E, 0x08, 0x0E, 0x00 }, // э
+    [0x44E] = { 0x00, 0x00, 0x31, 0x49, 0x4F, 0x49, 0x31, 0x00 }, // ю
+    [0x44F] = { 0x00, 0x00, 0x1E, 0x11, 0x1E, 0x08, 0x11, 0x00 }  // я
 };
 
 --- START OF FILE ./src/drivers/video/bga/font.h ---
@@ -3685,7 +4437,15 @@ void gfx_putc(unsigned int c) {
         term_y++;
     } 
     else if (c == '\b') {
-        if (term_x > 0) term_x--;
+        if (term_x > 0) {
+            term_x--;
+        } else if (term_y > 0) {
+            term_x = term_cols - 1;
+            term_y--;
+        } else {
+            return;
+        }
+        
         for(int y=0; y<FONT_H; y++) {
             for(int x=0; x<FONT_W; x++) {
                 put_pixel(term_x * FONT_W + x, term_y * FONT_H + y, term_bg_color, 1);
@@ -3706,7 +4466,7 @@ void gfx_putc(unsigned int c) {
 
     if (term_y >= term_rows) {
         gfx_scroll();
-        vesa_render_rect(term_x * FONT_W, term_y * FONT_H, FONT_W, FONT_H);
+        vesa_render_rect(0, 0, screen_width, screen_height);
         term_y = term_rows - 1;
     }
 }
@@ -4184,22 +4944,27 @@ void window_putc(Window *win, unsigned int c) {
     else if (c == '\b') {
         if (win->cursor_x >= 8) {
             win->cursor_x -= 8;
-            col_idx = win->cursor_x / 8;
-
-            buffer_write(win, col_idx, row_idx, ' ', win->bg_color);
-            
-            for(int y = 0; y < 8; y++) 
-                for(int x = 0; x < 8; x++) 
-                     window_put_pixel(win, win->cursor_x + x, win->cursor_y + y, win->bg_color);
-            
-            window_render_char_rect(win, col_idx, row_idx);
+        } else if (win->cursor_y >= 8) {
+            win->cursor_x = (win->cols - 1) * 8;
+            win->cursor_y -= 8;
+        } else {
+            return;
         }
+        
+        col_idx = win->cursor_x / 8;
+        row_idx = win->cursor_y / 8;
+
+        buffer_write(win, col_idx, row_idx, ' ', win->bg_color);
+        
+        for(int y = 0; y < 8; y++) 
+            for(int x = 0; x < 8; x++) 
+                 window_put_pixel(win, win->cursor_x + x, win->cursor_y + y, win->bg_color);
+        
+        window_render_char_rect(win, col_idx, row_idx);
     }
     else {
         buffer_write(win, col_idx, row_idx, c, win->text_color);
-
         window_draw_char(win, win->cursor_x, win->cursor_y, c, win->text_color);
-        
         window_render_char_rect(win, col_idx, row_idx);
 
         win->cursor_x += 8;
@@ -4275,6 +5040,7 @@ void wm_refresh();
 void wm_switch_focus();
 void wm_init();
 void wm_render_window(Window *win);
+void window_redraw_content(Window *win);
 
 #endif
 
@@ -4410,10 +5176,6 @@ void vesa_draw_char(int x, int y, unsigned int c, uint32_t color, uint32_t bgcol
 int get_screen_width(void){ return screen_width; }
 int get_screen_height(void){ return screen_height; }
 
-char utf8_converter(int c){
-    printf("%x", c);
-}
-
 --- START OF FILE ./src/drivers/video/vesa.h ---
 
 #ifndef VESA_H
@@ -4433,7 +5195,6 @@ int get_screen_width(void);
 int get_screen_height(void);
 void vesa_render_buffer();
 void vesa_render_rect(int x, int y, int w, int h);
-char utf8_converter(int c);
 
 #endif
 
@@ -4574,8 +5335,18 @@ int fat32_read_file(char* filename, uint8_t* out_buffer) {
                     while(bytes_read < file_size && file_cluster < 0x0FFFFFF8) {
                         uint32_t file_lba = cluster_to_lba(file_cluster);
                         for(int s=0; s<bpb.sectors_per_cluster; s++) {
-                            ata_read_sector(file_lba + s, out_buffer + bytes_read, ATA_MASTER);
-                            bytes_read += 512;
+                            
+                            if (file_size - bytes_read < 512) {
+                                uint8_t temp[512];
+                                ata_read_sector(file_lba + s, temp, ATA_MASTER);
+                                int remaining = file_size - bytes_read;
+                                for(int k=0; k<remaining; k++) out_buffer[bytes_read + k] = temp[k];
+                                bytes_read += remaining;
+                            } else {
+                                ata_read_sector(file_lba + s, out_buffer + bytes_read, ATA_MASTER);
+                                bytes_read += 512;
+                            }
+                            
                             if(bytes_read >= file_size) break; 
                         }
                         file_cluster = get_next_cluster(file_cluster);
@@ -4653,34 +5424,13 @@ uint32_t fat32_find_free_cluster() {
         
         uint32_t *entries = (uint32_t*)buffer;
         for (int i = 0; i < 128; i++) {
+            
+            if (sec == 0 && i < 2) continue; 
+            
             if ((entries[i] & 0x0FFFFFFF) == 0) {
                 return sec * 128 + i;
             }
         }
-    }
-    return 0;
-}
-
-int fat32_find_free_dir_entry(uint32_t *sector_out, uint32_t *offset_out) {
-    uint32_t dir_cluster = bpb.root_cluster;
-    uint8_t buffer[512];
-    
-    while (dir_cluster < 0x0FFFFFF8) {
-        uint32_t lba = cluster_to_lba(dir_cluster);
-        
-        for(int i=0; i<bpb.sectors_per_cluster; i++) {
-            ata_read_sector(lba + i, buffer, ATA_MASTER);
-            struct fat_directory_entry* entries = (struct fat_directory_entry*)buffer;
-            
-            for(int j=0; j<16; j++) {
-                if (entries[j].name[0] == 0x00 || entries[j].name[0] == 0xE5) {
-                    *sector_out = lba + i;
-                    *offset_out = j * 32;
-                    return 1;
-                }
-            }
-        }
-        dir_cluster = get_next_cluster(dir_cluster);
     }
     return 0;
 }
@@ -4698,8 +5448,6 @@ int fat32_delete_file(char* filename) {
         for(int i=0; i<bpb.sectors_per_cluster; i++) {
             ata_read_sector(lba + i, buffer, ATA_MASTER);
             struct fat_directory_entry* entry = (struct fat_directory_entry*) buffer;
-            
-            int modified = 0;
             
             for(int j=0; j<16; j++) {
                 if(entry[j].name[0] == 0x00) return -1;
@@ -4745,6 +5493,7 @@ int fat32_write_file(char* filename, uint8_t* data, uint32_t size) {
     uint32_t first_cluster = 0;
     uint32_t prev_cluster = 0;
 
+    
     for(uint32_t i = 0; i < clusters_needed; i++) {
         uint32_t free_cluster = fat32_find_free_cluster();
         if(free_cluster == 0) return -2;
@@ -4761,6 +5510,7 @@ int fat32_write_file(char* filename, uint8_t* data, uint32_t size) {
     uint32_t current_cluster = first_cluster;
     uint32_t written = 0;
     
+    
     for(uint32_t i = 0; i < clusters_needed; i++) {
         uint32_t lba = cluster_to_lba(current_cluster);
         
@@ -4770,17 +5520,27 @@ int fat32_write_file(char* filename, uint8_t* data, uint32_t size) {
                 for(int z=0; z<512; z++) zeros[z] = 0;
                 ata_write_sector(lba + s, zeros);
             } else {
-                ata_write_sector(lba + s, data + written);
-                written += 512;
+                if (size - written < 512) {
+                    uint8_t padded[512];
+                    int rem = size - written;
+                    for(int z=0; z<rem; z++) padded[z] = data[written + z];
+                    for(int z=rem; z<512; z++) padded[z] = 0;
+                    ata_write_sector(lba + s, padded);
+                    written += rem;
+                } else {
+                    ata_write_sector(lba + s, data + written);
+                    written += 512;
+                }
             }
         }
         current_cluster = get_next_cluster(current_cluster);
     }
 
+    
     uint32_t dir_cluster = bpb.root_cluster;
     uint8_t buffer[512];
     
-    while(dir_cluster < 0x0FFFFFF8) {
+    while(1) {
         uint32_t lba = cluster_to_lba(dir_cluster);
         for(int i=0; i<bpb.sectors_per_cluster; i++) {
             ata_read_sector(lba + i, buffer, ATA_MASTER);
@@ -4800,14 +5560,33 @@ int fat32_write_file(char* filename, uint8_t* data, uint32_t size) {
                 }
             }
         }
+        
         uint32_t next = get_next_cluster(dir_cluster);
-        if(next >= 0x0FFFFFF8) break;
-        dir_cluster = next;
+        if(next >= 0x0FFFFFF8) {
+            
+            
+            uint32_t new_dir_cluster = fat32_find_free_cluster();
+            if (new_dir_cluster == 0) return -4; 
+            
+            fat32_write_fat_entry(dir_cluster, new_dir_cluster);
+            fat32_write_fat_entry(new_dir_cluster, 0x0FFFFFFF);
+            
+            uint8_t zero_buf[512];
+            for(int z=0; z<512; z++) zero_buf[z] = 0;
+            
+            uint32_t new_lba = cluster_to_lba(new_dir_cluster);
+            for(int s=0; s<bpb.sectors_per_cluster; s++) {
+                ata_write_sector(new_lba + s, zero_buf);
+            }
+            
+            dir_cluster = new_dir_cluster; 
+        } else {
+            dir_cluster = next;
+        }
     }
     
     return -3;
 }
-
 
 --- START OF FILE ./src/fs/fat/fat32.h ---
 
@@ -4913,6 +5692,8 @@ void draw_interface(int argc, char **argv);
 #include "drivers/vga/vga.h"
 #include "multitask/task.h"
 #include "drivers/rtc/rtc.h"
+#include "drivers/keyboard/keyboardDriver.h"
+#include "utils/utils.h"
 
 #define TASKBAR_COLOR 0x191970
 
@@ -4925,8 +5706,10 @@ void safe_strncpy(char *dest, const char *src, int n) {
 }
 
 void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color){
-    for(int i = 0; str[i] != '\0'; i++){
-        vesa_draw_char(x, y, str[i], color, bg_color);
+    while (*str) {
+        unsigned int code;
+        str = utf8_to_unicode(str, &code);
+        vesa_draw_char(x, y, code, color, bg_color);
         x += 8;
     }
 }
@@ -4975,6 +5758,8 @@ void draw_taskbar(int argc, char **argv) {
 
         char date[32];
         date[0] = '\0';
+        strcat(date, current_layout == 0 ? "ENG" : "РУ");
+        strcat(date, " | ");
         itoa(t.day, buff);
         strcat(date, buff);
         strcat(date, "/");
@@ -5745,6 +6530,7 @@ switch_to_task:
 #include "drivers/video/graphics.h"
 #include "drivers/io/io.h"
 #include "drivers/timer/timer.h"
+#include "utils/utils.h"
 
 extern void switch_to_task(Task *next, Task *prev);
 
@@ -5753,30 +6539,25 @@ Task *ready_queue = 0;
 int next_pid = 0;
 
 int kill_current_task_flag = 0;
-
 Task *zombie_task = 0; 
+volatile int tasks_need_cleanup = 0; // Флаг: нужен ли вызов сборщика мусора
 
 void track_allocation(Task *task, void *ptr) {
     if (!task || !ptr) return;
-    
     AllocList *node = (AllocList*)kmalloc(sizeof(AllocList));
     node->ptr = ptr;
     node->next = task->allocations;
     task->allocations = node;
 }
 
-
 void untrack_allocation(Task *task, void *ptr) {
     if (!task || !task->allocations) return;
-    
     AllocList *curr = task->allocations;
     AllocList *prev = 0;
-    
     while (curr) {
         if (curr->ptr == ptr) {
             if (prev) prev->next = curr->next;
             else task->allocations = curr->next;
-            
             kfree(curr); 
             return;
         }
@@ -5785,15 +6566,12 @@ void untrack_allocation(Task *task, void *ptr) {
     }
 }
 
-
 void free_task_memory(Task *task) {
     AllocList *curr = task->allocations;
     while (curr) {
         AllocList *temp = curr;
-        
         kfree(curr->ptr); 
         curr = curr->next;
-        
         kfree(temp);
     }
     task->allocations = 0;
@@ -5803,23 +6581,29 @@ void free_task_struct(Task *t) {
     if (!t) return;
     free_task_memory(t);
     
-    if (t->page_dir && t->page_dir != kernel_dir) {
-        for (int i = 256; i < 1024; i++) {
-            if (t->page_dir->entries[i] & 1) {
-                void *pt = (void*)(t->page_dir->entries[i] & 0xFFFFF000);
-                kfree_a(pt);
+    if (t->app_phys_addr) {
+        if (t->page_dir && t->page_dir != kernel_dir) {
+            for (int i = 256; i < 1024; i++) {
+                if (t->page_dir->entries[i] & 1) {
+                    if (t->page_dir->entries[i] != kernel_dir->entries[i]) {
+                        void *pt = (void*)(t->page_dir->entries[i] & 0xFFFFF000);
+                        kfree_a(pt);
+                    }
+                }
             }
+            kfree_a(t->page_dir);
         }
-        kfree_a(t->page_dir);
+        kfree_a((void*)t->app_phys_addr);
     }
-    
-    if (t->app_phys_addr) kfree_a((void*)t->app_phys_addr);
     
     if (t->stack_start) kfree((void*)t->stack_start);
     kfree(t);
 }
 
 void cleanup_zombies() {
+    // МЕГА-ОПТИМИЗАЦИЯ: Если нет убитых процессов, выходим мгновенно за O(1)
+    if (!tasks_need_cleanup && !zombie_task) return;
+
     uint32_t flags = save_flags();
 
     if (zombie_task != 0) {
@@ -5846,7 +6630,6 @@ void cleanup_zombies() {
                 curr = curr->next;
                 
                 if (ready_queue == to_free) ready_queue = 0; 
-                
                 free_task_struct(to_free);
                 
                 if (!ready_queue) break;
@@ -5856,7 +6639,8 @@ void cleanup_zombies() {
             }
         } while (curr != start && ready_queue != 0);
     }
-
+    
+    tasks_need_cleanup = 0; // Сбрасываем флаг
     restore_flags(flags);
 }
 
@@ -5866,10 +6650,7 @@ void task_set_name(Task* t, char* name) {
         t->name[0] = 'u'; t->name[1] = 'n'; t->name[2] = 'k'; t->name[3] = 0;
         return;
     }
-    while (name[i] && i < 31) {
-        t->name[i] = name[i];
-        i++;
-    }
+    while (name[i] && i < 31) { t->name[i] = name[i]; i++; }
     t->name[i] = 0;
 }
 
@@ -5928,7 +6709,6 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
     *(--esp) = (uint32_t)exit_process;
     *(--esp) = (uint32_t)entry;
     
-    
     for(int i = 0; i < 8; i++) *(--esp) = 0;
     *(--esp) = 0x202;
 
@@ -5940,9 +6720,13 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
     new_task->next = temp;
     __asm__ volatile("sti");
 
+    char log_buf[64];
+    strcpy(log_buf, "Process Created: ");
+    strcat(log_buf, name);
+    klog(log_buf);
+
     return new_task->id;
 }
-
 
 void task_scheduler() {
     uint32_t flags = save_flags();
@@ -5987,8 +6771,8 @@ void kill_children_of(int pid) {
         if (t->parent_id == pid && t->state != TASK_DEAD) {
             kill_children_of(t->id); 
             if (t->window && t->owns_window) wm_close_window(t->window);
-            
             t->state = TASK_DEAD; 
+            tasks_need_cleanup = 1;
         }
         t = t->next;
     } while (t != ready_queue);
@@ -6002,24 +6786,29 @@ void exit_process() {
     kill_children_of(current_task->id);
 
     Task *task_to_kill = current_task;
-    
-    
     Task *prev = ready_queue;
     while (prev->next != task_to_kill) { prev = prev->next; }
     prev->next = task_to_kill->next;
     if (ready_queue == task_to_kill) ready_queue = task_to_kill->next;
-
     
     if (task_to_kill->window && task_to_kill->owns_window) {
         wm_close_window(task_to_kill->window);
     }
 
     task_to_kill->state = TASK_DEAD;
-    
     zombie_task = task_to_kill;
+    tasks_need_cleanup = 1;
 
     Task *next_live = task_to_kill->next;
     current_task = next_live;
+    
+    klog("Process Exited/Killed.");
+
+    if (next_live->page_dir) {
+        switch_page_directory(next_live->page_dir);
+    } else {
+        switch_page_directory(kernel_dir);
+    }
     
     switch_to_task(next_live, task_to_kill);
     while(1) { __asm__ volatile("hlt"); }
@@ -6033,8 +6822,8 @@ void task_sleep(int ms) {
     current_task->state = TASK_SLEEPING;
     task_scheduler(); 
 }
+
 void kill_focused_process() {
-    
     if (focused_window == 0) return;
     __asm__ volatile("cli");
     Task *t = ready_queue;
@@ -6049,11 +6838,13 @@ void kill_focused_process() {
         else {
             kill_children_of(t->id);
             t->state = TASK_DEAD; 
+            tasks_need_cleanup = 1;
             if (t->window) wm_close_window(t->window);
         }
     }
     __asm__ volatile("sti");
 }
+
 void check_kill_flag() {
     if (kill_current_task_flag) {
         kill_current_task_flag = 0;
@@ -6063,54 +6854,31 @@ void check_kill_flag() {
     }
 }
 
-
 void wait_process(int pid) {
     while (1) {
         Task *t = ready_queue;
         int found = 0;
-
         do {
-            if (t->id == pid && t->state != TASK_DEAD) {
-                found = 1;
-                break;
-            }
+            if (t->id == pid && t->state != TASK_DEAD) { found = 1; break; }
             t = t->next;
         } while (t != ready_queue);
-
         if (!found) break;
-
         task_sleep(20);
     }
 }
 
-
 void kill_task(int pid) {
     if (!ready_queue) return;
-
     Task *t = ready_queue;
     int found = 0;
-
     do {
-        if (t->id == pid && t->state != TASK_DEAD) {
-            found = 1;
-            break;
-        }
+        if (t->id == pid && t->state != TASK_DEAD) { found = 1; break; }
         t = t->next;
     } while (t != ready_queue);
 
-    if (!found) {
-        return;
-    }
-    
-    if (t == current_task) {
-        printf("Use 'exit' to stop current process.\n");
-        return;
-    }
-    
-    if (t->id <= 1) { 
-        printf("Permission denied: Cannot kill system process.\n");
-        return;
-    }
+    if (!found) return;
+    if (t == current_task) { printf("Use 'exit' to stop current process.\n"); return; }
+    if (t->id <= 1) { printf("Permission denied.\n"); return; }
 
     kill_children_of(t->id);
 
@@ -6120,19 +6888,16 @@ void kill_task(int pid) {
     }
 
     t->state = TASK_DEAD;
+    tasks_need_cleanup = 1;
 }
 
 Task* get_task_by_window(Window *win) {
     if (!ready_queue || !win) return 0;
-
     Task *t = ready_queue;
     do {
-        if (t->window == win && t->state != TASK_DEAD) {
-            return t;
-        }
+        if (t->window == win && t->state != TASK_DEAD) return t;
         t = t->next;
     } while (t != ready_queue);
-
     return 0;
 }
 
@@ -6468,6 +7233,7 @@ command_t commands[] = {
     {"readsystemcfg", cmd_readsystemcfg, "Update system configs"},
     {"tasklist", cmd_tasklist, "Show task list"},
     {"kill", cmd_kill, "Kill process"},
+    {"writemode", cmd_writemode, "Enable Read/Write disk mode"},
     
     {NULL, NULL, NULL}
 };
@@ -6767,7 +7533,6 @@ void cmd_setbgcolor(char** tokens){
 
 void cmd_clear(char **tokens) {
     clear_screen();
-    set_cursor_position(0,0);
 }
 
 void cmd_exit(char **tokens) {
@@ -6860,8 +7625,11 @@ void cmd_exec(char **tokens){
     int file_size = fat32_get_file_size(tokens[1]);
     if (file_size <= 0) return;
 
-    uint32_t phys_addr = (uint32_t)kmalloc_a(file_size + 4096);
-    fast_memset((void*)phys_addr, 0, (file_size + 4096) / 4);
+    uint32_t alloc_size = file_size + 1024 * 1024; 
+    
+    uint32_t phys_addr = (uint32_t)kmalloc_a(alloc_size);
+    fast_memset((void*)phys_addr, 0, alloc_size / 4);
+    
     int bytes_read = fat32_read_file(tokens[1], (uint8_t*)phys_addr);
 
     if(bytes_read > 0){
@@ -6871,7 +7639,7 @@ void cmd_exec(char **tokens){
 
         page_directory_t *app_pd = clone_page_directory();
         
-        uint32_t size_aligned = (file_size + 4095) & ~4095;
+        uint32_t size_aligned = (alloc_size + 4095) & ~4095;
         for(uint32_t i = 0; i < size_aligned; i += 4096) {
             paging_map_user(app_pd, phys_addr + i, PROGRAM_LOAD_ADDRES + i, 7);
         }
@@ -6897,12 +7665,31 @@ void cmd_mkfile(char **tokens) {
     }
     
     char* filename = tokens[1];
+    char text_buf[512];
+    text_buf[0] = '\0';
     
-    if (fat32_write_file(filename, "", 0) == 1) {
-        printf("File created successfully!\n");
-    } else {
-        printf("Error creating file.\n");
+    if (tokens[2]) {
+        int i = 2;
+        while(tokens[i]) {
+            strcat(text_buf, tokens[i]);
+            if (tokens[i+1]) strcat(text_buf, " ");
+            i++;
+        }
     }
+    
+    int res = fat32_write_file(filename, (uint8_t*)text_buf, strlen(text_buf));
+    if (res == 1) {
+        printf("File '%s' created successfully!\n", filename);
+    } else if (res == -1) {
+        printf("%CError: OS is in READ-ONLY mode! Type 'writemode' to enable.%C\n", VGA32_COLOR_RED, VGA32_COLOR_WHITE);
+    } else {
+        printf("%CError creating file. Code: %d%C\n", VGA32_COLOR_RED, res, VGA32_COLOR_WHITE);
+    }
+}
+
+void cmd_writemode(char **tokens) {
+    isReadMode = 0;
+    printf("%CRead/Write mode ENABLED! You can now create and save files.%C\n", VGA32_COLOR_GREEN, VGA32_COLOR_WHITE);
 }
 
 void cmd_rm(char **tokens){
@@ -7017,6 +7804,7 @@ void cmd_rm(char **tokens);
 void cmd_readsystemcfg(char **tokens);
 void cmd_tasklist(char **tokens);
 void cmd_kill(char **tokens);
+void cmd_writemode(char **tokens);
 
 #endif
 
@@ -7339,7 +8127,7 @@ void syscall_handler_c(struct syscall_registers *regs){
     else if(regs->eax == 18) regs->eax = (int)fat32_get_file_size((char *)regs->ebx);
     else if(regs->eax == 19) regs->eax = wait_scancode();
     else if(regs->eax == 20) regs->eax = fat32_write_file((char*)regs->ebx, (uint8_t*)regs->ecx, (uint32_t)regs->edx);
-    else if(regs->eax == 21) regs->eax = scancode_to_char((uint8_t)regs->ebx);
+    else if(regs->eax == 21) regs->eax = scancode_to_char_layout((uint8_t)regs->ebx);
     else if(regs->eax == 22) regs->eax = screen_width;
     else if(regs->eax == 23) regs->eax = screen_height;
     else if(regs->eax == 24) vprintf((const char *)regs->ebx, *(va_list*)&regs->ecx);
@@ -7380,10 +8168,15 @@ void syscall_handler_c(struct syscall_registers *regs){
     else if(regs->eax == 36) task_sleep((int)regs->ebx);
     else if(regs->eax == 37) {
         process_struct *p = (process_struct*)regs->ebx;
-        regs->eax = create_process((void (*)(int, char**))p->foo, p->argc, (char**)p->argv, (char*)p->name, kernel_dir);
+        regs->eax = create_process((void (*)(int, char**))p->foo, p->argc, (char**)p->argv, (char*)p->name, current_task->page_dir);
     }
     else if(regs->eax == 38) kill_task(regs->ebx);
     else if(regs->eax == 39) wm_render_window((Window*)regs->ebx);
+    else if(regs->eax == 40) window_redraw_content((Window*)regs->ebx);
+    else if(regs->eax == 41) {
+        text_struct *ts = (text_struct*)regs->ecx;
+        window_draw_char((Window *)regs->ebx, ts->x, ts->y, (unsigned int)regs->edx, ts->color);
+    }
     else {
         printf("Unknown syscall!\n");
     }
@@ -7411,8 +8204,12 @@ void syscall_handler_c(struct syscall_registers *regs);
 #include "drivers/timer/timer.h"
 #include "memory/memory.h"
 #include "fs/fat/fat32.h"
+#include "global.h"
 
 static unsigned long next = 1;
+
+char sys_log_buffer[65536];
+int sys_log_pos = 0;
 
 void srand(unsigned long seed){
     next = seed;
@@ -7583,6 +8380,44 @@ int get_pixels_in_string(char *str){
     return pixels;
 }
 
+void klog(char *msg) {
+    int i = 0;
+    while(msg[i] != '\0' && sys_log_pos < 65534) {
+        sys_log_buffer[sys_log_pos++] = msg[i++];
+    }
+    if(sys_log_pos < 65534) {
+        sys_log_buffer[sys_log_pos++] = '\n';
+    }
+    sys_log_buffer[sys_log_pos] = '\0';
+}
+
+void klog_save() {
+    if (isReadMode == 1) {
+        printf("Cannot save log in Read-Only Mode!\n");
+        return;
+    }
+    
+    int result = fat32_write_file("sys.log", (uint8_t*)sys_log_buffer, sys_log_pos);
+    if (result > 0) {
+        printf("System log saved to sys.log (%d bytes)\n", sys_log_pos);
+    } else {
+        printf("Failed to save sys.log! Error: %d\n", result);
+    }
+}
+
+const char* utf8_to_unicode(const char* s, unsigned int* code) {
+    unsigned char c = (unsigned char)*s;
+    if (c < 0x80) {
+        *code = c;
+        return s + 1;
+    } else if ((c & 0xE0) == 0xC0) {
+        *code = ((c & 0x1F) << 6) | ((unsigned char)s[1] & 0x3F);
+        return s + 2;
+    }
+    *code = c;
+    return s + 1;
+}
+
 --- START OF FILE ./src/utils/utils.h ---
 
 #ifndef UTILS_H
@@ -7612,5 +8447,10 @@ void config_free(Config* cfg);
 void config_save(char *filename, Config *cfg);
 void config_set_value(Config *cfg, char *key, char *new_val);
 int get_pixels_in_string(char *str);
+
+void klog(char *msg);
+void klog_save(void);
+
+const char* utf8_to_unicode(const char* s, unsigned int* code);
 
 #endif

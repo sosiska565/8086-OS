@@ -107,7 +107,8 @@ USER_C_FILES = \
 	programs/user/imgvwr.c \
 	programs/user/test.c \
 	programs/user/test2.c \
-	programs/user/wr.c
+	programs/user/wr.c \
+	programs/user/eblo.c
 
 ifeq ($(DETECTED_OS),Windows)
     USER_OBJS = $(patsubst $(USER_DIR)$(PATHSEP)%.c, $(BIN_DIR)$(PATHSEP)%.o, $(USER_C_FILES))

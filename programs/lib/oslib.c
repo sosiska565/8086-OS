@@ -120,8 +120,8 @@ int write_file(char *filename, uint8_t *buffer, uint32_t size){
     __asm__ volatile("int $0x80" : "=a"(error) : "a"(20), "b"(filename), "c"(buffer), "d"(size));
     return error;
 }
-char scancode_to_ascii(uint8_t scancode){
-    char c;
+unsigned int scancode_to_ascii(uint8_t scancode){
+    unsigned int c;
     __asm__ volatile("int $0x80" : "=a"(c) : "a"(21), "b"(scancode));
     return c;
 }
@@ -304,4 +304,10 @@ void kill(int pid){
 }
 void window_refresh(Window *win) {
     __asm__ volatile("int $0x80" : : "a"(39), "b"(win));
+}
+void window_redraw_content(Window *win) {
+    __asm__ volatile("int $0x80" : : "a"(40), "b"(win));
+}
+void window_draw_char(Window *win, text_struct *ts, unsigned int c){
+    __asm__ volatile("int $0x80" : : "a"(41), "b"(win), "c"(ts), "d"(c));
 }

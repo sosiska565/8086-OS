@@ -56,7 +56,7 @@ void syscall_handler_c(struct syscall_registers *regs){
     else if(regs->eax == 18) regs->eax = (int)fat32_get_file_size((char *)regs->ebx);
     else if(regs->eax == 19) regs->eax = wait_scancode();
     else if(regs->eax == 20) regs->eax = fat32_write_file((char*)regs->ebx, (uint8_t*)regs->ecx, (uint32_t)regs->edx);
-    else if(regs->eax == 21) regs->eax = scancode_to_char((uint8_t)regs->ebx);
+    else if(regs->eax == 21) regs->eax = scancode_to_char_layout((uint8_t)regs->ebx);
     else if(regs->eax == 22) regs->eax = screen_width;
     else if(regs->eax == 23) regs->eax = screen_height;
     else if(regs->eax == 24) vprintf((const char *)regs->ebx, *(va_list*)&regs->ecx);
@@ -97,10 +97,15 @@ void syscall_handler_c(struct syscall_registers *regs){
     else if(regs->eax == 36) task_sleep((int)regs->ebx);
     else if(regs->eax == 37) {
         process_struct *p = (process_struct*)regs->ebx;
-        regs->eax = create_process((void (*)(int, char**))p->foo, p->argc, (char**)p->argv, (char*)p->name, kernel_dir);
+        regs->eax = create_process((void (*)(int, char**))p->foo, p->argc, (char**)p->argv, (char*)p->name, current_task->page_dir);
     }
     else if(regs->eax == 38) kill_task(regs->ebx);
     else if(regs->eax == 39) wm_render_window((Window*)regs->ebx);
+    else if(regs->eax == 40) window_redraw_content((Window*)regs->ebx);
+    else if(regs->eax == 41) {
+        text_struct *ts = (text_struct*)regs->ecx;
+        window_draw_char((Window *)regs->ebx, ts->x, ts->y, (unsigned int)regs->edx, ts->color);
+    }
     else {
         printf("Unknown syscall!\n");
     }
