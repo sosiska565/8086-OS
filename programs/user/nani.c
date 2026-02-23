@@ -332,6 +332,12 @@ void main(int argc, char **argv){
         else if (sc == 0x4D) { if (cursor_index < text_length) cursor_index++; }
         else if (sc == 0x0E) { delete_char(); }
         else if (sc == 0x1C) { insert_char('\n'); }
+        else if (sc == 0x0F) {
+            insert_char(' ');
+            insert_char(' ');
+            insert_char(' ');
+            insert_char(' ');
+        }
         else {
             unsigned int c = scancode_to_ascii(sc);
             if (c != 0) insert_char(c);
