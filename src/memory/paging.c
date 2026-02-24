@@ -42,7 +42,7 @@ void init_paging() {
     }
     
     uint32_t i = 0;
-    for(i = 0; i < 0x4000000; i += 4096) {
+    for(i = 0; i < 0x20200000; i += 4096) {
         paging_map(i, i, 3);
     }
     extern uint32_t *video_memory; 
@@ -67,20 +67,6 @@ void init_paging() {
 void switch_page_directory(page_directory_t *dir) {
     current_dir = dir;
     _loadPageDirectory((uint32_t*)dir->entries);
-}
-
-void page_fault_handler_c(struct registers *reg) {
-    __asm__ volatile ("cli");
-    uint32_t faulting_address;
-    __asm__ volatile("mov %%cr2, %0" : "=r" (faulting_address));
-    
-    printf("\n[ %CERROR%C ] PAGE FAULT", VGA32_COLOR_RED, VGA32_COLOR_WHITE);
-    printf("\nAccessed Address: %x", faulting_address);
-    printf("\nInstruction EIP:  %x", reg->eip);
-
-    printf("The kernel halted to protect memory.");
-
-    while(1);
 }
 
 page_directory_t* clone_page_directory() {

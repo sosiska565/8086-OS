@@ -1,6 +1,9 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <stdint.h>
+#include "interrupt/interrupts/interrupts.h"
+
 typedef struct {
     char* key;
     char* value; 
@@ -30,5 +33,8 @@ void klog(char *msg);
 void klog_save(void);
 
 const char* utf8_to_unicode(const char* s, unsigned int* code);
+
+void panic_with_regs(registers_t *regs, char *msg);
+void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color);
 
 #endif

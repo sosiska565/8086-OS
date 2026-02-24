@@ -4,11 +4,34 @@
 #include "memory/memory.h"
 #include "fs/fat/fat32.h"
 #include "global.h"
+#include "drivers/video/vesa.h"
+#include "drivers/video/graphics.h"
+#include "multitask/task.h"
 
 static unsigned long next = 1;
 
 char sys_log_buffer[65536];
 int sys_log_pos = 0;
+
+void itoa_hex_32(uint32_t val, char *buf) {
+    buf[0] = '0'; 
+    buf[1] = 'x';
+    const char* hex_chars = "0123456789ABCDEF";
+    for(int i = 7; i >= 0; i--) {
+        buf[2 + i] = hex_chars[val & 0xF];
+        val >>= 4;
+    }
+    buf[10] = '\0';
+}
+
+void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color){
+    while (*str) {
+        unsigned int code;
+        str = utf8_to_unicode(str, &code);
+        vesa_draw_char(x, y, code, color, bg_color);
+        x += 8;
+    }
+}
 
 void srand(unsigned long seed){
     next = seed;
@@ -215,4 +238,85 @@ const char* utf8_to_unicode(const char* s, unsigned int* code) {
     }
     *code = c;
     return s + 1;
+}
+
+void panic_with_regs(registers_t *regs, char *msg) {
+    __asm__ volatile("cli");
+
+    uint32_t bg = VGA32_COLOR_BLUE; 
+    uint32_t fg_text = VGA32_COLOR_WHITE;
+    uint32_t fg_hex = VGA32_COLOR_YELLOW;
+    uint32_t fg_alert = VGA32_COLOR_RED;
+
+    clear_screen_vesa(bg);
+    set_current_output_window(0);
+    if(current_task) current_task->window = 0;
+
+    int x_start = 16;
+    int y = 16;
+    int step = 16;
+    char buf[16];
+
+    _print_screen("  *** FATAL SYSTEM ERROR: KERNEL PANIC *** ", x_start, y, VGA32_COLOR_WHITE, bg);
+    y += step * 2;
+
+    _print_screen("MESSAGE: ", x_start, y, fg_text, bg);
+    _print_screen(msg, x_start + (9 * 8), y, fg_hex, bg);
+    y += step * 2;
+
+    _print_screen("--- CPU REGISTERS ---", x_start, y, fg_text, bg);
+    y += step;
+
+    int col1 = x_start;
+    int col2 = x_start + 160;
+    int col3 = x_start + 320;
+    int col4 = x_start + 480;
+
+    itoa_hex_32(regs->eax, buf); _print_screen("EAX:", col1, y, fg_text, bg); _print_screen(buf, col1+40, y, fg_hex, bg);
+    itoa_hex_32(regs->ebx, buf); _print_screen("EBX:", col2, y, fg_text, bg); _print_screen(buf, col2+40, y, fg_hex, bg);
+    itoa_hex_32(regs->ecx, buf); _print_screen("ECX:", col3, y, fg_text, bg); _print_screen(buf, col3+40, y, fg_hex, bg);
+    itoa_hex_32(regs->edx, buf); _print_screen("EDX:", col4, y, fg_text, bg); _print_screen(buf, col4+40, y, fg_hex, bg);
+    y += step;
+
+    itoa_hex_32(regs->esi, buf); _print_screen("ESI:", col1, y, fg_text, bg); _print_screen(buf, col1+40, y, fg_hex, bg);
+    itoa_hex_32(regs->edi, buf); _print_screen("EDI:", col2, y, fg_text, bg); _print_screen(buf, col2+40, y, fg_hex, bg);
+    itoa_hex_32(regs->ebp, buf); _print_screen("EBP:", col3, y, fg_text, bg); _print_screen(buf, col3+40, y, fg_hex, bg);
+    itoa_hex_32(regs->esp, buf); _print_screen("ESP:", col4, y, fg_text, bg); _print_screen(buf, col4+40, y, fg_hex, bg);
+    y += step * 2;
+
+    _print_screen("--- EXECUTION CONTEXT ---", x_start, y, fg_text, bg);
+    y += step;
+
+    itoa_hex_32(regs->eip, buf); _print_screen("EIP (Instr Ptr): ", col1, y, fg_text, bg); _print_screen(buf, col1+140, y, fg_hex, bg);
+    itoa_hex_32(regs->cs, buf);  _print_screen("CS (Code Seg):   ", col3, y, fg_text, bg); _print_screen(buf, col3+140, y, fg_hex, bg);
+    y += step;
+
+    itoa_hex_32(regs->eflags, buf); _print_screen("EFLAGS:          ", col1, y, fg_text, bg); _print_screen(buf, col1+140, y, fg_hex, bg);
+    
+    if (regs->int_no == 14) {
+        uint32_t cr2;
+        __asm__ volatile("mov %%cr2, %0" : "=r" (cr2));
+        itoa_hex_32(cr2, buf);
+        _print_screen("CR2 (Fault Addr):", col3, y, fg_text, bg); _print_screen(buf, col3+140, y, VGA32_COLOR_RED, bg);
+    }
+    y += step * 2;
+
+    _print_screen("--- SYSTEM TASK ---", x_start, y, fg_text, bg);
+    y += step;
+    
+    if (current_task) {
+        _print_screen("FAULTING PROCESS: ", col1, y, fg_text, bg);
+        _print_screen(current_task->name, col1 + 144, y, VGA32_COLOR_YELLOW, bg);
+    } else {
+        _print_screen("FAULTING PROCESS: KERNEL / INIT", col1, y, fg_text, bg);
+    }
+
+    y += step * 3;
+    _print_screen("System halted. Please take a picture of this screen and reboot.", x_start, y, fg_text, bg);
+
+    vesa_render_buffer();
+    
+    while(1){
+        __asm__ volatile("hlt");
+    }
 }

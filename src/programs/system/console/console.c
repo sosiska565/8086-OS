@@ -87,7 +87,7 @@ int console_main(void) {
     
     int local_should_exit = 0;
 
-    while(!local_should_exit) { 
+    while(!local_should_exit) {
         current_task->window = my_win;
         printf("%s> ", path);
         draw_console_cursor(my_win, 1);

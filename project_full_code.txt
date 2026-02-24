@@ -92,8 +92,7 @@ stack_space:
 
 --- START OF FILE ./disk/a.asm ---
 
-mov eax, 100
-int 0x80
+
 
 --- START OF FILE ./disk/game.c ---
 
@@ -1779,6 +1778,12 @@ void main(int argc, char **argv){
         else if (sc == 0x4D) { if (cursor_index < text_length) cursor_index++; }
         else if (sc == 0x0E) { delete_char(); }
         else if (sc == 0x1C) { insert_char('\n'); }
+        else if (sc == 0x0F) {
+            insert_char(' ');
+            insert_char(' ');
+            insert_char(' ');
+            insert_char(' ');
+        }
         else {
             unsigned int c = scancode_to_ascii(sc);
             if (c != 0) insert_char(c);
@@ -1923,8 +1928,10 @@ void clean_token(char *token) {
 }
 
 void str_to_lower(char *str) {
+    int in_string = 0;
     while (*str) {
-        if (*str >= 'A' && *str <= 'Z') *str += 32;
+        if (*str == '"' || *str == '\'') in_string = !in_string;
+        if (!in_string && *str >= 'A' && *str <= 'Z') *str += 32;
         str++;
     }
 }
@@ -2122,11 +2129,28 @@ void assemble_line(char *line) {
             error_count++;
         }
     } else if (strcmp(inst, "db") == 0) {
-        char *op = strtok(NULL);
-        while (op) {
-            clean_token(op);
-            emit8(parse_int(op));
-            op = strtok(NULL);
+        char *p = next_token;
+        if (p) {
+            while (*p) {
+                if (*p == ' ' || *p == '\t' || *p == ',') {
+                    p++;
+                } else if (*p == '"' || *p == '\'') {
+                    char quote = *p++;
+                    while (*p && *p != quote) {
+                        emit8(*p++);
+                    }
+                    if (*p == quote) p++;
+                } else {
+                    char temp[32];
+                    int i = 0;
+                    while (*p && *p != ',' && *p != ' ' && *p != '\t' && i < 31) {
+                        temp[i++] = *p++;
+                    }
+                    temp[i] = '\0';
+                    emit8(parse_int(temp));
+                }
+            }
+            next_token = p;
         }
     } else if (strcmp(inst, "dd") == 0) {
         char *op = strtok(NULL);
@@ -2219,9 +2243,7 @@ void main(int argc, char **argv){
 
 #include "oslib.h"
 
-// Функция генерирует цвет радуги (от 0 до 1529)
 uint32_t get_rainbow_color(int pos) {
-    // Закольцовываем позицию
     while (pos < 0) pos += 1530;
     pos = pos % 1530;
 
@@ -5075,6 +5097,8 @@ void init_vesa(void) {
         
         back_buffer = (uint32_t*)kmalloc(buffer_size_bytes + 4096); 
         
+        fast_memset(back_buffer, 0, buffer_size_bytes / 4);
+
         printf("VESA Init: %dx%d @ %d bpp (Pitch: %d)\n", screen_width, screen_height, screen_bpp, screen_pitch);
     }
 }
@@ -5163,7 +5187,8 @@ void vesa_draw_char(int x, int y, unsigned int c, uint32_t color, uint32_t bgcol
             
             if ((line >> col) & 1) {
                 if (bpp_bytes == 4) *(uint32_t*)pixel_addr = color;
-                else { pixel_addr[0] = color; pixel_addr[1] = color>>8; pixel_addr[2] = color>>16; }
+                else if (bpp_bytes >= 3) { pixel_addr[0] = color; pixel_addr[1] = color>>8; pixel_addr[2] = color>>16; }
+                else if (bpp_bytes == 2) { *(uint16_t*)pixel_addr = color & 0xFFFF; }
             } else if ((bgcolor & 0xFF000000) == 0) {
                 if (bpp_bytes == 4) *(uint32_t*)pixel_addr = bgcolor;
                 else { pixel_addr[0] = bgcolor; pixel_addr[1] = bgcolor>>8; pixel_addr[2] = bgcolor>>16; }
@@ -5705,15 +5730,6 @@ void safe_strncpy(char *dest, const char *src, int n) {
     dest[i] = '\0';
 }
 
-void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color){
-    while (*str) {
-        unsigned int code;
-        str = utf8_to_unicode(str, &code);
-        vesa_draw_char(x, y, code, color, bg_color);
-        x += 8;
-    }
-}
-
 void draw_taskbar(int argc, char **argv) {
     char buff[32];
     char task_name_buffer[32];
@@ -5878,6 +5894,7 @@ void pic_remap(void);
 
 #include "interrupt/interrupts/interrupts.h"
 #include "drivers/vga/vga.h"
+#include "utils/utils.h"
 
 struct interrupt_frame {
     unsigned int rip;
@@ -5896,10 +5913,23 @@ void system_division_handler_c(struct interrupt_frame *frame){
     frame->rip += 2;
 }
 
+void page_fault_handler_c(registers_t *regs){
+    panic_with_regs(regs, "PAGE FAULT");
+}
+
 --- START OF FILE ./src/interrupt/interrupts/interrupts.h ---
 
 #ifndef INTERRUPTS_H
 #define INTERRUPTS_H
+
+#include <stdint.h>
+
+typedef struct registers_t {
+    uint32_t ds;
+    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
+    uint32_t int_no, err_code;
+    uint32_t eip, cs, eflags, useresp, ss;
+} registers_t;
 
 extern struct interrupt_frame;
 
@@ -6052,6 +6082,7 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     printf("Tasking initialized.\n");
 
     printf("Please press any key to continue...\n");
+    getch();
     //utf8_converter((int)L'А');
     vesa_render_rect(0, 0, get_screen_width(), get_screen_height());
 
@@ -6314,7 +6345,7 @@ void init_paging() {
     }
     
     uint32_t i = 0;
-    for(i = 0; i < 0x4000000; i += 4096) {
+    for(i = 0; i < 0x20200000; i += 4096) {
         paging_map(i, i, 3);
     }
     extern uint32_t *video_memory; 
@@ -6339,20 +6370,6 @@ void init_paging() {
 void switch_page_directory(page_directory_t *dir) {
     current_dir = dir;
     _loadPageDirectory((uint32_t*)dir->entries);
-}
-
-void page_fault_handler_c(struct registers *reg) {
-    __asm__ volatile ("cli");
-    uint32_t faulting_address;
-    __asm__ volatile("mov %%cr2, %0" : "=r" (faulting_address));
-    
-    printf("\n[ %CERROR%C ] PAGE FAULT", VGA32_COLOR_RED, VGA32_COLOR_WHITE);
-    printf("\nAccessed Address: %x", faulting_address);
-    printf("\nInstruction EIP:  %x", reg->eip);
-
-    printf("The kernel halted to protect memory.");
-
-    while(1);
 }
 
 page_directory_t* clone_page_directory() {
@@ -6540,7 +6557,7 @@ int next_pid = 0;
 
 int kill_current_task_flag = 0;
 Task *zombie_task = 0; 
-volatile int tasks_need_cleanup = 0; // Флаг: нужен ли вызов сборщика мусора
+volatile int tasks_need_cleanup = 0; 
 
 void track_allocation(Task *task, void *ptr) {
     if (!task || !ptr) return;
@@ -6601,7 +6618,7 @@ void free_task_struct(Task *t) {
 }
 
 void cleanup_zombies() {
-    // МЕГА-ОПТИМИЗАЦИЯ: Если нет убитых процессов, выходим мгновенно за O(1)
+    
     if (!tasks_need_cleanup && !zombie_task) return;
 
     uint32_t flags = save_flags();
@@ -6640,7 +6657,7 @@ void cleanup_zombies() {
         } while (curr != start && ready_queue != 0);
     }
     
-    tasks_need_cleanup = 0; // Сбрасываем флаг
+    tasks_need_cleanup = 0; 
     restore_flags(flags);
 }
 
@@ -7066,7 +7083,7 @@ int console_main(void) {
     
     int local_should_exit = 0;
 
-    while(!local_should_exit) { 
+    while(!local_should_exit) {
         current_task->window = my_win;
         printf("%s> ", path);
         draw_console_cursor(my_win, 1);
@@ -8205,11 +8222,34 @@ void syscall_handler_c(struct syscall_registers *regs);
 #include "memory/memory.h"
 #include "fs/fat/fat32.h"
 #include "global.h"
+#include "drivers/video/vesa.h"
+#include "drivers/video/graphics.h"
+#include "multitask/task.h"
 
 static unsigned long next = 1;
 
 char sys_log_buffer[65536];
 int sys_log_pos = 0;
+
+void itoa_hex_32(uint32_t val, char *buf) {
+    buf[0] = '0'; 
+    buf[1] = 'x';
+    const char* hex_chars = "0123456789ABCDEF";
+    for(int i = 7; i >= 0; i--) {
+        buf[2 + i] = hex_chars[val & 0xF];
+        val >>= 4;
+    }
+    buf[10] = '\0';
+}
+
+void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color){
+    while (*str) {
+        unsigned int code;
+        str = utf8_to_unicode(str, &code);
+        vesa_draw_char(x, y, code, color, bg_color);
+        x += 8;
+    }
+}
 
 void srand(unsigned long seed){
     next = seed;
@@ -8418,10 +8458,94 @@ const char* utf8_to_unicode(const char* s, unsigned int* code) {
     return s + 1;
 }
 
+void panic_with_regs(registers_t *regs, char *msg) {
+    __asm__ volatile("cli");
+
+    uint32_t bg = VGA32_COLOR_BLUE; 
+    uint32_t fg_text = VGA32_COLOR_WHITE;
+    uint32_t fg_hex = VGA32_COLOR_YELLOW;
+    uint32_t fg_alert = VGA32_COLOR_RED;
+
+    clear_screen_vesa(bg);
+    set_current_output_window(0);
+    if(current_task) current_task->window = 0;
+
+    int x_start = 16;
+    int y = 16;
+    int step = 16;
+    char buf[16];
+
+    _print_screen("  *** FATAL SYSTEM ERROR: KERNEL PANIC *** ", x_start, y, VGA32_COLOR_WHITE, bg);
+    y += step * 2;
+
+    _print_screen("MESSAGE: ", x_start, y, fg_text, bg);
+    _print_screen(msg, x_start + (9 * 8), y, fg_hex, bg);
+    y += step * 2;
+
+    _print_screen("--- CPU REGISTERS ---", x_start, y, fg_text, bg);
+    y += step;
+
+    int col1 = x_start;
+    int col2 = x_start + 160;
+    int col3 = x_start + 320;
+    int col4 = x_start + 480;
+
+    itoa_hex_32(regs->eax, buf); _print_screen("EAX:", col1, y, fg_text, bg); _print_screen(buf, col1+40, y, fg_hex, bg);
+    itoa_hex_32(regs->ebx, buf); _print_screen("EBX:", col2, y, fg_text, bg); _print_screen(buf, col2+40, y, fg_hex, bg);
+    itoa_hex_32(regs->ecx, buf); _print_screen("ECX:", col3, y, fg_text, bg); _print_screen(buf, col3+40, y, fg_hex, bg);
+    itoa_hex_32(regs->edx, buf); _print_screen("EDX:", col4, y, fg_text, bg); _print_screen(buf, col4+40, y, fg_hex, bg);
+    y += step;
+
+    itoa_hex_32(regs->esi, buf); _print_screen("ESI:", col1, y, fg_text, bg); _print_screen(buf, col1+40, y, fg_hex, bg);
+    itoa_hex_32(regs->edi, buf); _print_screen("EDI:", col2, y, fg_text, bg); _print_screen(buf, col2+40, y, fg_hex, bg);
+    itoa_hex_32(regs->ebp, buf); _print_screen("EBP:", col3, y, fg_text, bg); _print_screen(buf, col3+40, y, fg_hex, bg);
+    itoa_hex_32(regs->esp, buf); _print_screen("ESP:", col4, y, fg_text, bg); _print_screen(buf, col4+40, y, fg_hex, bg);
+    y += step * 2;
+
+    _print_screen("--- EXECUTION CONTEXT ---", x_start, y, fg_text, bg);
+    y += step;
+
+    itoa_hex_32(regs->eip, buf); _print_screen("EIP (Instr Ptr): ", col1, y, fg_text, bg); _print_screen(buf, col1+140, y, fg_hex, bg);
+    itoa_hex_32(regs->cs, buf);  _print_screen("CS (Code Seg):   ", col3, y, fg_text, bg); _print_screen(buf, col3+140, y, fg_hex, bg);
+    y += step;
+
+    itoa_hex_32(regs->eflags, buf); _print_screen("EFLAGS:          ", col1, y, fg_text, bg); _print_screen(buf, col1+140, y, fg_hex, bg);
+    
+    if (regs->int_no == 14) {
+        uint32_t cr2;
+        __asm__ volatile("mov %%cr2, %0" : "=r" (cr2));
+        itoa_hex_32(cr2, buf);
+        _print_screen("CR2 (Fault Addr):", col3, y, fg_text, bg); _print_screen(buf, col3+140, y, VGA32_COLOR_RED, bg);
+    }
+    y += step * 2;
+
+    _print_screen("--- SYSTEM TASK ---", x_start, y, fg_text, bg);
+    y += step;
+    
+    if (current_task) {
+        _print_screen("FAULTING PROCESS: ", col1, y, fg_text, bg);
+        _print_screen(current_task->name, col1 + 144, y, VGA32_COLOR_YELLOW, bg);
+    } else {
+        _print_screen("FAULTING PROCESS: KERNEL / INIT", col1, y, fg_text, bg);
+    }
+
+    y += step * 3;
+    _print_screen("System halted. Please take a picture of this screen and reboot.", x_start, y, fg_text, bg);
+
+    vesa_render_buffer();
+    
+    while(1){
+        __asm__ volatile("hlt");
+    }
+}
+
 --- START OF FILE ./src/utils/utils.h ---
 
 #ifndef UTILS_H
 #define UTILS_H
+
+#include <stdint.h>
+#include "interrupt/interrupts/interrupts.h"
 
 typedef struct {
     char* key;
@@ -8452,5 +8576,8 @@ void klog(char *msg);
 void klog_save(void);
 
 const char* utf8_to_unicode(const char* s, unsigned int* code);
+
+void panic_with_regs(registers_t *regs, char *msg);
+void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color);
 
 #endif

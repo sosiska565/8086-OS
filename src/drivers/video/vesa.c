@@ -27,6 +27,8 @@ void init_vesa(void) {
         
         back_buffer = (uint32_t*)kmalloc(buffer_size_bytes + 4096); 
         
+        fast_memset(back_buffer, 0, buffer_size_bytes / 4);
+
         printf("VESA Init: %dx%d @ %d bpp (Pitch: %d)\n", screen_width, screen_height, screen_bpp, screen_pitch);
     }
 }
@@ -115,7 +117,8 @@ void vesa_draw_char(int x, int y, unsigned int c, uint32_t color, uint32_t bgcol
             
             if ((line >> col) & 1) {
                 if (bpp_bytes == 4) *(uint32_t*)pixel_addr = color;
-                else { pixel_addr[0] = color; pixel_addr[1] = color>>8; pixel_addr[2] = color>>16; }
+                else if (bpp_bytes >= 3) { pixel_addr[0] = color; pixel_addr[1] = color>>8; pixel_addr[2] = color>>16; }
+                else if (bpp_bytes == 2) { *(uint16_t*)pixel_addr = color & 0xFFFF; }
             } else if ((bgcolor & 0xFF000000) == 0) {
                 if (bpp_bytes == 4) *(uint32_t*)pixel_addr = bgcolor;
                 else { pixel_addr[0] = bgcolor; pixel_addr[1] = bgcolor>>8; pixel_addr[2] = bgcolor>>16; }

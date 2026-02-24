@@ -17,15 +17,6 @@ void safe_strncpy(char *dest, const char *src, int n) {
     dest[i] = '\0';
 }
 
-void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color){
-    while (*str) {
-        unsigned int code;
-        str = utf8_to_unicode(str, &code);
-        vesa_draw_char(x, y, code, color, bg_color);
-        x += 8;
-    }
-}
-
 void draw_taskbar(int argc, char **argv) {
     char buff[32];
     char task_name_buffer[32];

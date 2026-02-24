@@ -130,8 +130,10 @@ void clean_token(char *token) {
 }
 
 void str_to_lower(char *str) {
+    int in_string = 0;
     while (*str) {
-        if (*str >= 'A' && *str <= 'Z') *str += 32;
+        if (*str == '"' || *str == '\'') in_string = !in_string;
+        if (!in_string && *str >= 'A' && *str <= 'Z') *str += 32;
         str++;
     }
 }
@@ -329,11 +331,28 @@ void assemble_line(char *line) {
             error_count++;
         }
     } else if (strcmp(inst, "db") == 0) {
-        char *op = strtok(NULL);
-        while (op) {
-            clean_token(op);
-            emit8(parse_int(op));
-            op = strtok(NULL);
+        char *p = next_token;
+        if (p) {
+            while (*p) {
+                if (*p == ' ' || *p == '\t' || *p == ',') {
+                    p++;
+                } else if (*p == '"' || *p == '\'') {
+                    char quote = *p++;
+                    while (*p && *p != quote) {
+                        emit8(*p++);
+                    }
+                    if (*p == quote) p++;
+                } else {
+                    char temp[32];
+                    int i = 0;
+                    while (*p && *p != ',' && *p != ' ' && *p != '\t' && i < 31) {
+                        temp[i++] = *p++;
+                    }
+                    temp[i] = '\0';
+                    emit8(parse_int(temp));
+                }
+            }
+            next_token = p;
         }
     } else if (strcmp(inst, "dd") == 0) {
         char *op = strtok(NULL);

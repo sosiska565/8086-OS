@@ -1,5 +1,6 @@
 #include "interrupt/interrupts/interrupts.h"
 #include "drivers/vga/vga.h"
+#include "utils/utils.h"
 
 struct interrupt_frame {
     unsigned int rip;
@@ -16,4 +17,8 @@ void system_division_handler_c(struct interrupt_frame *frame){
     printf("\n");
     
     frame->rip += 2;
+}
+
+void page_fault_handler_c(registers_t *regs){
+    panic_with_regs(regs, "PAGE FAULT");
 }
