@@ -7637,10 +7637,16 @@ void cmd_exec(char **tokens){
         printf("Usage: exec <filename>\n");
         return;
     }
-    if (!is_executable(tokens[1])) return;
+    if (!is_executable(tokens[1])) {
+        printf("File not is executable. Only '.bin' files.\n.");
+        return;
+    }
 
     int file_size = fat32_get_file_size(tokens[1]);
-    if (file_size <= 0) return;
+    if (file_size <= 0) {
+        printf("File empty or not found.\n");
+        return;
+    }
 
     uint32_t alloc_size = file_size + 1024 * 1024; 
     
@@ -7648,6 +7654,7 @@ void cmd_exec(char **tokens){
     fast_memset((void*)phys_addr, 0, alloc_size / 4);
     
     int bytes_read = fat32_read_file(tokens[1], (uint8_t*)phys_addr);
+    printf("%d", bytes_read);
 
     if(bytes_read > 0){
         keyboard_flush();
@@ -7671,6 +7678,7 @@ void cmd_exec(char **tokens){
 
         if(strcmp(tokens[argc], "&") != 0) wait_process(pid);
     } else {
+        printf("File empty or not found.\n");
         kfree_a((void*)phys_addr);
     }
 }

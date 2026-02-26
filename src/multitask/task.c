@@ -12,7 +12,6 @@ Task *current_task = 0;
 Task *ready_queue = 0;
 int next_pid = 0;
 
-int kill_current_task_flag = 0;
 Task *zombie_task = 0; 
 volatile int tasks_need_cleanup = 0; 
 
@@ -244,9 +243,17 @@ void kill_children_of(int pid) {
     do {
         if (t->parent_id == pid && t->state != TASK_DEAD) {
             kill_children_of(t->id); 
-            if (t->window && t->owns_window) wm_close_window(t->window);
-            t->state = TASK_DEAD; 
-            tasks_need_cleanup = 1;
+            
+            if (t == current_task) {
+                t->kill_me = 1;
+            } else {
+                if (t->window && t->owns_window) {
+                    wm_close_window(t->window);
+                    t->window = 0;
+                }
+                t->state = TASK_DEAD; 
+                tasks_need_cleanup = 1;
+            }
         }
         t = t->next;
     } while (t != ready_queue);
@@ -254,7 +261,6 @@ void kill_children_of(int pid) {
 
 void exit_process() {
     __asm__ volatile("cli");
-    kill_current_task_flag = 0;
     outb(0x20, 0x20);
 
     kill_children_of(current_task->id);
@@ -297,33 +303,48 @@ void task_sleep(int ms) {
     task_scheduler(); 
 }
 
+Task* get_task_by_window(Window *win) {
+    if (!ready_queue || !win) return 0;
+    Task *t = ready_queue;
+    do {
+        if (t->window == win && t->owns_window && t->state != TASK_DEAD) return t;
+        t = t->next;
+    } while (t != ready_queue);
+    return 0;
+}
+
+Task* get_focused_task() {
+    if (focused_window == 0) return 0;
+    return get_task_by_window(focused_window);
+}
+
 void kill_focused_process() {
     if (focused_window == 0) return;
     __asm__ volatile("cli");
-    Task *t = ready_queue;
-    int found = 0;
-    do {
-        if (t->window == focused_window && t->owns_window) { found = 1; break; }
-        t = t->next;
-    } while (t != ready_queue);
+    
+    Task *t = get_task_by_window(focused_window);
 
-    if (found) {
-        if (t == current_task) kill_current_task_flag = 1;
-        else {
+    if (t != 0) {
+        if (t == current_task) {
+            t->kill_me = 1;
+        } else {
             kill_children_of(t->id);
+            if (t->window && t->owns_window) {
+                wm_close_window(t->window);
+                t->window = 0;
+            }
             t->state = TASK_DEAD; 
             tasks_need_cleanup = 1;
-            if (t->window) wm_close_window(t->window);
         }
     }
+    
     __asm__ volatile("sti");
 }
 
 void check_kill_flag() {
-    if (kill_current_task_flag) {
-        kill_current_task_flag = 0;
+    if (current_task && current_task->kill_me) {
+        current_task->kill_me = 0;
         printf("\n[Forced Exit]\n");
-        outb(0x20, 0x20); 
         exit_process();
     }
 }
@@ -363,19 +384,4 @@ void kill_task(int pid) {
 
     t->state = TASK_DEAD;
     tasks_need_cleanup = 1;
-}
-
-Task* get_task_by_window(Window *win) {
-    if (!ready_queue || !win) return 0;
-    Task *t = ready_queue;
-    do {
-        if (t->window == win && t->state != TASK_DEAD) return t;
-        t = t->next;
-    } while (t != ready_queue);
-    return 0;
-}
-
-Task* get_focused_task() {
-    if (focused_window == 0) return 0;
-    return get_task_by_window(focused_window);
 }

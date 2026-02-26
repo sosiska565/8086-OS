@@ -29,6 +29,10 @@ int $;
 char* path = "/";
 struct multiboot_info* mbi;
 
+uint32_t taskbar_color = 0x191970;
+uint32_t window_border_color = VGA32_COLOR_DARK_GREY;
+uint32_t window_active_border_color = VGA32_COLOR_BLUE;
+
 void kmain(unsigned long magic, unsigned long mb_info_addr){
     if(magic != 0x2BADB002){
         panic("Magic value is not correct");

@@ -50,7 +50,7 @@ command_t commands[] = {
     {"exec",      cmd_exec,      "Executable file (exec <file>)"},
     {"mkfile",      cmd_mkfile,      "Make file (mkfile <file name> <text>)"},
     {"rm",      cmd_rm,      "Remove file (rm <file name>)"},
-    {"readsystemcfg", cmd_readsystemcfg, "Update system configs"},
+    {"kcfgup", cmd_readsystemcfg, "Update system configs"},
     {"tasklist", cmd_tasklist, "Show task list"},
     {"kill", cmd_kill, "Kill process"},
     {"writemode", cmd_writemode, "Enable Read/Write disk mode"},
@@ -440,10 +440,16 @@ void cmd_exec(char **tokens){
         printf("Usage: exec <filename>\n");
         return;
     }
-    if (!is_executable(tokens[1])) return;
+    if (!is_executable(tokens[1])) {
+        printf("File not is executable. Only '.bin' files.\n.");
+        return;
+    }
 
     int file_size = fat32_get_file_size(tokens[1]);
-    if (file_size <= 0) return;
+    if (file_size <= 0) {
+        printf("File empty or not found.\n");
+        return;
+    }
 
     uint32_t alloc_size = file_size + 1024 * 1024; 
     
@@ -474,6 +480,7 @@ void cmd_exec(char **tokens){
 
         if(strcmp(tokens[argc], "&") != 0) wait_process(pid);
     } else {
+        printf("File empty or not found.\n");
         kfree_a((void*)phys_addr);
     }
 }
@@ -541,6 +548,16 @@ void cmd_readsystemcfg(char **tokens) {
     printf("read mode: ");
     printf("%d", isReadMode);
     printf("\n");
+
+    taskbar_color = (uint32_t)atoi(config_get_value(cfg, "taskbar_color"), 16);
+    window_border_color = (uint32_t)atoi(config_get_value(cfg, "window_border_color"), 16);
+    window_active_border_color = (uint32_t)atoi(config_get_value(cfg, "window_active_border_color"), 16);
+
+    printf("taskbar color: %x\n", taskbar_color);
+    printf("window border color: %x\n", window_border_color);
+    printf("window active border color: %x\n", window_active_border_color);
+
+    vesa_render_buffer();
 
     config_free(cfg);
     kfree(file_buffer);

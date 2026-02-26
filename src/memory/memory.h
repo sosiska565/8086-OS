@@ -64,4 +64,6 @@ static inline void fast_memcpy(void *dest, const void* src, uint32_t n){
 
 void fast_memset(void* dest, uint32_t val, size_t count_pixels);
 
+size_t get_used_memory(void);
+size_t get_total_memory(void);
 #endif

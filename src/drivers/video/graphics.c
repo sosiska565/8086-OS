@@ -5,11 +5,10 @@
 #include "memory/memory.h"
 #include "multitask/task.h"
 #include "drivers/keyboard/keyboardDriver.h"
+#include "global.h"
 
 #define FONT_W 8
 #define FONT_H 8
-
-#define WINDOW_BORDER_ACTIVE_COLOR 0x4682B4
 
 static int abs(int i) { return i < 0 ? -i : i; }
 static void swap(int* a, int* b) { int t = *a; *a = *b; *b = t; }
@@ -304,7 +303,7 @@ void wm_refresh(){
         curr->cols = curr->width / 8;
         curr->rows = curr->height / 8;
 
-        uint32_t frame_color = (curr == focused_window) ? WINDOW_BORDER_ACTIVE_COLOR : VGA32_COLOR_DARK_GREY;
+        uint32_t frame_color = (curr == focused_window) ? window_active_border_color : window_border_color;
 
         draw_rect_filled(curr->x - 2, curr->y - 2, curr->width + 4, curr->height + 4, frame_color);
         draw_rect_filled(curr->x, curr->y, curr->width, curr->height, curr->bg_color);

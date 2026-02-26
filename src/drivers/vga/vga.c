@@ -614,26 +614,64 @@ void reverse(char str[], int length) {
     }
 }
 
-void itoa(int num, char buffer[]){
-    int i = 0, isNegative = 0;
+void itoa(unsigned int n, char* buffer, int base) {
+    int i = 0;
+    if (n == 0) { buffer[i++] = '0'; buffer[i] = 0; return; }
+    
+    while (n != 0) {
+        unsigned int rem = n % base;
+        buffer[i++] = (rem > 9) ? (rem - 10) + 'a' : rem + '0';
+        n = n / base;
+    }
+    buffer[i] = 0;
+    
+    for(int j = 0; j < i / 2; j++) {
+        char tmp = buffer[j];
+        buffer[j] = buffer[i - j - 1];
+        buffer[i - j - 1] = tmp;
+    }
+}
 
-    if(num < 0) {
-        isNegative = 1;
-        num = -num;
+unsigned int tolower(unsigned int c){
+    if(c >= 'A' && c <= 'Z'){
+        return c + ('a' - 'A');
+    }
+    return c;
+}
+
+long atoi(const char *str, int base){
+    long result = 0;
+    int sign = 1;
+    int i = 0;
+
+    while(is_space(str[i])) i++;
+
+    if(str[i] == '-'){
+        sign = -1;
+        i++;
+    } else if(str[i] == '+'){
+        i++;
     }
 
-    do {
-        buffer[i++] = (num % 10) + '0';
-        num /= 10;
-    } while(num > 0);
+    while(str[i] != '\0'){
+        int digit = -1;
+        unsigned int c = tolower(str[i]);
 
-    if(isNegative) {
-        buffer[i++] = '-';
+        if(c >= '0' && c <= '9'){
+            digit = c - '0';
+        } else if(c >= 'a' && c <= 'z'){
+            digit = c - 'a' + 10;
+        }
+
+        if(digit == -1 || digit >= base){
+            break;
+        }
+
+        result = result * base + digit;
+        i++;
     }
 
-    buffer[i] = '\0';\
-
-    reverse(buffer, i);
+    return result * sign;
 }
 
 void strcat(char *dest, char* str){

@@ -42,7 +42,6 @@ typedef struct process_struct{
 } process_struct;
 
 extern Task *current_task;
-extern int kill_current_task_flag;
 extern Task *ready_queue;
 void check_kill_flag();
 
