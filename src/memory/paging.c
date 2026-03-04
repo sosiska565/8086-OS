@@ -46,8 +46,8 @@ void init_paging() {
         kernel_dir->entries[i] = 0 | 2;
     }
     
-    // ИСПРАВЛЕНИЕ: Маппим первые 512 МБ памяти быстрыми огромными страницами!
-    // (128 итераций вместо 131 072)
+    
+    
     for(uint32_t i = 0; i < 0x20400000; i += 0x400000) {
         paging_map_4mb(i, i, 3);
     }
@@ -98,7 +98,7 @@ void paging_map_user(page_directory_t *dir, uint32_t phys, uint32_t virt, uint32
         table = (page_table_t*)kmalloc_a(sizeof(page_table_t));
         uint32_t *t_ptr = (uint32_t*)table;
         for(int i=0; i<1024; i++) t_ptr[i] = 0;
-        *pd_entry = (uint32_t)table | 0x7; // Present, RW, User
+        *pd_entry = (uint32_t)table | 0x7; 
     } else {
         table = (page_table_t*)(*pd_entry & 0xFFFFF000);
     }
