@@ -28,6 +28,7 @@ void strcpy(char *dst, char *src);
 void itoa(unsigned int n, char* buffer, int base);
 char *strcat(char *dest, const char *src);
 int strlen(char *str);
+unsigned int tolower(unsigned int c);
 
 //псевдо графика
 

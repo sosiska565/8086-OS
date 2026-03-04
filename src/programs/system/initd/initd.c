@@ -6,9 +6,12 @@
 #include "graphics/interface.h"
 #include "programs/system/setup/setup.h"
 #include "programs/system/console/system.h"
+#include "global.h"
 
 void initd(int argc, char **argv){
-    cmd_readsystemcfg(0);
+    if(isReadMode == 0){
+        cmd_readsystemcfg(0);
+    }
 
     create_process((void (*)(int, char**))draw_interface, 0, 0, "interface", kernel_dir);
     create_process((void (*)(int, char**))draw_taskbar, 0, 0, "taskbar", kernel_dir);

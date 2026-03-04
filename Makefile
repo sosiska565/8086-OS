@@ -80,7 +80,8 @@ C_FILES = src/kernel.c \
 	src/memory/paging.c \
 	src/graphics/taskbar.c \
 	src/programs/system/initd/initd.c \
-	src/graphics/interface.c
+	src/graphics/interface.c \
+	src/drivers/AHCI/AHCI.c
 
 ASM_FILES = boot/kernel.asm boot/gdt.asm src/interrupt/interrupts.asm src/multitask/switch.asm src/memory/paging_a.asm
 
@@ -108,7 +109,10 @@ USER_C_FILES = \
 	programs/user/test.c \
 	programs/user/test2.c \
 	programs/user/wr.c \
-	programs/user/eblo.c
+	programs/user/eblo.c \
+	programs/user/game.c \
+	programs/user/mandel.c \
+	programs/user/taskmgr.c
 
 ifeq ($(DETECTED_OS),Windows)
     USER_OBJS = $(patsubst $(USER_DIR)$(PATHSEP)%.c, $(BIN_DIR)$(PATHSEP)%.o, $(USER_C_FILES))
@@ -254,11 +258,15 @@ build-all: iso $(DISK_IMG)
 run: clean build-all
 	@echo "[QEMU] Запуск..."
 	qemu-system-i386 \
-		-drive file=$(DISK_IMG),format=raw,index=0,if=ide,media=disk \
-		-drive file=$(ISO),format=raw,index=1,if=ide,media=cdrom \
+		-accel kvm -accel whpx -accel hvf -accel tcg \
+		-device ahci,id=ahci \
+		-drive file=$(DISK_IMG),format=raw,if=none,id=disk1 \
+		-device ide-hd,drive=disk1,bus=ahci.0 \
+		-drive file=$(ISO),format=raw,if=none,id=cd1 \
+		-device ide-cd,drive=cd1,bus=ahci.1 \
 		-boot d \
 		-rtc base=localtime \
-		-m 2g
+		-m 2G
 
 debug: clean build-all
 	@echo "[QEMU] Отладка..."
@@ -266,10 +274,15 @@ debug: clean build-all
 
 oncerun:
 	qemu-system-i386 \
-		-drive file=$(DISK_IMG),format=raw,index=0,if=ide,media=disk \
-		-drive file=$(ISO),format=raw,index=1,if=ide,media=cdrom \
+		-accel kvm -accel whpx -accel hvf -accel tcg \
+		-device ahci,id=ahci \
+		-drive file=$(DISK_IMG),format=raw,if=none,id=disk1 \
+		-device ide-hd,drive=disk1,bus=ahci.0 \
+		-drive file=$(ISO),format=raw,if=none,id=cd1 \
+		-device ide-cd,drive=cd1,bus=ahci.1 \
 		-boot d \
-		-rtc base=localtime 
+		-rtc base=localtime \
+		-m 2g
 
 clean:
 	@echo "[CLEAN] Очистка..."

@@ -33,5 +33,6 @@ void switch_page_directory(page_directory_t *dir);
 void page_fault_handler_c(struct registers *reg);
 void paging_map_user(page_directory_t *dir, uint32_t phys, uint32_t virt, uint32_t flags);
 page_directory_t* clone_page_directory();
+void paging_map_4mb(uint32_t phys, uint32_t virt, uint32_t flags);
 
 #endif

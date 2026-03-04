@@ -8,12 +8,13 @@ static uint32_t term_bg_color = 0x00000000;
 #define FONT_W 8
 #define FONT_H 8
 
-int term_cols;
-int term_rows;
+int term_cols = 0;
+int term_rows = 0;
 
 extern int screen_width;
 extern int screen_height;
 extern uint32_t *video_memory;
+extern uint32_t *back_buffer;
 
 void init_gfx_console(void) {
     term_x = 0;
@@ -23,8 +24,7 @@ void init_gfx_console(void) {
 }
 
 void gfx_scroll(void) {
-    
-    uint32_t *vram = video_memory;
+    uint32_t *vram = back_buffer ? back_buffer : video_memory;
     
     uint32_t *dest = vram;
     uint32_t *src = vram + (screen_width * FONT_H);
@@ -42,7 +42,11 @@ void gfx_scroll(void) {
 }
 
 void gfx_putc(unsigned int c) {
+    if (term_cols == 0 || term_rows == 0) return; 
+
     if (c == '\n') {
+        
+        vesa_render_rect(0, term_y * FONT_H, screen_width, FONT_H);
         term_x = 0;
         term_y++;
     } 
@@ -65,17 +69,20 @@ void gfx_putc(unsigned int c) {
     } 
     else if (c >= 32) {
         vesa_draw_char(term_x * FONT_W, term_y * FONT_H, c, term_fg_color, term_bg_color);
-        vesa_render_rect(term_x * FONT_W, term_y * FONT_H, FONT_W, FONT_H);
+        
         term_x++;
     }
 
     if (term_x >= term_cols) {
+        
+        vesa_render_rect(0, term_y * FONT_H, screen_width, FONT_H);
         term_x = 0;
         term_y++;
     }
 
     if (term_y >= term_rows) {
         gfx_scroll();
+        
         vesa_render_rect(0, 0, screen_width, screen_height);
         term_y = term_rows - 1;
     }

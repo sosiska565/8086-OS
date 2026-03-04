@@ -304,7 +304,7 @@ void printhex_colored(unsigned int num, uint8_t color) {
     update_cursor();
 }
 
-//utils
+
 
 char** parse_str(char* str, char parse_char) {
     static char* tokens[256]; 
@@ -351,7 +351,7 @@ int strcmp(char *c1, char *c2) {
     }
 }
 
-//
+
 
 void print_header(int header_bg_color, int header_text_color, char *title){
     int len = 0;
@@ -646,31 +646,26 @@ long atoi(const char *str, int base){
 
     while(is_space(str[i])) i++;
 
-    if(str[i] == '-'){
-        sign = -1;
-        i++;
-    } else if(str[i] == '+'){
-        i++;
+    if(str[i] == '-'){ sign = -1; i++; } 
+    else if(str[i] == '+'){ i++; }
+
+    
+    if (base == 16 && str[i] == '0' && (str[i+1] == 'x' || str[i+1] == 'X')) {
+        i += 2;
     }
 
     while(str[i] != '\0'){
         int digit = -1;
         unsigned int c = tolower(str[i]);
 
-        if(c >= '0' && c <= '9'){
-            digit = c - '0';
-        } else if(c >= 'a' && c <= 'z'){
-            digit = c - 'a' + 10;
-        }
+        if(c >= '0' && c <= '9') digit = c - '0';
+        else if(c >= 'a' && c <= 'z') digit = c - 'a' + 10;
 
-        if(digit == -1 || digit >= base){
-            break;
-        }
+        if(digit == -1 || digit >= base) break;
 
         result = result * base + digit;
         i++;
     }
-
     return result * sign;
 }
 
@@ -688,7 +683,7 @@ void strcat(char *dest, char* str){
     *dest = '\0';
 }
 
-//псевдо графика
+
 void draw_text_box_ex(char* lines[], char* title, 
                       uint8_t padding_top, uint8_t padding_bottom,
                       uint8_t padding_left, uint8_t padding_right,

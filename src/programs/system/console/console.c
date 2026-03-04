@@ -70,6 +70,8 @@ void execute_command(char **tokens) {
 }
 
 void draw_console_cursor(Window *win, int state) {
+    if (!is_window_visible(win)) return; 
+
     uint32_t color = state ? 0xFFFFFFFF : win->bg_color;
     if (win->cursor_y < win->height) {
         draw_rect_filled(win->x + win->cursor_x, win->y + win->cursor_y, 8, 8, color);

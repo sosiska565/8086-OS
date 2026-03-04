@@ -32,29 +32,39 @@ void paging_map(uint32_t phys, uint32_t virt, uint32_t flags) {
     table->entries[pt_idx] = (phys & 0xFFFFF000) | (flags | 1);
 }
 
+void paging_map_4mb(uint32_t phys, uint32_t virt, uint32_t flags) {
+    uint32_t pd_idx = virt >> 22;
+    kernel_dir->entries[pd_idx] = (phys & 0xFFC00000) | 0x80 | flags | 1; 
+}
+
 void init_paging() {
     printf("Initializing Paging...\n");
 
     kernel_dir = (page_directory_t*)kmalloc_a(sizeof(page_directory_t));
     
     for(int i=0; i<1024; i++) {
-        kernel_dir->entries[i] = 0 | 2; // RW
+        kernel_dir->entries[i] = 0 | 2;
     }
     
-    uint32_t i = 0;
-    for(i = 0; i < 0x20200000; i += 4096) {
-        paging_map(i, i, 3);
+    // ИСПРАВЛЕНИЕ: Маппим первые 512 МБ памяти быстрыми огромными страницами!
+    // (128 итераций вместо 131 072)
+    for(uint32_t i = 0; i < 0x20400000; i += 0x400000) {
+        paging_map_4mb(i, i, 3);
     }
+    
     extern uint32_t *video_memory; 
-    extern int screen_width, screen_height;
+    extern int buffer_size_bytes;
     
     uint32_t vesa_addr = (uint32_t)video_memory;
-    uint32_t vesa_size = 1024 * 1024 * 32;
+    uint32_t vesa_size = (buffer_size_bytes + 4095) & ~4095; 
 
-    printf("Mapping VESA LFB at 0x%x (size %d)...\n", vesa_addr, vesa_size);
+    printf("Mapping VESA LFB at 0x%x using 4MB Huge Pages...\n", vesa_addr);
 
-    for(i = 0; i < vesa_size; i += 4096) {
-        paging_map(vesa_addr + i, vesa_addr + i, 3);
+    uint32_t vesa_aligned = vesa_addr & 0xFFC00000;
+    uint32_t vesa_end = (vesa_addr + vesa_size + 0x3FFFFF) & 0xFFC00000;
+    
+    for(uint32_t addr = vesa_aligned; addr < vesa_end; addr += 0x400000) {
+        paging_map_4mb(addr, addr, 3);
     }
 
     printf("Enabling Paging...\n");

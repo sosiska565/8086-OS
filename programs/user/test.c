@@ -34,8 +34,8 @@ void main() {
             uint32_t line_color = get_rainbow_color(color_pos);
 
             Rect line;
-            line.x = w->x;
-            line.y = w->y + y;
+            line.x = 0;
+            line.y = y;
             line.width = w->width;
             line.height = 1;
             line.color = line_color;

@@ -16,6 +16,12 @@ typedef struct Window{
     int cursor_x, cursor_y;
     uint32_t text_color;
 
+    int workspace;
+    int is_fullscreen;
+    int stretch_x; 
+    int stretch_y;
+    int anim_scale; 
+
     struct Window *next;
 
     unsigned int *char_buffer;
@@ -36,6 +42,7 @@ extern Window* head;
 
 void draw_rect(int x, int y, int w, int h, uint32_t color);
 void draw_rect_filled(int x, int y, int w, int h, uint32_t color);
+void draw_rounded_rect_filled(int x, int y, int w, int h, int r, uint32_t color);
 void draw_line(int x1, int y1, int x2, int y2, uint32_t color);
 void draw_circle(int x0, int y0, int radius, uint32_t color);
 void draw_circle_filled(int x0, int y0, int radius, uint32_t color);
@@ -47,7 +54,6 @@ void set_current_output_window(Window *win);
 void wm_set_focused_window(Window *win);
 void window_putc(Window *win, unsigned int c);
 
-//window manager
 
 void wm_close_window(Window *win);
 Window* wm_create_window(uint32_t bg_color);
@@ -56,5 +62,10 @@ void wm_switch_focus();
 void wm_init();
 void wm_render_window(Window *win);
 void window_redraw_content(Window *win);
+void wm_toggle_fullscreen();
+void wm_switch_workspace(int dir);
+void wm_swap_window(int dir);
+int is_window_visible(Window *win);
+void window_draw_rect_filled(Window *win, int local_x, int local_y, int w, int h, uint32_t color);
 
 #endif

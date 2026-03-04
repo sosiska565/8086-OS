@@ -78,6 +78,13 @@ typedef struct process_struct{
     char *name;
 } process_struct;
 
+typedef struct {
+    int id;
+    int parent_id;
+    int state;
+    char name[32];
+} task_info_t;
+
 void print_char(unsigned int c);
 void print_char_colored(char c, int color);
 void print_colored(char *str, int color);
@@ -122,5 +129,8 @@ void kill(int pid);
 void window_refresh(Window *win);
 void window_redraw_content(Window *win);
 void window_draw_char(Window *win, text_struct *ts, unsigned int c);
+void system(char *cmd);
+int get_task_list(task_info_t *buffer, int max_tasks);
+void get_system_info(uint32_t *used, uint32_t *total, uint32_t *cpu);
 
 #endif

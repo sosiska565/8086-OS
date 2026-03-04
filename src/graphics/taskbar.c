@@ -85,16 +85,20 @@ void draw_taskbar(int argc, char **argv) {
 
         int lx = 4;
         
-        _print_screen("8086", lx, 0, color_accent, taskbar_color); lx += 4 * 8;
-        _print_screen("OS", lx, 0, color_text, taskbar_color); lx += 2 * 8;
-        _print_screen(" | ", lx, 0, color_dimmed, taskbar_color); lx += 3 * 8;
-
         _print_screen("RAM:", lx, 0, color_dimmed, taskbar_color); lx += 4 * 8;
         _print_screen(ram_str, lx, 0, color_ram, taskbar_color); lx += strlen(ram_str) * 8;
         _print_screen(" | ", lx, 0, color_dimmed, taskbar_color); lx += 3 * 8;
 
         _print_screen("PRC:", lx, 0, color_dimmed, taskbar_color); lx += 4 * 8;
         _print_screen(prc_str, lx, 0, color_prc, taskbar_color);
+
+        _print_screen(" | WS:", lx, 0, color_dimmed, taskbar_color); lx += 6 * 8;
+        itoa(current_workspace + 1, buff, 10);
+        _print_screen(buff, lx, 0, color_accent, taskbar_color); lx += 2 * 8;
+        
+        _print_screen("GRID:", lx, 0, color_dimmed, taskbar_color); lx += 5 * 8;
+        itoa(max_grid_cols, buff, 10);
+        _print_screen(buff, lx, 0, color_active, taskbar_color);
 
         int task_str_size = strlen(task_name_buffer);
         int cx = (sw - ((task_str_size + 4) * 8)) / 2;

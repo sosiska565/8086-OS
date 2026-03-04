@@ -40,3 +40,9 @@ void pci_scan(void){
         }
     }
 }
+
+void pci_write(uint8_t bus, uint8_t device, uint8_t func, uint8_t offset, uint32_t val) {
+    uint32_t address = (1 << 31) | (bus << 16) | (device << 11) | (func << 8) | (offset & 0xFC);
+    outl(0xCF8, address);
+    outl(0xCFC, val);
+}

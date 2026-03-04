@@ -59,12 +59,20 @@ mouse_handler:
     iret
 
 page_fault_handler:
+    push 14
     pusha
-    push esp                
+    
+    xor eax, eax
+    mov ax, ds
+    push eax 
+
+    push esp
     call page_fault_handler_c
     add esp, 4
-    popa
-    add esp, 4 
+
+    pop eax
+    popa 
+    add esp, 8
     iret
 
 ignore_handler:

@@ -311,3 +311,19 @@ void window_redraw_content(Window *win) {
 void window_draw_char(Window *win, text_struct *ts, unsigned int c){
     __asm__ volatile("int $0x80" : : "a"(41), "b"(win), "c"(ts), "d"(c));
 }
+void system(char *cmd){
+    __asm__ volatile(
+        "int $0x80"
+        :
+        : "a"(42), "b"(cmd)
+    );
+}
+void get_system_info(uint32_t *used, uint32_t *total, uint32_t *cpu) {
+    __asm__ volatile("int $0x80" : : "a"(43), "b"(used), "c"(total), "d"(cpu));
+}
+
+int get_task_list(task_info_t *buffer, int max_tasks) {
+    int count;
+    __asm__ volatile("int $0x80" : "=a"(count) : "a"(44), "b"(buffer), "c"(max_tasks));
+    return count;
+}

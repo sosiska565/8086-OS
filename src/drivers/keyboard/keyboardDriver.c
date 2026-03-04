@@ -4,6 +4,7 @@
 #include "multitask/task.h"
 #include "drivers/video/graphics.h"
 #include "programs/system/console/console.h"
+#include "global.h"
 
 #define BUFFER_SIZE 256
 
@@ -182,44 +183,59 @@ void keyboard_handler_c(void) {
     uint8_t is_release = (scancode & 0x80);
     uint8_t make_code = scancode & 0x7F;
     
-    if (make_code == 0x2A || make_code == 0x36) {
-        shift_pressed = !is_release;
-    } else if (make_code == 0x3A && !is_release) {
-        caps_lock = !caps_lock;
-    }
+    if (make_code == 0x2A || make_code == 0x36) shift_pressed = !is_release;
+    else if (make_code == 0x3A && !is_release) caps_lock = !caps_lock;
 
     static uint8_t alt_held = 0;
-    if (make_code == 0x38) {
-        alt_held = !is_release;
+    static uint8_t ctrl_held = 0;
+    if (make_code == 0x38) alt_held = !is_release;
+    if (make_code == 0x1D) ctrl_held = !is_release;
+
+    
+    if (ctrl_held && alt_held && shift_pressed && !is_release && focused_window) {
+        if (make_code == key_ws_left || make_code == key_resize_up) { wm_swap_window(-1); return; }
+        if (make_code == key_ws_right || make_code == key_resize_down) { wm_swap_window(1); return; }
     }
 
-    if (alt_held && make_code == 0x39 && !is_release) {
-        current_layout = !current_layout;
-        return; 
+    
+    if (alt_held && shift_pressed && !ctrl_held && !is_release && focused_window) {
+        if (make_code == key_resize_left) {
+            focused_window->stretch_x -= 10;
+            if (focused_window->stretch_x < 10) focused_window->stretch_x = 10;
+            wm_refresh(); return;
+        }
+        if (make_code == key_resize_right) {
+            focused_window->stretch_x += 10;
+            wm_refresh(); return;
+        }
+        if (make_code == key_resize_up) {
+            focused_window->stretch_y -= 10;
+            if (focused_window->stretch_y < 10) focused_window->stretch_y = 10;
+            wm_refresh(); return;
+        }
+        if (make_code == key_resize_down) {
+            focused_window->stretch_y += 10;
+            wm_refresh(); return;
+        }
     }
 
-    if (alt_held && make_code == 0x0F && !is_release) {
-        wm_switch_focus(); 
-        return;
+    
+    if (alt_held && !shift_pressed && !ctrl_held && !is_release) {
+        if (make_code == key_ws_left) { wm_switch_workspace(-1); return; }
+        if (make_code == key_ws_right) { wm_switch_workspace(1); return; }
     }
 
-    if (alt_held && make_code == 0x10 && !is_release){
-        kill_focused_process();
-        keyboard_flush();
-        return;
-    }
+    if (shift_pressed && make_code == key_fullscreen && !is_release) { wm_toggle_fullscreen(); return; }
 
-    if (alt_held && make_code == 0x14 && !is_release){
-        create_process((void (*)(int, char**))console.main, 0, 0, "console", kernel_dir);
-        return;
-    }
+    if (alt_held && make_code == key_layout && !is_release) { current_layout = !current_layout; return; }
+    if (alt_held && make_code == key_focus && !is_release) { wm_switch_focus(); return; }
+    if (alt_held && make_code == key_kill && !is_release){ kill_focused_process(); keyboard_flush(); return; }
+    if (alt_held && make_code == key_console && !is_release){ create_process((void (*)(int, char**))console.main, 0, 0, "console", kernel_dir); return; }
     
     if (!is_release) {
         add_scancode_to_buffer(make_code);
         unsigned int c = scancode_to_char_layout(make_code);
-        if (c != 0) {
-            add_to_buffer(c);
-        }
+        if (c != 0) add_to_buffer(c);
     }
 }
 

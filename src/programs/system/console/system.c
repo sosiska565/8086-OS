@@ -16,10 +16,11 @@
 #include "drivers/video/graphics.h"
 #include "drivers/video/vesa.h"
 #include "multitask/task.h"
+#include "drivers/file/ATA/ATA.h"
 
 #define PROGRAM_LOAD_ADDRES 0x40000000
 
-//test var
+
 void* ptr;
 
 typedef void (*program_entry_t)(int argc, char **argv);
@@ -54,6 +55,8 @@ command_t commands[] = {
     {"tasklist", cmd_tasklist, "Show task list"},
     {"kill", cmd_kill, "Kill process"},
     {"writemode", cmd_writemode, "Enable Read/Write disk mode"},
+    {"disks", cmd_disks, "List all connected drives"},
+    {"use", cmd_use, "Switch active drive (use <ID>)"},
     
     {NULL, NULL, NULL}
 };
@@ -361,7 +364,7 @@ void cmd_exit(char **tokens) {
 }
 
 void cmd_memview(char **tokens) {
-    memoryViewer.main();
+    create_process((void (*)(int, char**))memoryViewer.main, 0, 0, "memview", kernel_dir);
 }
 
 void cmd_kmalloc(char **tokens) {
@@ -384,7 +387,7 @@ void cmd_heapdump(char **tokens) {
 }
 
 void cmd_disk_viewer(char **tokens){
-    disk_viewer.main();
+    create_process((void (*)(int, char**))disk_viewer.main, 0, 0, "diskview", kernel_dir);
 }
 
 void cmd_ls(char **tokens){
@@ -404,7 +407,12 @@ void cmd_cat(char **tokens){
         return;
     }
 
-    uint8_t *file_buffer = (uint8_t*)kmalloc(file_size + 512);
+    
+    uint8_t *file_buffer = (uint8_t*)kmalloc_a(file_size + 512);
+    if (!file_buffer) {
+        printf("Error: Not enough memory!\n");
+        return;
+    }
 
     for(int i=0; i<file_size; i++) file_buffer[i] = 0;
     
@@ -416,7 +424,7 @@ void cmd_cat(char **tokens){
     }
     printf("\n");
 
-    kfree(file_buffer);
+    kfree_a(file_buffer); 
 }
 
 int is_executable(char* filename) {
@@ -454,6 +462,10 @@ void cmd_exec(char **tokens){
     uint32_t alloc_size = file_size + 1024 * 1024; 
     
     uint32_t phys_addr = (uint32_t)kmalloc_a(alloc_size);
+    if (!phys_addr) {
+        printf("Error: Not enough memory to load executable!\n");
+        return;
+    }
     fast_memset((void*)phys_addr, 0, alloc_size / 4);
     
     int bytes_read = fat32_read_file(tokens[1], (uint8_t*)phys_addr);
@@ -480,7 +492,7 @@ void cmd_exec(char **tokens){
 
         if(strcmp(tokens[argc], "&") != 0) wait_process(pid);
     } else {
-        printf("File empty or not found.\n");
+        printf("Error loading file.\n");
         kfree_a((void*)phys_addr);
     }
 }
@@ -527,40 +539,42 @@ void cmd_readsystemcfg(char **tokens) {
     int file_size = fat32_get_file_size("kernel.cfg");
 
     if(file_size <= 0){
-        panic("kernel.cfg not found!");
+        printf("Warning: kernel.cfg not found! Using default system config.\n");
         return;
     }
 
-    uint8_t *file_buffer = (uint8_t*)kmalloc(file_size + 512);
-
+    uint8_t *file_buffer = (uint8_t*)kmalloc_a(file_size + 512);
+    if(!file_buffer) return;
     for(int i=0; i<file_size; i++) file_buffer[i] = 0;
 
     fat32_read_file("kernel.cfg", file_buffer);
+    Config *cfg = config_parse((char *)file_buffer);
 
-    Config *cfg = config_parse(file_buffer);
+    isReadMode = (strcmp(config_get_value(cfg, "is_read_only_mode"), "true") == 0) ? 1 : 0;
 
-    if(strcmp(config_get_value(cfg, "is_read_only_mode"), "true") == 0){
-        isReadMode = 1;
-    } else {
-        isReadMode = 0;
-    }
+    char *v;
+    if((v = config_get_value(cfg, "taskbar_color"))) taskbar_color = (uint32_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "window_border_color"))) window_border_color = (uint32_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "window_active_border_color"))) window_active_border_color = (uint32_t)atoi(v, 16);
 
-    printf("read mode: ");
-    printf("%d", isReadMode);
-    printf("\n");
-
-    taskbar_color = (uint32_t)atoi(config_get_value(cfg, "taskbar_color"), 16);
-    window_border_color = (uint32_t)atoi(config_get_value(cfg, "window_border_color"), 16);
-    window_active_border_color = (uint32_t)atoi(config_get_value(cfg, "window_active_border_color"), 16);
-
-    printf("taskbar color: %x\n", taskbar_color);
-    printf("window border color: %x\n", window_border_color);
-    printf("window active border color: %x\n", window_active_border_color);
+    
+    if((v = config_get_value(cfg, "key_kill"))) key_kill = (uint8_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "key_focus"))) key_focus = (uint8_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "key_console"))) key_console = (uint8_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "key_layout"))) key_layout = (uint8_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "key_fullscreen"))) key_fullscreen = (uint8_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "key_ws_left"))) key_ws_left = (uint8_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "key_ws_right"))) key_ws_right = (uint8_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "key_resize_left"))) key_resize_left = (uint8_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "key_resize_right"))) key_resize_right = (uint8_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "key_resize_up"))) key_resize_up = (uint8_t)atoi(v, 16);
+    if((v = config_get_value(cfg, "key_resize_down"))) key_resize_down = (uint8_t)atoi(v, 16);
+    
+    if((v = config_get_value(cfg, "wm_gaps"))) wm_gaps = atoi(v, 10);
 
     vesa_render_buffer();
-
     config_free(cfg);
-    kfree(file_buffer);
+    kfree_a(file_buffer);
 }
 
 void cmd_tasklist(char **tokens){
@@ -605,4 +619,35 @@ void cmd_kill(char **tokens){
     int pid = strtn(tokens[1]);
 
     kill_task(pid);
+}
+
+void cmd_disks(char **tokens) {
+    printf("--- Connected Drives ---\n");
+    if (sys_drive_count == 0) {
+        printf("No drives found.\n");
+        return;
+    }
+
+    for (int i = 0; i < sys_drive_count; i++) {
+        if (i == active_drive_index) {
+            printf("%C*> [%d] %s%C\n", VGA32_COLOR_GREEN, i, sys_drives[i].name, VGA32_COLOR_WHITE);
+        } else {
+            printf("   [%d] %s\n", i, sys_drives[i].name);
+        }
+    }
+}
+
+void cmd_use(char **tokens) {
+    if (!tokens[1]) {
+        printf("Usage: use <id>\n");
+        printf("Run 'disks' to see available IDs.\n");
+        return;
+    }
+    
+    int idx = strtn(tokens[1]);
+    if (disk_select(idx)) {
+        printf("Switched to drive: %s\n", sys_drives[idx].name);
+    } else {
+        printf("%CError: Invalid drive ID!%C\n", VGA32_COLOR_RED, VGA32_COLOR_WHITE);
+    }
 }

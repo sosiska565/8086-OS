@@ -27,10 +27,35 @@
 #define ATA_MASTER  0
 #define ATA_SLAVE   1
 
+#define MAX_SYS_DRIVES 8
+
+typedef enum {
+    DRIVE_TYPE_NONE,
+    DRIVE_TYPE_ATA,
+    DRIVE_TYPE_AHCI
+} drive_type_t;
+
+typedef struct {
+    drive_type_t type;
+    uint8_t ata_id;
+    void* ahci_port;
+    char name[64];
+} drive_info_t;
+
 struct disk_struct {
     uint16_t buffer[256];
     char name[256];
 };
+
+extern drive_info_t sys_drives[MAX_SYS_DRIVES];
+extern int sys_drive_count;
+extern int active_drive_index;
+
+void disk_manager_init(void);
+int disk_select(int index);
+
+int disk_read_sector(uint32_t lba, uint8_t *buffer);
+int disk_write_sector(uint32_t lba, uint8_t *buffer);
 
 int ata_read_sector(uint32_t lba, uint8_t *buffer, uint8_t drive);
 void ata_write_sector(uint32_t lba, uint8_t *buffer);

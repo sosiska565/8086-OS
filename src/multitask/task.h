@@ -5,6 +5,13 @@
 #include "drivers/video/graphics.h"
 #include "memory/paging.h"
 
+typedef struct {
+    int id;
+    int parent_id;
+    int state;
+    char name[32];
+} task_info_t;
+
 typedef enum {
     TASK_RUNNING,
     TASK_READY,

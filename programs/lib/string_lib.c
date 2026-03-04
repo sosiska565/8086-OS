@@ -94,6 +94,13 @@ int strlen(char *str){
     return len;
 }
 
+unsigned int tolower(unsigned int c){
+    if(c >= 'A' && c <= 'Z'){
+        return c + ('a' - 'A');
+    }
+    return c;
+}
+
 //псведо графика
 void draw_text_box_ex(char* lines[], char* title, 
                       uint8_t padding_top, uint8_t padding_bottom,

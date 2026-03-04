@@ -141,6 +141,9 @@ void init_tasking() {
     ktask->page_dir = kernel_dir;
     ktask->app_phys_addr = 0; 
 
+    ktask->kill_me = 0;
+    ktask->wake_tick = 0;
+
     task_set_name(ktask, "kernel");
 
     current_task = ktask;
@@ -159,6 +162,7 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
     new_task->allocations = 0;
     new_task->page_dir = pd ? pd : kernel_dir;
     new_task->app_phys_addr = 0;
+    new_task->wake_tick = 0;
 
     task_set_name(new_task, name);
 

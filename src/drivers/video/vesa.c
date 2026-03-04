@@ -62,9 +62,13 @@ void clear_screen_vesa(uint32_t color) {
     if (color == 0) {
         fast_memset(back_buffer, 0, buffer_size_bytes / 4);
     } else {
-        for(int y = 0; y < screen_height; y++) {
-            for(int x = 0; x < screen_width; x++) {
-                put_pixel(x, y, color, 1);
+        if (screen_bpp == 32) {
+            fast_memset(back_buffer, color, buffer_size_bytes / 4);
+        } else {
+            for(int y = 0; y < screen_height; y++) {
+                for(int x = 0; x < screen_width; x++) {
+                    put_pixel(x, y, color, 1);
+                }
             }
         }
     }

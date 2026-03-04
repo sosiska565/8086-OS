@@ -9,6 +9,7 @@
 #include "drivers/video/vesa.h"
 #include "drivers/video/graphics.h"
 #include "multitask/task.h"
+#include "programs/system/console/system.h"
 
 extern int screen_width;
 extern int screen_height;
@@ -22,6 +23,13 @@ typedef struct {
 } Rect;
 
 void syscall_handler_c(struct syscall_registers *regs){
+    extern int current_workspace;
+    int is_visible = 1;
+    if (current_task && current_task->window) {
+        if (current_task->window->workspace != current_workspace) {
+            is_visible = 0;
+        }
+    }
     if(regs->eax == 0) {
         window_putc(current_task->window, (unsigned int)regs->ebx);
     }
@@ -62,7 +70,11 @@ void syscall_handler_c(struct syscall_registers *regs){
     else if(regs->eax == 24) vprintf((const char *)regs->ebx, *(va_list*)&regs->ecx);
     else if(regs->eax == 25) {
         Rect *rect = (Rect*)regs->ebx;
-        draw_rect_filled(rect->x, rect->y, rect->width, rect->height, rect->color);
+        if (current_task && current_task->window) {
+            window_draw_rect_filled(current_task->window, rect->x, rect->y, rect->width, rect->height, rect->color);
+        } else {
+            draw_rect_filled(rect->x, rect->y, rect->width, rect->height, rect->color);
+        }
     }
     else if(regs->eax == 26) regs->eax = get_screen_width();
     else if(regs->eax == 27) regs->eax = get_screen_height();
@@ -105,6 +117,48 @@ void syscall_handler_c(struct syscall_registers *regs){
     else if(regs->eax == 41) {
         text_struct *ts = (text_struct*)regs->ecx;
         window_draw_char((Window *)regs->ebx, ts->x, ts->y, (unsigned int)regs->edx, ts->color);
+    }
+    else if(regs->eax == 42){
+        char **tokens = parse_str((char*)regs->ebx, ' ');
+        if(!tokens[0]) return;
+        for(int i = 0; commands[i].name != NULL; i++) {
+            if(strcmp(tokens[0], commands[i].name) == 0) {
+                commands[i].handler(tokens);
+                return;
+            }
+        }
+    }
+    else if(regs->eax == 43) {
+        uint32_t *used = (uint32_t*)regs->ebx;
+        uint32_t *total = (uint32_t*)regs->ecx;
+        uint32_t *cpu = (uint32_t*)regs->edx;
+        if(used) *used = get_used_memory();
+        if(total) *total = get_total_memory();
+        if(cpu) *cpu = get_cpu_usage();
+    }
+    else if(regs->eax == 44) {
+        task_info_t *buf = (task_info_t*)regs->ebx;
+        int max = (int)regs->ecx;
+        int count = 0;
+
+        __asm__ volatile("cli");
+        if (ready_queue) {
+            Task *t = ready_queue;
+            do {
+                if (t->state != TASK_DEAD && count < max) {
+                    buf[count].id = t->id;
+                    buf[count].parent_id = t->parent_id;
+                    buf[count].state = (int)t->state;
+                    int i = 0;
+                    while(t->name[i] && i < 31) { buf[count].name[i] = t->name[i]; i++; }
+                    buf[count].name[i] = '\0';
+                    count++;
+                }
+                t = t->next;
+            } while (t != ready_queue && count < max);
+        }
+        __asm__ volatile("sti");
+        regs->eax = count;
     }
     else {
         printf("Unknown syscall!\n");
