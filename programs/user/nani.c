@@ -112,70 +112,49 @@ void update_syntax() {
     }
 }
 
-
 void draw_editor() {
-    
     int cursor_row = 0;
     int line_start = 0;
     for(int i = 0; i < cursor_index; i++) {
-        if(text_buffer[i] == '\n') {
-            cursor_row++;
-            line_start = i + 1;
-        }
+        if(text_buffer[i] == '\n') { cursor_row++; line_start = i + 1; }
     }
     int cursor_col = cursor_index - line_start;
 
-    
     int max_visible_lines = (win->height - 16) / 8; 
     if (cursor_row < scroll_line) scroll_line = cursor_row;
     if (cursor_row >= scroll_line + max_visible_lines) scroll_line = cursor_row - max_visible_lines + 1;
 
-    
     int max_visible_cols = (win->width - 36 - 8) / 8;
     if (max_visible_cols < 1) max_visible_cols = 1;
     if (cursor_col < scroll_col) scroll_col = cursor_col;
     if (cursor_col >= scroll_col + max_visible_cols) scroll_col = cursor_col - max_visible_cols + 1;
 
     
-    Rect bg;
-    bg.x = win->x; bg.y = win->y + 8; bg.width = win->width; bg.height = win->height - 16;
-    bg.color = VGA32_COLOR_BLACK;
+    Rect bg; bg.x = 0; bg.y = 8; bg.width = win->width; bg.height = win->height - 16; bg.color = VGA32_COLOR_BLACK;
     draw_rect_filled(&bg);
     
-    
-    Rect margin;
-    margin.x = win->x; margin.y = win->y + 8; margin.width = 32; margin.height = win->height - 16;
-    margin.color = 0x00222222; 
+    Rect margin; margin.x = 0; margin.y = 8; margin.width = 32; margin.height = win->height - 16; margin.color = 0x00222222; 
     draw_rect_filled(&margin);
 
     update_syntax();
 
-    int current_line = 0;
-    int current_col = 0;
+    int current_line = 0; int current_col = 0;
 
-    
     if (scroll_line == 0) {
-        char lnbuf[8];
-        itoa(1, lnbuf, 10);
+        char lnbuf[8]; itoa(1, lnbuf, 10);
         draw_text_absolute(2, 8, lnbuf, VGA32_COLOR_LIGHT_GREY);
     }
 
-    
     for (int i = 0; i < text_length; i++) {
         unsigned int c = text_buffer[i];
-
         if (c == '\n') {
-            current_line++;
-            current_col = 0;
+            current_line++; current_col = 0;
             if (current_line >= scroll_line && current_line < scroll_line + max_visible_lines) {
-                char lnbuf[8];
-                itoa(current_line + 1, lnbuf, 10);
+                char lnbuf[8]; itoa(current_line + 1, lnbuf, 10);
                 draw_text_absolute(2, 8 + (current_line - scroll_line) * 8, lnbuf, VGA32_COLOR_LIGHT_GREY);
             }
             continue;
         }
-
-        
         if (current_line >= scroll_line && current_line < scroll_line + max_visible_lines) {
             if (current_col >= scroll_col && current_col < scroll_col + max_visible_cols) {
                 text_struct ts;
@@ -188,23 +167,17 @@ void draw_editor() {
         current_col++;
     }
 
-    
-    Rect top;
-    top.x = win->x; top.y = win->y; top.width = win->width; top.height = 8; top.color = VGA32_COLOR_BLUE;
+    Rect top; top.x = 0; top.y = 0; top.width = win->width; top.height = 8; top.color = VGA32_COLOR_BLUE;
     draw_rect_filled(&top);
     draw_text_absolute(4, 0, " NANI 1.0 - ", VGA32_COLOR_WHITE);
     draw_text_absolute(100, 0, filename, VGA32_COLOR_YELLOW);
 
-    
-    Rect bot;
-    bot.x = win->x; bot.y = win->y + win->height - 8; bot.width = win->width; bot.height = 8; bot.color = VGA32_COLOR_LIGHT_GREY;
+    Rect bot; bot.x = 0; bot.y = win->height - 8; bot.width = win->width; bot.height = 8; bot.color = VGA32_COLOR_LIGHT_GREY;
     draw_rect_filled(&bot);
     draw_text_absolute(4, win->height - 8, "F5 Save  ESC Exit    Chars: ", VGA32_COLOR_BLACK);
     
-    char cbuf[16];
-    itoa(text_length, cbuf, 10);
+    char cbuf[16]; itoa(text_length, cbuf, 10);
     draw_text_absolute(230, win->height - 8, cbuf, VGA32_COLOR_BLACK);
-    
     
     if (cursor_row >= scroll_line && cursor_row < scroll_line + max_visible_lines &&
         cursor_col >= scroll_col && cursor_col < scroll_col + max_visible_cols) {
@@ -212,24 +185,17 @@ void draw_editor() {
         int cursor_screen_x = 36 + (cursor_col - scroll_col) * 8;
         int cursor_screen_y = 8 + (cursor_row - scroll_line) * 8;
 
-        Rect curs;
-        curs.x = win->x + cursor_screen_x; 
-        curs.y = win->y + cursor_screen_y;
+        Rect curs; curs.x = cursor_screen_x; curs.y = cursor_screen_y;
         curs.width = 8; curs.height = 8; curs.color = VGA32_COLOR_WHITE;
         
         unsigned int cur_c = (cursor_index < text_length && text_buffer[cursor_index] != '\n') ? text_buffer[cursor_index] : ' ';
         draw_rect_filled(&curs);
         
-        text_struct ts;
-        ts.x = cursor_screen_x;
-        ts.y = cursor_screen_y;
-        ts.color = VGA32_COLOR_BLACK;
+        text_struct ts; ts.x = cursor_screen_x; ts.y = cursor_screen_y; ts.color = VGA32_COLOR_BLACK;
         window_draw_char(win, &ts, cur_c);
     }
-
     window_refresh(win);
 }
-
 
 void draw_thread(int argc, char** argv) {
     while(1) {

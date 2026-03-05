@@ -536,45 +536,9 @@ void cmd_rm(char **tokens){
 }
 
 void cmd_readsystemcfg(char **tokens) {
-    int file_size = fat32_get_file_size("kernel.cfg");
-
-    if(file_size <= 0){
-        printf("Warning: kernel.cfg not found! Using default system config.\n");
-        return;
-    }
-
-    uint8_t *file_buffer = (uint8_t*)kmalloc_a(file_size + 512);
-    if(!file_buffer) return;
-    for(int i=0; i<file_size; i++) file_buffer[i] = 0;
-
-    fat32_read_file("kernel.cfg", file_buffer);
-    Config *cfg = config_parse((char *)file_buffer);
-
-    isReadMode = (strcmp(config_get_value(cfg, "is_read_only_mode"), "true") == 0) ? 1 : 0;
-
-    char *v;
-    if((v = config_get_value(cfg, "taskbar_color"))) taskbar_color = (uint32_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "window_border_color"))) window_border_color = (uint32_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "window_active_border_color"))) window_active_border_color = (uint32_t)atoi(v, 16);
-
-    
-    if((v = config_get_value(cfg, "key_kill"))) key_kill = (uint8_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "key_focus"))) key_focus = (uint8_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "key_console"))) key_console = (uint8_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "key_layout"))) key_layout = (uint8_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "key_fullscreen"))) key_fullscreen = (uint8_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "key_ws_left"))) key_ws_left = (uint8_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "key_ws_right"))) key_ws_right = (uint8_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "key_resize_left"))) key_resize_left = (uint8_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "key_resize_right"))) key_resize_right = (uint8_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "key_resize_up"))) key_resize_up = (uint8_t)atoi(v, 16);
-    if((v = config_get_value(cfg, "key_resize_down"))) key_resize_down = (uint8_t)atoi(v, 16);
-    
-    if((v = config_get_value(cfg, "wm_gaps"))) wm_gaps = atoi(v, 10);
-
-    vesa_render_buffer();
-    config_free(cfg);
-    kfree_a(file_buffer);
+    printf("Reloading system configuration...\n");
+    __asm__ volatile("int $0x80" : : "a"(45));
+    printf("Done!\n");
 }
 
 void cmd_tasklist(char **tokens){

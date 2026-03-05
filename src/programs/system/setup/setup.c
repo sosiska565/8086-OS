@@ -9,6 +9,7 @@
 #include "drivers/video/graphics.h"
 #include "drivers/video/vesa.h"
 #include "programs/system/console/system.h"
+#include "utils/sysconfig.h"
 
 Window *setupWin;
 Config *cfg = 0; 
@@ -86,7 +87,7 @@ void diskStage(void){
             goto exit_setup;
         }
 
-        cmd_readsystemcfg(0);
+        sysconfig_reload();
     } else {
         printf("\nSkipping disk access (Read-Only mode selected).");
     }

@@ -6,6 +6,10 @@
 #define GAP 15
 #define SCREEN_MARGIN 10
 
+
+#define TASKBAR_HEIGHT 32
+#define DESKTOP_BG 0x000E0E14
+
 typedef struct Window{
     int id;
     int x, y;
@@ -53,7 +57,6 @@ void window_clear(Window *win, uint32_t color);
 void set_current_output_window(Window *win);
 void wm_set_focused_window(Window *win);
 void window_putc(Window *win, unsigned int c);
-
 
 void wm_close_window(Window *win);
 Window* wm_create_window(uint32_t bg_color);

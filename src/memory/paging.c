@@ -105,3 +105,4 @@ void paging_map_user(page_directory_t *dir, uint32_t phys, uint32_t virt, uint32
 
     table->entries[pt_idx] = (phys & 0xFFFFF000) | (flags | 1);
 }
+

@@ -11,6 +11,12 @@
 #define FONT_H 8
 #define WINDOW_RADIUS 10
 
+#define ANIM_SPEED_OPEN  5
+#define ANIM_SPEED_CLOSE 5 
+#define ANIM_SPEED_FS    2
+#define ANIM_STEPS_WS    30
+
+
 static int abs(int i) { return i < 0 ? -i : i; }
 
 Window *current_output_window = 0;
@@ -22,23 +28,19 @@ char *focused_task;
 
 int global_anim_x = 0; 
 
-
 int is_window_visible(Window *win) {
     if (!win) return 1;
     if (win->workspace != current_workspace) return 0;
     return 1;
 }
 
-void wm_set_focused_window(Window *win) {
-    focused_window = win;
-}
+void wm_set_focused_window(Window *win) { focused_window = win; }
 
 void set_current_output_window(Window *win) {
     if (current_task) current_task->window = win;
     current_output_window = win;
     focused_window = win;
 }
-
 
 void draw_rect(int x, int y, int w, int h, uint32_t color) {
     for (int i = 0; i < w; i++) { put_pixel(x + i, y, color, 1); put_pixel(x + i, y + h - 1, color, 1); }
@@ -132,9 +134,6 @@ void draw_rounded_rect_filled(int x, int y, int w, int h, int r, uint32_t color)
     }
 }
 
-
-
-
 void window_draw_rect_filled(Window *win, int local_x, int local_y, int w, int h, uint32_t color) {
     if (!win || win->workspace != current_workspace) return; 
 
@@ -154,7 +153,6 @@ void window_draw_rect_filled(Window *win, int local_x, int local_y, int w, int h
         int current_ly = local_y + i;
         int margin = 0;
 
-        
         if (current_ly < r) margin = get_circle_margin(r, r - current_ly - 1);
         else if (current_ly >= win->height - r) margin = get_circle_margin(r, current_ly - (win->height - r));
 
@@ -170,21 +168,38 @@ void window_draw_rect_filled(Window *win, int local_x, int local_y, int w, int h
 
 void window_draw_char(Window *win, int local_x, int local_y, unsigned int c, uint32_t color) {
     if (!win || win->workspace != current_workspace) return;
-    int abs_x = win->x + local_x; 
-    int abs_y = win->y + local_y;
-    if (abs_x < 0 || abs_y < 0 || abs_x + 8 > get_screen_width() || abs_y + 8 > get_screen_height()) return;
     
     uint8_t *glyph = (uint8_t*)font8x8_basic[c];
-    extern int screen_bpp; uint8_t bpp = screen_bpp / 8;
+    extern int screen_bpp; 
+    uint8_t bpp = screen_bpp / 8;
     uint8_t* buffer = (back_buffer != 0) ? (uint8_t*)back_buffer : (uint8_t*)video_memory;
+    
+    int r = WINDOW_RADIUS;
 
     for (int row = 0; row < 8; row++) {
-        uint8_t* dest = buffer + ((abs_y + row) * screen_pitch) + (abs_x * bpp);
+        int current_ly = local_y + row;
+        if (current_ly < 0 || current_ly >= win->height) continue;
+
+        int abs_y = win->y + current_ly;
+        int margin = 0;
+
+        if (current_ly < r) {
+            margin = get_circle_margin(r, r - current_ly - 1);
+        } else if (current_ly >= win->height - r) {
+            margin = get_circle_margin(r, current_ly - (win->height - r));
+        }
+
+        uint8_t* dest = buffer + (abs_y * screen_pitch) + ((win->x + local_x) * bpp);
         uint8_t font_row = glyph[row];
+        
         for (int col = 0; col < 8; col++) {
-            if ((font_row >> col) & 1) {
-                if (bpp == 4) *(uint32_t*)dest = color;
-                else { dest[0] = color; dest[1] = color>>8; dest[2] = color>>16; }
+            int current_lx = local_x + col;
+            
+            if (current_lx >= margin && current_lx < win->width - margin) {
+                if ((font_row >> col) & 1) {
+                    if (bpp == 4) *(uint32_t*)dest = color;
+                    else { dest[0] = color; dest[1] = color>>8; dest[2] = color>>16; }
+                }
             }
             dest += bpp;
         }
@@ -214,16 +229,9 @@ void window_redraw_content(Window *win) {
 
 void window_clear(Window *win, uint32_t color){
     if (is_window_visible(win)) draw_rounded_rect_filled(win->x, win->y, win->width, win->height, WINDOW_RADIUS, color);
-    
-    int max_cols = get_screen_width() / FONT_W;
-    int max_rows = get_screen_height() / FONT_H;
-    int total = max_cols * max_rows;
-    
+    int total = (get_screen_width() / FONT_W) * (get_screen_height() / FONT_H);
     if (win->char_buffer) {
-        for(int i = 0; i < total; i++) {
-            win->char_buffer[i] = L' ';
-            win->color_buffer[i] = color;
-        }
+        for(int i = 0; i < total; i++) { win->char_buffer[i] = L' '; win->color_buffer[i] = color; }
     }
     win->cursor_x = 0; win->cursor_y = 0;
     wm_render_window(win);
@@ -231,7 +239,6 @@ void window_clear(Window *win, uint32_t color){
 
 void window_scroll(Window *win){
     if (is_window_visible(win)) draw_rounded_rect_filled(win->x, win->y, win->width, win->height, WINDOW_RADIUS, win->bg_color);
-    
     int max_cols = get_screen_width() / FONT_W;
     if (win->char_buffer) {
         for (int r = 0; r < win->rows - 1; r++) {
@@ -308,27 +315,31 @@ void draw_window(Window *win, int x, int y, int w, int h, uint32_t color_frame, 
 
 void wm_render_window(Window *win) {
     if (!is_window_visible(win)) return;
-    vesa_render_rect(win->x - 3, win->y - 25, win->width + 6, win->height + 30);
+    int rx = win->x - 5; if (rx < 0) rx = 0;
+    int ry = win->y - 5; if (ry < TASKBAR_HEIGHT) ry = TASKBAR_HEIGHT;
+    vesa_render_rect(rx, ry, win->width + 10, win->height + 10);
 }
 
 void wm_animate_open(Window *win) {
-    for(int p = 0; p <= 100; p += 5) { win->anim_scale = p; wm_refresh(); }
+    for(int p = 20; p <= 100; p += ANIM_SPEED_OPEN) { win->anim_scale = p; wm_refresh(); }
     win->anim_scale = 100; wm_refresh();
 }
 
 void wm_animate_close(Window *win) {
-    for(int p = 100; p >= 0; p -= 5) { win->anim_scale = p; wm_refresh(); }
+    for(int p = 100; p >= 20; p -= ANIM_SPEED_CLOSE) { win->anim_scale = p; wm_refresh(); }
+}
+
+void wm_toggle_fullscreen() {
+    if (!focused_window) return;
+    for(int p = 100; p >= 50; p -= ANIM_SPEED_FS) { focused_window->anim_scale = p; wm_refresh(); }
+    focused_window->is_fullscreen = !focused_window->is_fullscreen;
+    for(int p = 50; p <= 100; p += ANIM_SPEED_FS) { focused_window->anim_scale = p; wm_refresh(); }
+    focused_window->anim_scale = 100; wm_refresh();
 }
 
 void wm_switch_workspace(int dir) {
-    int steps = 60; 
-    int screen_w = get_screen_width();
-
-    for (int i = 1; i <= steps; i++) { 
-        
-        global_anim_x = -dir * (i * (screen_w / steps)); 
-        wm_refresh(); 
-    }
+    int sw = get_screen_width();
+    for (int i = 1; i <= ANIM_STEPS_WS; i++) { global_anim_x = -dir * (i * (sw / ANIM_STEPS_WS)); wm_refresh(); }
     
     current_workspace += dir;
     if (current_workspace < 0) current_workspace = 3; 
@@ -338,16 +349,12 @@ void wm_switch_workspace(int dir) {
     while(curr) { if (curr->workspace == current_workspace) { focused_window = curr; break; } curr = curr->next; }
     keyboard_flush();
     
-    for (int i = steps; i >= 0; i--) { 
-        global_anim_x = dir * (i * (screen_w / steps)); 
-        wm_refresh(); 
-    }
+    for (int i = ANIM_STEPS_WS; i >= 0; i--) { global_anim_x = dir * (i * (sw / ANIM_STEPS_WS)); wm_refresh(); }
     global_anim_x = 0; wm_refresh();
 }
 
 void wm_swap_window(int dir) {
     if (!focused_window || window_count <= 1) return;
-    
     Window* vis[32]; int count = 0; Window *curr = head;
     while(curr) { if (curr->workspace == current_workspace) vis[count++] = curr; curr = curr->next; }
     if (count <= 1) return;
@@ -380,12 +387,8 @@ void wm_swap_window(int dir) {
     wm_refresh();
 }
 
-void wm_toggle_fullscreen() {
-    if (focused_window) { focused_window->is_fullscreen = !focused_window->is_fullscreen; wm_refresh(); }
-}
-
 void wm_refresh() {
-    draw_rect_filled(0, 8, get_screen_width(), get_screen_height() - 8, VGA32_COLOR_BLACK);
+    draw_rect_filled(0, TASKBAR_HEIGHT, get_screen_width(), get_screen_height() - TASKBAR_HEIGHT, DESKTOP_BG);
 
     Window* vis[32]; int count = 0; Window *curr = head; Window *fs_win = 0;
     while(curr) {
@@ -395,25 +398,33 @@ void wm_refresh() {
     if (count == 0) { vesa_render_buffer(); return; }
 
     if (fs_win) {
-        fs_win->x = wm_gaps; fs_win->y = 8 + wm_gaps;
-        fs_win->width = get_screen_width() - wm_gaps * 2; fs_win->height = get_screen_height() - 8 - wm_gaps * 2;
+        fs_win->x = wm_gaps; fs_win->y = TASKBAR_HEIGHT + wm_gaps;
+        fs_win->width = get_screen_width() - wm_gaps * 2; fs_win->height = get_screen_height() - TASKBAR_HEIGHT - wm_gaps * 2;
         fs_win->cols = fs_win->width / 8; fs_win->rows = fs_win->height / 8;
         
         int r_x = fs_win->x + global_anim_x, r_y = fs_win->y;
-        draw_rounded_rect_filled(r_x - 2, r_y - 2, fs_win->width + 4, fs_win->height + 4, WINDOW_RADIUS + 2, window_active_border_color);
-        draw_rounded_rect_filled(r_x, r_y, fs_win->width, fs_win->height, WINDOW_RADIUS, fs_win->bg_color);
-        if (global_anim_x == 0) window_redraw_content(fs_win);
-        vesa_render_rect(0, 8, get_screen_width(), get_screen_height() - 8); return;
+        int r_w = fs_win->width; int r_h = fs_win->height;
+        
+        if (fs_win->anim_scale < 100) {
+            r_w = (fs_win->width * fs_win->anim_scale) / 100;
+            r_h = (fs_win->height * fs_win->anim_scale) / 100;
+            r_x += (fs_win->width - r_w) / 2; r_y += (fs_win->height - r_h) / 2;
+        }
+
+        draw_rounded_rect_filled(r_x - 2, r_y - 2, r_w + 4, r_h + 4, WINDOW_RADIUS + 2, window_active_border_color);
+        draw_rounded_rect_filled(r_x, r_y, r_w, r_h, WINDOW_RADIUS, fs_win->bg_color);
+        if (global_anim_x == 0 && fs_win->anim_scale == 100) window_redraw_content(fs_win);
+        vesa_render_rect(0, TASKBAR_HEIGHT, get_screen_width(), get_screen_height() - TASKBAR_HEIGHT); return;
     }
 
     int cols = count < max_grid_cols ? count : max_grid_cols;
     if (cols < 1) cols = 1;
     int rows = (count + cols - 1) / cols;
-    int avail_h = get_screen_height() - 8 - (wm_gaps * (rows + 1));
+    int avail_h = get_screen_height() - TASKBAR_HEIGHT - (wm_gaps * (rows + 1));
     int total_stretch_y = 0;
     for(int r = 0; r < rows; r++) total_stretch_y += vis[r * cols]->stretch_y;
 
-    int current_y = 8 + wm_gaps;
+    int current_y = TASKBAR_HEIGHT + wm_gaps;
     for(int r = 0; r < rows; r++) {
         int row_items = (r == rows - 1) ? (count - r * cols) : cols;
         int row_h = (avail_h * vis[r * cols]->stretch_y) / total_stretch_y;
@@ -426,12 +437,10 @@ void wm_refresh() {
             Window *win = vis[r * cols + c];
             int win_w = (avail_w * win->stretch_x) / total_stretch_x;
             
-            
             win->x = current_x; win->y = current_y;
             win->width = win_w; win->height = row_h;
             win->cols = win->width / 8; win->rows = win->height / 8;
 
-            
             int r_x = win->x + global_anim_x; int r_y = win->y;
             int r_w = win->width; int r_h = win->height;
 
@@ -451,14 +460,14 @@ void wm_refresh() {
         }
         current_y += row_h + wm_gaps;
     }
-    vesa_render_rect(0, 8, get_screen_width(), get_screen_height() - 8);
+    vesa_render_rect(0, TASKBAR_HEIGHT, get_screen_width(), get_screen_height() - TASKBAR_HEIGHT);
 }
 
 Window* wm_create_window(uint32_t bg_color) {
     Window *win = (Window*)kmalloc(sizeof(Window));
     win->id = next_id++; win->bg_color = bg_color; win->text_color = 0xFFFFFF;
     win->cursor_x = 0; win->cursor_y = 0; win->workspace = current_workspace; 
-    win->is_fullscreen = 0; win->stretch_x = 100; win->stretch_y = 100; win->anim_scale = 30;
+    win->is_fullscreen = 0; win->stretch_x = 100; win->stretch_y = 100; win->anim_scale = 20;
     
     int total_chars = (get_screen_width() / 8) * (get_screen_height() / 8);
     win->char_buffer = (unsigned int*)kmalloc(total_chars * sizeof(unsigned int));

@@ -81,7 +81,9 @@ C_FILES = src/kernel.c \
 	src/graphics/taskbar.c \
 	src/programs/system/initd/initd.c \
 	src/graphics/interface.c \
-	src/drivers/AHCI/AHCI.c
+	src/drivers/AHCI/AHCI.c \
+	src/fs/vfs.c \
+	src/utils/sysconfig.c
 
 ASM_FILES = boot/kernel.asm boot/gdt.asm src/interrupt/interrupts.asm src/multitask/switch.asm src/memory/paging_a.asm
 

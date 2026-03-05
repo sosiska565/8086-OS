@@ -1,5 +1,6 @@
 #include <oslib.h>
 #include <stdarg.h>
+#include "string_lib.h"
 
 void print_char(unsigned int c){
     __asm__ volatile("int $0x80" : : "a"(0), "b"(c));
@@ -11,18 +12,16 @@ void print_colored(char *str, int color){
     for(int i = 0; str[i] != '\0'; i++) print_char_colored(str[i], color);
 }
 void print(char *str){
-    for(int i = 0; str[i] != '\0'; i++){
-        print_char(str[i]);
-    }
+    write_file(stdout, (uint8_t*)str, strlen(str));
 }
 void exit(void){
     __asm__ volatile("int $0x80" : : "a"(1));
 }
 
 unsigned int getc(void) {
-    unsigned int c;
-    __asm__ volatile("int $0x80" : "=a"(c) : "a"(2));
-    return c;
+    uint8_t buf[1];
+    read_file(stdin, buf);
+    return buf[0];
 }
 
 void gets(char *buffer, int max_len){
@@ -269,9 +268,16 @@ void vsprintf(unsigned int *str, const char *format, va_list args) {
     *str = '\0';
 }
 void print_unicode(unsigned int *str) {
-    for(int i = 0; str[i] != 0; i++){
-        print_char(str[i]);
+    char out[1024]; 
+    int pos = 0;
+    for(int i = 0; str[i] != 0 && pos < 1020; i++){
+        unsigned int c = str[i];
+        if (c < 0x80) { out[pos++] = c; }
+        else if (c < 0x800) { out[pos++] = 0xC0 | (c >> 6); out[pos++] = 0x80 | (c & 0x3F); }
+        else { out[pos++] = 0xE0 | (c >> 12); out[pos++] = 0x80 | ((c >> 6) & 0x3F); out[pos++] = 0x80 | (c & 0x3F); }
     }
+    out[pos] = '\0';
+    write_file(stdout, (uint8_t*)out, pos);
 }
 void printf(const char* format, ...) {
     unsigned int buffer[256];

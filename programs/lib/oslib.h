@@ -133,4 +133,8 @@ void system(char *cmd);
 int get_task_list(task_info_t *buffer, int max_tasks);
 void get_system_info(uint32_t *used, uint32_t *total, uint32_t *cpu);
 
+#define stdout "/dev/stdout"
+#define stderr "/dev/stderr"
+#define stdin  "/dev/stdin"
+
 #endif

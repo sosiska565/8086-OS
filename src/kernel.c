@@ -23,6 +23,8 @@
 #include "programs/system/initd/initd.h"
 #include "drivers/AHCI/AHCI.h"
 #include "drivers/file/ATA/ATA.h"
+#include "fs/vfs.h"
+#include "utils/sysconfig.h"
 
 unsigned short isReadMode = 1;
 int $;
@@ -87,6 +89,8 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     fat32_init();
     printf("[DEBUG] fat32_init() finished.\n");
 
+    vfs_init();
+
     srand(get_ticks());
 
     wm_init();
@@ -96,6 +100,7 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     printf("Tasking initialized.\n");
 
     printf("Please press any key to continue...\n");
+    // sysconfig_init();
     getch();
 
     create_process(initd, 0, 0, "initd", kernel_dir);
