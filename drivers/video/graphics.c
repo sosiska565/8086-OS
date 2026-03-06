@@ -10,17 +10,11 @@
 
 #define WINDOW_RADIUS 10
 
-#define ANIM_SPEED_OPEN  5
-#define ANIM_SPEED_CLOSE 5
-#define ANIM_SPEED_FS    10
-#define ANIM_STEPS_WS    60
-
 static int abs(int i) { return i < 0 ? -i : i; }
 
 Window *current_output_window = 0; Window *head = 0;
 int window_count = 0; int next_id = 1;
 Window *focused_window = 0;
-int global_anim_x = 0; 
 static uint32_t *blur_tmp_buffer = 0; 
 
 int is_window_visible(Window *win) {
@@ -52,7 +46,7 @@ void draw_rect_filled(int x, int y, int w, int h, uint32_t color) {
     }
 }
 
-static const int margin_cache_r10[10] = { 10, 7, 5, 4, 3, 2, 2, 1, 1, 0 }; // Предрасчет для R=10
+static const int margin_cache_r10[10] = { 10, 7, 5, 4, 3, 2, 2, 1, 1, 0 };
 
 static inline int get_circle_margin(int r, int y) {
     if (r == 10 && y >= 0 && y < 10) return margin_cache_r10[y];
@@ -98,46 +92,9 @@ void draw_rounded_rect_b(int x, int y, int w, int h, int r, int thickness, uint3
     }
 }
 
-
 void apply_tint_only(int x, int y, int w, int h, uint32_t tint) {
-    int bpp = screen_bpp / 8;
-    uint8_t *buf = (uint8_t*)back_buffer;
     
-    if (x < 0) { w += x; x = 0; }
-    if (y < 0) { h += y; y = 0; }
-    if (x + w > get_screen_width()) w = get_screen_width() - x;
-    if (y + h > get_screen_height()) h = get_screen_height() - y;
-    
-    if (w <= 0 || h <= 0) return;
-
-    uint32_t tr = (tint >> 16) & 0xFF;
-    uint32_t tg = (tint >> 8) & 0xFF;
-    uint32_t tb = tint & 0xFF;
-
-    for (int j = 0; j < h; j++) {
-        int r_margin = WINDOW_RADIUS;
-        int margin = 0;
-        if (j < r_margin) margin = get_circle_margin(r_margin, r_margin - j - 1);
-        else if (j >= h - r_margin) margin = get_circle_margin(r_margin, j - (h - r_margin));
-
-        uint8_t *dst_row = buf + ((y + j) * screen_pitch);
-        for (int i = margin; i < w - margin; i++) {
-            uint8_t *dst = dst_row + ((x + i) * bpp);
-            if (bpp == 4) {
-                uint32_t col = *(uint32_t*)dst;
-                uint32_t fr = (((col >> 16) & 0xFF) * 3 + tr) >> 2;
-                uint32_t fg = (((col >> 8) & 0xFF) * 3 + tg) >> 2;
-                uint32_t fb = ((col & 0xFF) * 3 + tb) >> 2;
-                *(uint32_t*)dst = (fr << 16) | (fg << 8) | fb;
-            } else {
-                dst[0] = (dst[0] * 3 + tb) >> 2;
-                dst[1] = (dst[1] * 3 + tg) >> 2;
-                dst[2] = (dst[2] * 3 + tr) >> 2;
-            }
-        }
-    }
 }
-
 
 void apply_blur(int x, int y, int w, int h, uint32_t tint) {
     if (x < 0) { w += x; x = 0; }
@@ -149,103 +106,79 @@ void apply_blur(int x, int y, int w, int h, uint32_t tint) {
 
     int bpp = screen_bpp / 8;
     uint8_t *buf = (uint8_t*)back_buffer;
-    
-    int radius = blur_radius;
-    if (radius > 16) radius = 16; 
-
+    int radius = 8; // Фиксированный радиус для стабильности
     int div = radius * 2 + 1;
     uint32_t inv_div = (1 << 16) / div; 
 
-    
+    // Проход 1: Горизонтальное размытие с защитой краев
     for (int j = 0; j < h; j++) {
-        uint32_t sum_r = 0, sum_g = 0, sum_b = 0;
+        int sum_r = 0, sum_g = 0, sum_b = 0;
         uint8_t *row_src = buf + ((y + j) * screen_pitch);
 
         for (int i = -radius; i <= radius; i++) {
-            int px = i < 0 ? 0 : (i >= w ? w - 1 : i);
+            // Clamping по горизонтали: px не выйдет за [0, w-1]
+            int px = (i < 0) ? 0 : (i >= w ? w - 1 : i);
             uint8_t *src = row_src + (x + px) * bpp;
-            if (bpp == 4) {
-                uint32_t col = *(uint32_t*)src;
-                sum_r += (col >> 16) & 0xFF; sum_g += (col >> 8) & 0xFF; sum_b += col & 0xFF;
-            } else {
-                sum_b += src[0]; sum_g += src[1]; sum_r += src[2];
-            }
+            sum_b += src[0]; sum_g += src[1]; sum_r += src[2];
         }
 
         for (int i = 0; i < w; i++) {
-            blur_tmp_buffer[j * w + i] = (((sum_r * inv_div) >> 16) << 16) | (((sum_g * inv_div) >> 16) << 8) | ((sum_b * inv_div) >> 16);
+            blur_tmp_buffer[j * w + i] = (((sum_r * inv_div) >> 16) << 16) | 
+                                         (((sum_g * inv_div) >> 16) << 8) | 
+                                          ((sum_b * inv_div) >> 16);
 
-            int left_px = i - radius < 0 ? 0 : i - radius;
-            uint8_t *left_src = row_src + (x + left_px) * bpp;
+            int left_px = (i - radius < 0) ? 0 : i - radius;
+            int right_px = (i + radius + 1 >= w) ? w - 1 : i + radius + 1;
+            
+            uint8_t *l_src = row_src + (x + left_px) * bpp;
+            uint8_t *r_src = row_src + (x + right_px) * bpp;
 
-            int right_px = i + radius + 1 >= w ? w - 1 : i + radius + 1;
-            uint8_t *right_src = row_src + (x + right_px) * bpp;
-
-            if (bpp == 4) {
-                uint32_t l_col = *(uint32_t*)left_src;
-                uint32_t r_col = *(uint32_t*)right_src;
-                sum_r += ((r_col >> 16) & 0xFF) - ((l_col >> 16) & 0xFF);
-                sum_g += ((r_col >> 8) & 0xFF) - ((l_col >> 8) & 0xFF);
-                sum_b += (r_col & 0xFF) - (l_col & 0xFF);
-            } else {
-                sum_r += right_src[2] - left_src[2];
-                sum_g += right_src[1] - left_src[1];
-                sum_b += right_src[0] - left_src[0];
-            }
+            sum_r += (int)r_src[2] - (int)l_src[2];
+            sum_g += (int)r_src[1] - (int)l_src[1];
+            sum_b += (int)r_src[0] - (int)l_src[0];
         }
     }
 
-    uint32_t tr = (tint >> 16) & 0xFF;
-    uint32_t tg = (tint >> 8) & 0xFF;
-    uint32_t tb = tint & 0xFF;
-
-    
+    // Проход 2: Вертикальное размытие (исправляет зазор в шапке)
     for (int i = 0; i < w; i++) {
-        uint32_t sum_r = 0, sum_g = 0, sum_b = 0;
+        int sum_r = 0, sum_g = 0, sum_b = 0;
 
         for (int j = -radius; j <= radius; j++) {
-            int py = j < 0 ? 0 : (j >= h ? h - 1 : j);
+            // Clamping по вертикали: py не станет отрицательным!
+            int py = (j < 0) ? 0 : (j >= h ? h - 1 : j);
             uint32_t col = blur_tmp_buffer[py * w + i];
             sum_r += (col >> 16) & 0xFF; sum_g += (col >> 8) & 0xFF; sum_b += col & 0xFF;
         }
 
         for (int j = 0; j < h; j++) {
-            uint32_t final_r = (sum_r * inv_div) >> 16;
-            uint32_t final_g = (sum_g * inv_div) >> 16;
-            uint32_t final_b = (sum_b * inv_div) >> 16;
-            
-            final_r = (final_r * 3 + tr) >> 2;
-            final_g = (final_g * 3 + tg) >> 2;
-            final_b = (final_b * 3 + tb) >> 2;
-            uint32_t final_col = (final_r << 16) | (final_g << 8) | final_b;
-            
-            int r_margin = WINDOW_RADIUS;
-            int margin = 0;
-            if (j < r_margin) margin = get_circle_margin(r_margin, r_margin - j - 1);
-            else if (j >= h - r_margin) margin = get_circle_margin(r_margin, j - (h - r_margin));
-            
-            if (i >= margin && i < w - margin) {
-                uint8_t *dst = buf + ((y + j) * screen_pitch) + ((x + i) * bpp);
-                if (bpp == 4) *(uint32_t*)dst = final_col;
-                else { dst[0] = final_col & 0xFF; dst[1] = (final_col >> 8) & 0xFF; dst[2] = (final_col >> 16) & 0xFF; }
-            }
-            
-            int top_py = j - radius < 0 ? 0 : j - radius;
-            uint32_t top_col = blur_tmp_buffer[top_py * w + i];
-            
-            int bot_py = j + radius + 1 >= h ? h - 1 : j + radius + 1;
-            uint32_t bot_col = blur_tmp_buffer[bot_py * w + i];
-            
-            sum_r += ((bot_col >> 16) & 0xFF) - ((top_col >> 16) & 0xFF);
-            sum_g += ((bot_col >> 8) & 0xFF) - ((top_col >> 8) & 0xFF);
-            sum_b += (bot_col & 0xFF) - (top_col & 0xFF);
+            int r = (sum_r * inv_div) >> 16;
+            int g = (sum_g * inv_div) >> 16;
+            int b = (sum_b * inv_div) >> 16;
+
+            // Накладываем тинт (цвет окна)
+            r = (r * 3 + ((tint >> 16) & 0xFF)) >> 2;
+            g = (g * 3 + ((tint >> 8) & 0xFF)) >> 2;
+            b = (b * 3 + (tint & 0xFF)) >> 2;
+
+            uint8_t *dst = buf + ((y + j) * screen_pitch) + ((x + i) * bpp);
+            dst[0] = b; dst[1] = g; dst[2] = r;
+
+            int top_py = (j - radius < 0) ? 0 : j - radius;
+            int bot_py = (j + radius + 1 >= h) ? h - 1 : j + radius + 1;
+
+            uint32_t t_col = blur_tmp_buffer[top_py * w + i];
+            uint32_t b_col = blur_tmp_buffer[bot_py * w + i];
+
+            sum_r += (int)((b_col >> 16) & 0xFF) - (int)((t_col >> 16) & 0xFF);
+            sum_g += (int)((b_col >> 8) & 0xFF) - (int)((t_col >> 8) & 0xFF);
+            sum_b += (int)(b_col & 0xFF) - (int)(t_col & 0xFF);
         }
     }
 }
 
 void window_restore_bg(Window *win, int local_x, int local_y, int w, int h) {
     if (!is_window_visible(win)) return;
-    if (!win->cached_bg || win->anim_scale < 100 || !win->blur) {
+    if (!win->cached_bg || !win->blur) {
         window_draw_rect_filled(win, local_x, local_y, w, h, win->bg_color);
         return;
     }
@@ -456,7 +389,6 @@ void window_putc(Window *win, unsigned int c) {
     }
 }
 
-
 int old_mx = -1, old_my = -1;
 void wm_update_cursor() {
     int bpp = screen_bpp / 8;
@@ -493,10 +425,8 @@ void wm_update_cursor() {
     }
 }
 
-
 void wm_init(){ 
     head = 0; window_count = 0; 
-    
     if (!blur_tmp_buffer) {
         blur_tmp_buffer = kmalloc_a(get_screen_width() * get_screen_height() * sizeof(uint32_t));
     }
@@ -508,32 +438,33 @@ void wm_render_window(Window *win) {
 }
 
 void wm_animate_open(Window *win) {
-    for(int p = 0; p <= 100; p += ANIM_SPEED_OPEN) { win->anim_scale = p; wm_refresh(); }
-    win->anim_scale = 100; wm_refresh();
+    win->anim_scale = 100; 
+    wm_refresh();
 }
 
 void wm_animate_close(Window *win) {
-    for(int p = 100; p >= 0; p -= ANIM_SPEED_CLOSE) { win->anim_scale = p; wm_refresh(); }
-    win->anim_scale = 0; wm_refresh();
+    win->anim_scale = 0; 
 }
 
 void wm_toggle_fullscreen() {
     if (!focused_window) return;
-    for(int p = 100; p >= 50; p -= ANIM_SPEED_FS) { focused_window->anim_scale = p; wm_refresh(); }
     focused_window->is_fullscreen = !focused_window->is_fullscreen;
-    for(int p = 50; p <= 100; p += ANIM_SPEED_FS) { focused_window->anim_scale = p; wm_refresh(); }
-    focused_window->anim_scale = 100; wm_refresh();
+    focused_window->anim_scale = 100; 
+    wm_refresh();
 }
 
 void wm_switch_workspace(int dir) {
-    int sw = get_screen_width();
-    for (int i = 1; i <= ANIM_STEPS_WS; i++) { global_anim_x = -dir * (i * (sw / ANIM_STEPS_WS)); wm_refresh(); }
     current_workspace += dir;
-    if (current_workspace < 0) current_workspace = 3; if (current_workspace > 3) current_workspace = 0;
-    focused_window = 0; Window *curr = head;
-    while(curr) { if (curr->workspace == current_workspace) { focused_window = curr; break; } curr = curr->next; }
-    for (int i = ANIM_STEPS_WS; i >= 0; i--) { global_anim_x = dir * (i * (sw / ANIM_STEPS_WS)); wm_refresh(); }
-    global_anim_x = 0; wm_refresh();
+    if (current_workspace < 0) current_workspace = 3; 
+    if (current_workspace > 3) current_workspace = 0;
+    
+    focused_window = 0; 
+    Window *curr = head;
+    while(curr) { 
+        if (curr->workspace == current_workspace) { focused_window = curr; break; } 
+        curr = curr->next; 
+    }
+    wm_refresh();
 }
 
 void wm_swap_window(int dir) {
@@ -564,7 +495,6 @@ void wm_swap_window(int dir) {
     n_tail->next = 0; head = n_head; wm_refresh();
 }
 
-
 void wm_refresh() {
     int bpp_bytes = screen_bpp / 8;
     if (wallpaper_buf) {
@@ -588,22 +518,10 @@ void wm_refresh() {
             fs_win->width = get_screen_width() - wm_gaps * 2; fs_win->height = get_screen_height() - TASKBAR_HEIGHT - wm_gaps * 2;
             fs_win->cols = fs_win->width / (8 * font_scale); fs_win->rows = fs_win->height / (8 * font_scale);
             
-            int r_x = fs_win->x + global_anim_x, r_y = fs_win->y;
-            int r_w = fs_win->width; int r_h = fs_win->height;
+            int r_x = fs_win->x, r_y = fs_win->y;
+            int r_w = fs_win->width, r_h = fs_win->height;
             
-            if (fs_win->anim_scale < 100) {
-                r_w = (fs_win->width * fs_win->anim_scale) / 100;
-                r_h = (fs_win->height * fs_win->anim_scale) / 100;
-                r_x += (fs_win->width - r_w) / 2; r_y += (fs_win->height - r_h) / 2;
-            }
-
-            if (fs_win->blur) {
-                if (fs_win->anim_scale < 100 || global_anim_x != 0) {
-                    apply_tint_only(r_x, r_y, r_w, r_h, fs_win->bg_color);
-                } else {
-                    apply_blur(r_x, r_y, r_w, r_h, fs_win->bg_color);
-                }
-            }
+            if (fs_win->blur) apply_blur(r_x, r_y, r_w, r_h, fs_win->bg_color);
 
             draw_rounded_rect_b(r_x - 2, r_y - 2, r_w + 4, r_h + 4, WINDOW_RADIUS + 2, 2, window_active_border_color);
             if (!fs_win->blur) draw_rounded_rect_filled(r_x, r_y, r_w, r_h, WINDOW_RADIUS, fs_win->bg_color);
@@ -613,7 +531,7 @@ void wm_refresh() {
                 fs_win->cached_bg = kmalloc(r_w * r_h * 4);
                 fs_win->cached_bg_w = r_w; fs_win->cached_bg_h = r_h;
             }
-            if (fs_win->cached_bg && fs_win->anim_scale == 100) {
+            if (fs_win->cached_bg) {
                 for (int cy = 0; cy < r_h; cy++) {
                     uint8_t *src = (uint8_t*)back_buffer + ((r_y + cy) * screen_pitch) + r_x * bpp_bytes;
                     uint32_t *dst = fs_win->cached_bg + cy * r_w;
@@ -624,7 +542,8 @@ void wm_refresh() {
                 }
             }
 
-            if (global_anim_x == 0 && fs_win->anim_scale == 100) window_redraw_content(fs_win);
+            window_redraw_content(fs_win);
+
         } else {
             int cols = count < max_grid_cols ? count : max_grid_cols; if (cols < 1) cols = 1;
             int rows = (count + cols - 1) / cols;
@@ -647,23 +566,11 @@ void wm_refresh() {
                     win->width = win_w; win->height = row_h;
                     win->cols = win->width / (8 * font_scale); win->rows = win->height / (8 * font_scale);
 
-                    int r_x = win->x + global_anim_x, r_y = win->y;
+                    int r_x = win->x, r_y = win->y;
                     int r_w = win->width, r_h = win->height;
-
-                    if (win->anim_scale < 100) {
-                        r_w = (win->width * win->anim_scale) / 100; r_h = (win->height * win->anim_scale) / 100;
-                        r_x += (win->width - r_w) / 2; r_y += (win->height - r_h) / 2;
-                    }
-
                     uint32_t f_col = (win == focused_window) ? window_active_border_color : window_border_color;
-                    
-                    if (win->blur) {
-                        if (win->anim_scale < 100 || global_anim_x != 0) {
-                            apply_tint_only(r_x, r_y, r_w, r_h, win->bg_color);
-                        } else {
-                            apply_blur(r_x, r_y, r_w, r_h, win->bg_color);
-                        }
-                    }
+
+                    if (win->blur) apply_blur(r_x, r_y, r_w, r_h, win->bg_color);
 
                     draw_rounded_rect_b(r_x - 2, r_y - 2, r_w + 4, r_h + 4, WINDOW_RADIUS + 2, 2, f_col);
                     if (!win->blur) draw_rounded_rect_filled(r_x, r_y, r_w, r_h, WINDOW_RADIUS, win->bg_color);
@@ -673,7 +580,7 @@ void wm_refresh() {
                         win->cached_bg = kmalloc(r_w * r_h * 4);
                         win->cached_bg_w = r_w; win->cached_bg_h = r_h;
                     }
-                    if (win->cached_bg && win->anim_scale == 100) {
+                    if (win->cached_bg) {
                         for (int cy = 0; cy < r_h; cy++) {
                             uint8_t *src = (uint8_t*)back_buffer + ((r_y + cy) * screen_pitch) + r_x * bpp_bytes;
                             uint32_t *dst = win->cached_bg + cy * r_w;
@@ -684,7 +591,8 @@ void wm_refresh() {
                         }
                     }
 
-                    if (win->anim_scale == 100 && global_anim_x == 0) window_redraw_content(win);
+                    window_redraw_content(win);
+                    
                     current_x += win_w + wm_gaps;
                 }
                 current_y += row_h + wm_gaps;
@@ -697,17 +605,28 @@ void wm_refresh() {
 
 Window* wm_create_window(uint32_t bg_color) {
     Window *win = (Window*)kmalloc(sizeof(Window));
+    if (!win) return 0; 
+    
     win->id = next_id++; 
     win->blur = (bg_color & 0x80000000) ? 1 : 0;
     win->bg_color = bg_color & 0x00FFFFFF; 
     win->text_color = 0xFFFFFF;
     win->cursor_x = 0; win->cursor_y = 0; win->workspace = current_workspace; 
-    win->is_fullscreen = 0; win->stretch_x = 100; win->stretch_y = 100; win->anim_scale = 20; 
+    win->is_fullscreen = 0; win->stretch_x = 100; win->stretch_y = 100; 
+    win->anim_scale = 100; 
     win->cached_bg = 0; win->cached_bg_w = 0; win->cached_bg_h = 0;
     
     int total_chars = (get_screen_width() / 8) * (get_screen_height() / 8);
     win->char_buffer = (unsigned int*)kmalloc(total_chars * sizeof(unsigned int));
     win->color_buffer = (uint32_t*)kmalloc(total_chars * 4);
+    
+    if (!win->char_buffer || !win->color_buffer) {
+        if(win->char_buffer) kfree(win->char_buffer);
+        if(win->color_buffer) kfree(win->color_buffer);
+        kfree(win);
+        return 0;
+    }
+    
     for(int i = 0; i < total_chars; i++) { win->char_buffer[i] = ' '; win->color_buffer[i] = win->bg_color; }
 
     win->next = head; head = win; window_count++;
@@ -721,7 +640,8 @@ void wm_close_window(Window *win) {
     if (win->workspace == current_workspace) wm_animate_close(win); 
     if (win == head) head = head->next;
     else { Window *p = head; while(p->next && p->next != win) p=p->next; if(p->next == win) p->next = win->next; }
-    kfree(win->char_buffer); kfree(win->color_buffer);
+    if (win->char_buffer) kfree(win->char_buffer); 
+    if (win->color_buffer) kfree(win->color_buffer);
     if(win->cached_bg) kfree(win->cached_bg); 
     kfree(win); window_count--;
     if (focused_window == win) { focused_window = head; if (head) set_current_output_window(head); else set_current_output_window(0); }

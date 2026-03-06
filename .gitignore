@@ -2,6 +2,5 @@
 .vscode
 iso
 os.iso
-kernel
 disk.img
 prop.txt

@@ -5,12 +5,12 @@
 #include "drivers/video/graphics.h"
 #include "system_apps/console/console.h"
 #include "global.h"
+#include "drivers/timer/timer.h" 
 
 #define BUFFER_SIZE 256
 
 static uint8_t shift_pressed = 0;
 static uint8_t caps_lock = 0;
-
 
 static unsigned int key_buffer[BUFFER_SIZE];
 static volatile int buffer_count = 0;
@@ -183,6 +183,12 @@ void keyboard_handler_c(void) {
     uint8_t is_release = (scancode & 0x80);
     uint8_t make_code = scancode & 0x7F;
     
+    
+    static unsigned long last_console_open = 0;
+    static unsigned long last_kill_time = 0;
+    static unsigned long last_focus_time = 0;
+    static unsigned long last_ws_time = 0;
+
     if (make_code == 0x2A || make_code == 0x36) shift_pressed = !is_release;
     else if (make_code == 0x3A && !is_release) caps_lock = !caps_lock;
 
@@ -191,13 +197,11 @@ void keyboard_handler_c(void) {
     if (make_code == 0x38) alt_held = !is_release;
     if (make_code == 0x1D) ctrl_held = !is_release;
 
-    
     if (ctrl_held && alt_held && shift_pressed && !is_release && focused_window) {
         if (make_code == key_ws_left || make_code == key_resize_up) { wm_swap_window(-1); return; }
         if (make_code == key_ws_right || make_code == key_resize_down) { wm_swap_window(1); return; }
     }
 
-    
     if (alt_held && shift_pressed && !ctrl_held && !is_release && focused_window) {
         if (make_code == key_resize_left) {
             focused_window->stretch_x -= 10;
@@ -221,16 +225,35 @@ void keyboard_handler_c(void) {
 
     
     if (alt_held && !shift_pressed && !ctrl_held && !is_release) {
-        if (make_code == key_ws_left) { wm_switch_workspace(-1); return; }
-        if (make_code == key_ws_right) { wm_switch_workspace(1); return; }
+        if (get_ticks() - last_ws_time > 200) {
+            if (make_code == key_ws_left) { wm_switch_workspace(-1); last_ws_time = get_ticks(); return; }
+            if (make_code == key_ws_right) { wm_switch_workspace(1); last_ws_time = get_ticks(); return; }
+        } else {
+            if (make_code == key_ws_left || make_code == key_ws_right) return;
+        }
     }
 
     if (shift_pressed && make_code == key_fullscreen && !is_release) { wm_toggle_fullscreen(); return; }
-
     if (alt_held && make_code == key_layout && !is_release) { current_layout = !current_layout; return; }
-    if (alt_held && make_code == key_focus && !is_release) { wm_switch_focus(); return; }
-    if (alt_held && make_code == key_kill && !is_release){ kill_focused_process(); keyboard_flush(); return; }
-    if (alt_held && make_code == key_console && !is_release){ create_process((void (*)(int, char**))console.main, 0, 0, "console", kernel_dir); return; }
+    
+    
+    if (alt_held && make_code == key_focus && !is_release) { 
+        wm_switch_focus(); last_focus_time = get_ticks();
+        return; 
+    }
+    
+    
+    if (alt_held && make_code == key_kill && !is_release){ 
+        kill_focused_process(); keyboard_flush(); last_kill_time = get_ticks();
+        return; 
+    }
+
+    
+    if (alt_held && make_code == key_console && !is_release){ 
+        create_process((void (*)(int, char**))console.main, 0, 0, "console", kernel_dir); 
+        last_console_open = get_ticks();
+        return; 
+    }
     
     if (!is_release) {
         add_scancode_to_buffer(make_code);
