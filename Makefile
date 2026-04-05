@@ -3,12 +3,12 @@ CC      = gcc
 LD      = ld
 NASM    = nasm
 
-
 KERNEL_CFLAGS = -O1 -m32 -fno-pie -fno-stack-protector -ffreestanding -nostdlib -nostartfiles \
+                -mno-sse -mno-sse2 -mno-mmx -mno-80387 -mgeneral-regs-only \
                 -I . -I kernel -I kernel/include -I system_apps
 
-
 USER_CFLAGS   = -O1 -m32 -fno-pie -fno-stack-protector -ffreestanding -nostdlib -nostartfiles \
+                -mno-sse -mno-sse2 -mno-mmx -mno-80387 -mgeneral-regs-only \
                 -I userland/lib
 
 LDFLAGS   = -m elf_i386 -T link.ld -z execstack
@@ -17,9 +17,10 @@ NASMFLAGS = -f elf32
 ISO      = os.iso
 DISK_IMG = disk.img
 DISK_DIR = disk
+
+
+PATH_DIR = $(DISK_DIR)/path
 KERNEL_BIN = os_kernel.bin
-
-
 
 KERNEL_C_SOURCES   := $(shell find kernel drivers fs system_apps -name '*.c')
 KERNEL_ASM_SOURCES := boot/kernel.asm boot/gdt.asm $(shell find kernel -name '*.asm')
@@ -35,13 +36,12 @@ LIB_ASM_OBJS    := $(LIB_ASM_SOURCES:.asm=.o)
 LIB_OBJS        := $(LIB_ASM_OBJS) $(LIB_C_OBJS)
 
 USER_SOURCES    := $(wildcard userland/apps/*.c)
-USER_BINS       := $(patsubst userland/apps/%.c, $(DISK_DIR)/%.bin, $(USER_SOURCES))
+USER_BINS       := $(patsubst userland/apps/%.c, $(PATH_DIR)/%.bin, $(USER_SOURCES))
 
 .PHONY: all clean run build-all iso
 
 all: $(KERNEL_BIN) $(USER_BINS)
 	@echo "✅ Сборка успешно завершена! ✅"
-
 
 $(KERNEL_BIN): $(KERNEL_OBJS)
 	@echo "Линковка ядра..."
@@ -55,7 +55,6 @@ $(KERNEL_BIN): $(KERNEL_OBJS)
 	@echo "NASM Kernel $<"
 	@$(NASM) $(NASMFLAGS) $< -o $@
 
-
 userland/lib/%.o: userland/lib/%.c
 	@echo "CC Lib $<"
 	@$(CC) $(USER_CFLAGS) -c $< -o $@
@@ -64,18 +63,19 @@ userland/lib/%.o: userland/lib/%.asm
 	@echo "NASM Lib $<"
 	@$(NASM) $(NASMFLAGS) $< -o $@
 
-$(DISK_DIR)/%.bin: userland/apps/%.c $(LIB_OBJS)
-	@mkdir -p $(DISK_DIR)
+$(PATH_DIR)/%.bin: userland/apps/%.c $(LIB_OBJS)
+	@mkdir -p $(PATH_DIR)
 	@echo "CC App $<"
 	@$(CC) $(USER_CFLAGS) -c $< -o userland/apps/$*.o
 	@$(LD) -m elf_i386 -T userland/app.ld -o $@ userland/apps/$*.o $(LIB_OBJS)
-
 
 $(DISK_IMG): $(USER_BINS)
 	@echo "Создание диска FAT32..."
 	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=64 status=none
 	@mkfs.fat -F 32 -n "8086OS" $(DISK_IMG) > /dev/null
-	@mcopy -i $(DISK_IMG) -s $(DISK_DIR)/* ::/
+	@mkdir -p $(PATH_DIR)
+	@echo "Копируем данные на образ..."
+	@mcopy -i $(DISK_IMG) -s $(DISK_DIR)/* ::/ || true
 
 iso: $(KERNEL_BIN)
 	@mkdir -p iso/boot/grub
@@ -103,11 +103,12 @@ run: clean build-all
 		-device ide-hd,drive=disk1,bus=ahci.0 \
 		-drive file=$(ISO),format=raw,if=none,id=cd1 \
 		-device ide-cd,drive=cd1,bus=ahci.1 \
-		-boot d -rtc base=localtime -m 2g
+		-boot d -rtc base=localtime -m 2g \
+		-display gtk,zoom-to-fit=on
 
 clean:
 	@echo "Очистка..."
 	@find . -name "*.o" -type f -delete
 	@rm -f $(KERNEL_BIN) $(DISK_IMG) $(ISO)
 	@rm -rf iso
-	@rm -f $(DISK_DIR)/*.bin
+	@rm -rf $(DISK_DIR)

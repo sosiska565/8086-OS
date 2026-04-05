@@ -37,4 +37,6 @@ const char* utf8_to_unicode(const char* s, unsigned int* code);
 void panic_with_regs(registers_t *regs, char *msg);
 void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color);
 
+void get_absolute_path(char* cwd, char* input_path, char* output_path);
+
 #endif

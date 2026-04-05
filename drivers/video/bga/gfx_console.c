@@ -1,4 +1,6 @@
+#include "drivers/video/bga/gfx_console.h"
 #include "drivers/video/vesa.h"
+#include "mm/memory.h"
 
 static int term_x = 0;
 static int term_y = 0;
@@ -13,6 +15,7 @@ int term_rows = 0;
 
 extern int screen_width;
 extern int screen_height;
+extern int screen_pitch;
 extern uint32_t *video_memory;
 extern uint32_t *back_buffer;
 
@@ -24,20 +27,19 @@ void init_gfx_console(void) {
 }
 
 void gfx_scroll(void) {
-    uint32_t *vram = back_buffer ? back_buffer : video_memory;
+    uint8_t *vram = (uint8_t *)(back_buffer ? back_buffer : video_memory);
     
-    uint32_t *dest = vram;
-    uint32_t *src = vram + (screen_width * FONT_H);
     
-    int count = (screen_height - FONT_H) * screen_width;
+    int row_bytes = screen_pitch * FONT_H;
+    int copy_bytes = screen_pitch * (screen_height - FONT_H);
     
-    for (int i = 0; i < count; i++) {
-        dest[i] = src[i];
-    }
+    fast_memcpy(vram, vram + row_bytes, copy_bytes);
     
-    int last_line_offset = (screen_height - FONT_H) * screen_width;
-    for (int i = 0; i < FONT_H * screen_width; i++) {
-        vram[last_line_offset + i] = term_bg_color;
+    
+    for(int y = screen_height - FONT_H; y < screen_height; y++) {
+        for(int x = 0; x < screen_width; x++) {
+            put_pixel(x, y, term_bg_color, 1);
+        }
     }
 }
 
@@ -45,75 +47,54 @@ void gfx_putc(unsigned int c) {
     if (term_cols == 0 || term_rows == 0) return; 
 
     if (c == '\n') {
-        
-        vesa_render_rect(0, term_y * FONT_H, screen_width, FONT_H);
         term_x = 0;
         term_y++;
     } 
+    else if (c == '\t'){
+        term_x += 4;
+    }
     else if (c == '\b') {
-        if (term_x > 0) {
-            term_x--;
-        } else if (term_y > 0) {
-            term_x = term_cols - 1;
-            term_y--;
-        } else {
-            return;
-        }
+        if (term_x > 0) term_x--;
+        else if (term_y > 0) { term_x = term_cols - 1; term_y--; }
         
         for(int y=0; y<FONT_H; y++) {
             for(int x=0; x<FONT_W; x++) {
                 put_pixel(term_x * FONT_W + x, term_y * FONT_H + y, term_bg_color, 1);
             }
         }
+        
         vesa_render_rect(term_x * FONT_W, term_y * FONT_H, FONT_W, FONT_H);
     } 
     else if (c >= 32) {
         vesa_draw_char(term_x * FONT_W, term_y * FONT_H, c, term_fg_color, term_bg_color);
         
+        vesa_render_rect(term_x * FONT_W, term_y * FONT_H, FONT_W, FONT_H);
         term_x++;
     }
 
     if (term_x >= term_cols) {
-        
-        vesa_render_rect(0, term_y * FONT_H, screen_width, FONT_H);
         term_x = 0;
         term_y++;
     }
 
     if (term_y >= term_rows) {
         gfx_scroll();
-        
         vesa_render_rect(0, 0, screen_width, screen_height);
         term_y = term_rows - 1;
     }
 }
 
 void gfx_print(char *str) {
-    while (*str) {
-        gfx_putc(*str++);
-    }
+    while (*str) gfx_putc(*str++);
 }
 
-void gfx_set_color(uint32_t fg) {
-    term_fg_color = fg;
-}
+void gfx_set_color(uint32_t fg) { term_fg_color = fg; }
+void gfx_set_bg_color(uint32_t bg) { term_bg_color = bg; }
 
 void gfx_set_cursor(int x, int y) {
-    if (x < 0) x = 0;
-    if (x >= term_cols) x = term_cols - 1;
-    
-    if (y < 0) y = 0;
-    if (y >= term_rows) y = term_rows - 1;
-
-    term_x = x;
-    term_y = y;
+    if (x < 0) x = 0; if (x >= term_cols) x = term_cols - 1;
+    if (y < 0) y = 0; if (y >= term_rows) y = term_rows - 1;
+    term_x = x; term_y = y;
 }
 
-void gfx_get_cursor(int *x, int *y) {
-    *x = term_x;
-    *y = term_y;
-}
-
-void gfx_set_bg_color(uint32_t bg) {
-    term_bg_color = bg;
-}
+void gfx_get_cursor(int *x, int *y) { *x = term_x; *y = term_y; }

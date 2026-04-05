@@ -33,5 +33,7 @@ void cmd_kill(char **tokens);
 void cmd_writemode(char **tokens);
 void cmd_disks(char **tokens);
 void cmd_use(char **tokens);
+void cmd_cd(char **tokens);
+void cmd_mkdir(char **tokens);
 
 #endif

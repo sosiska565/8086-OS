@@ -13,8 +13,8 @@ section .text
     dd 0, 0, 0, 0, 0
 
     dd 0       
-    dd 1920
-    dd 1080
+    dd 800
+    dd 600
     dd 32
 
     ;1280x1024

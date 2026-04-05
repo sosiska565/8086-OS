@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "fs/vfs.h"
+
 struct fat32_bpb {
     uint8_t  jmp_boot[3];
     uint8_t  oem_name[8];
@@ -51,10 +53,13 @@ struct fat_directory_entry {
 } __attribute__((packed));
 
 void fat32_init();
-void fat32_ls();
 int fat32_read_file(char* filename, uint8_t* out_buffer);
 int fat32_get_file_size(char* file_name);
 int fat32_write_file(char* filename, uint8_t* buffer, uint32_t size);
 int fat32_delete_file(char* filename);
+int fat32_readdir(char* path, int index, vfs_dirent_t* out_dirent);
+uint32_t fat32_get_cluster_for_path(char* path, uint8_t* out_type, uint32_t* out_size);
+int fat32_mkdir(char* path);
+uint32_t fat32_find_free_cluster();
 
 #endif

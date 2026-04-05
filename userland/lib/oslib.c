@@ -1,342 +1,114 @@
 #include <oslib.h>
-#include <stdarg.h>
-#include "string_lib.h"
 
-void print_char(unsigned int c){
-    __asm__ volatile("int $0x80" : : "a"(0), "b"(c));
-}
-void print_char_colored(char c, int color){
-    __asm__ volatile("int $0x80" : : "a"(7), "b"(c), "c"(color));
-}
-void print_colored(char *str, int color){
-    for(int i = 0; str[i] != '\0'; i++) print_char_colored(str[i], color);
-}
-void print(char *str){
-    write_file(stdout, (uint8_t*)str, strlen(str));
-}
-void exit(void){
-    __asm__ volatile("int $0x80" : : "a"(1));
-}
+int read(int fd, void *buf, uint32_t count) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(3), "b"(fd), "c"(buf), "d"(count) : "memory"); return ret; }
+int write(int fd, const void *buf, uint32_t count) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(4), "b"(fd), "c"(buf), "d"(count) : "memory"); return ret; }
+void exit(void) { __asm__ volatile("int $0x80" : : "a"(1)); while(1); }
 
-unsigned int getc(void) {
-    uint8_t buf[1];
-    read_file(stdin, buf);
-    return buf[0];
-}
+void print_char(unsigned int c) { char ch = (char)c; write(1, &ch, 1); }
+void print(char *str) { write(1, str, strlen(str)); }
 
-void gets(char *buffer, int max_len){
+
+void vsprintf(char *str, const char *format, va_list args) {
     int pos = 0;
-    while(1) {
-        unsigned int c = getc();
-        if (c == '\n') {
-            buffer[pos] = '\0';
-            print("\n");
-            return;
-        } else if (c == '\b') {
-            if (pos > 0) {
-                pos--;
-                while (pos > 0 && (buffer[pos] & 0xC0) == 0x80) pos--;
-                buffer[pos] = '\0';
-                print("\b \b");
-            }
-        } else if (c != 0) {
-            char tmp[4];
-            int bytes = 0;
-            if (c < 0x80) { tmp[0] = c; bytes = 1; }
-            else if (c < 0x800) { tmp[0] = 0xC0 | (c >> 6); tmp[1] = 0x80 | (c & 0x3F); bytes = 2; }
-            else { tmp[0] = 0xE0 | (c >> 12); tmp[1] = 0x80 | ((c >> 6) & 0x3F); tmp[2] = 0x80 | (c & 0x3F); bytes = 3; }
-            
-            if (pos + bytes < max_len - 1) {
-                for(int i=0; i<bytes; i++) buffer[pos++] = tmp[i];
-                print_char(c);
-            }
-        }
-    }
-}
-
-void *malloc(int size){
-    void *ptr;
-    __asm__ volatile("int $0x80" : "=a"(ptr) : "a"(4), "b"(size));
-    return ptr;
-}
-void free(void *ptr){
-    __asm__ volatile("int $0x80" : : "a"(5), "b"(ptr));
-}
-void cls(void){
-    __asm__ volatile("int $0x80" : : "a"(6));
-}
-unsigned long random(void){
-    unsigned long rnd;
-    __asm__ volatile("int $0x80" : "=a"(rnd) : "a"(8));
-    return rnd;
-}
-void print_number(int number){
-    __asm__ volatile("int $0x80" : : "a"(9), "b"(number));
-}
-unsigned long randmm(unsigned long min, unsigned long max){
-    return min + random() % (max - min + 1);
-}
-void set_cursor_position(unsigned int x, unsigned int y){
-    __asm__ volatile("int $0x80" : : "a"(11), "b"(x), "c"(y));
-}
-void set_background_color(vga_color_t color){
-    __asm__ volatile("int $0x80" : : "a"(12), "b"(color));
-}
-void set_text_color(vga_color_t color){
-    __asm__ volatile("int $0x80" : : "a"(13), "b"(color));
-}
-void get_cursor_xy(unsigned int *x, unsigned int *y){
-    __asm__ volatile("int $0x80" : : "a"(14), "b"(x), "c"(y));
-}
-vga_color_t get_current_color(void){
-    vga_color_t color;
-    __asm__ volatile("int $0x80" : "=a"(color) : "a"(15));
-    return color;
-}
-void set_current_color(vga_color_t color){
-    __asm__ volatile("int $0x80" : : "a"(16), "b"(color));
-}
-int read_file(char *file_name, uint8_t *file_buffer){
-    int sizefile;
-    __asm__ volatile("int $0x80" : "=a"(sizefile) : "a"(10), "b"(file_name), "c"(file_buffer));
-    return sizefile;
-}
-void printhex(unsigned int num){
-    __asm__ volatile("int $0x80" : : "a"(17), "b"(num));
-}
-int get_file_size(char *file_name){
-    int size;
-    __asm__ volatile("int $0x80" : "=a"(size) : "a"(18), "b"(file_name));
-    return size;
-}
-uint8_t get_scanecode(void){
-    int scanecode;
-    __asm__ volatile("int $0x80" : "=a"(scanecode) : "a"(19));
-    return scanecode;
-}
-int write_file(char *filename, uint8_t *buffer, uint32_t size){
-    int error;
-    __asm__ volatile("int $0x80" : "=a"(error) : "a"(20), "b"(filename), "c"(buffer), "d"(size));
-    return error;
-}
-unsigned int scancode_to_ascii(uint8_t scancode){
-    unsigned int c;
-    __asm__ volatile("int $0x80" : "=a"(c) : "a"(21), "b"(scancode));
-    return c;
-}
-void memcpy(void* dest, void* src, int size) {
-    uint8_t* d = (uint8_t*)dest;
-    uint8_t* s = (uint8_t*)src;
-    for(int i = 0; i < size; i++) { d[i] = s[i]; }
-}
-int getScreenWidth(void){
-    int width;
-    __asm__ volatile("int $0x80" : "=a"(width) : "a"(22));
-    return width;
-}
-int getScreenHeight(void){
-    int height;
-    __asm__ volatile("int $0x80" : "=a"(height) : "a"(23));
-    return height;
-}
-void draw_rect_filled(Rect *rect){
-    __asm__ volatile("int $0x80" : : "a"(25), "b"(rect));
-}
-int get_screen_width(void){
-    int w;
-    __asm__ volatile("int $0x80" : "=a"(w) : "a"(26));
-    return w;
-}
-int get_screen_height(void){
-    int h;
-    __asm__ volatile("int $0x80" : "=a"(h) : "a"(27));
-    return h;
-}
-void draw_window(Window *win){
-    __asm__ volatile("int $0x80" : : "a"(28), "b"(win));
-}
-void set_current_active_window(Window *win){
-    __asm__ volatile("int $0x80" : : "a"(29), "b"(win));
-}
-Window *create_window(uint32_t bg_color){
-    Window* win;
-    __asm__ volatile("int $0x80" : "=a"(win) : "a"(30), "b"(bg_color));
-    return win;
-}
-void close_window(Window *win){
-    __asm__ volatile("int $0x80" : : "a"(31), "b"(win));
-}
-static void itoa_lib(int n, char* buffer, int base) {
-    int i = 0;
-    int isNeg = 0;
-    if (n == 0) { buffer[0] = '0'; buffer[1] = '\0'; return; }
-    if (n < 0 && base == 10) { isNeg = 1; n = -n; }
-
-    while (n != 0) {
-        int rem = n % base;
-        buffer[i++] = (rem > 9) ? (rem - 10) + 'A' : rem + '0';
-        n = n / base;
-    }
-    if (isNeg) buffer[i++] = '-';
-    buffer[i] = '\0';
-
-    int start = 0, end = i - 1;
-    while (start < end) {
-        char temp = buffer[start];
-        buffer[start] = buffer[end];
-        buffer[end] = temp;
-        start++; end--;
-    }
-}
-static void itoa_unsigned_lib(unsigned int n, char* buffer, int base) {
-    int i = 0;
-    if (n == 0) { buffer[0] = '0'; buffer[1] = '\0'; return; }
-    while (n != 0) {
-        unsigned int rem = n % base;
-        buffer[i++] = (rem > 9) ? (rem - 10) + 'A' : rem + '0';
-        n = n / base;
-    }
-    buffer[i] = '\0';
-    int start = 0, end = i - 1;
-    while (start < end) {
-        char temp = buffer[start];
-        buffer[start] = buffer[end];
-        buffer[end] = temp;
-        start++; end--;
-    }
-}
-const char* utf8_to_unicode(const char* s, unsigned int* code) {
-    unsigned char c = (unsigned char)*s;
-    if (c < 0x80) { 
-        *code = c;
-        return s + 1;
-    } else if ((c & 0xE0) == 0xC0) { 
-        *code = ((c & 0x1F) << 6) | ((unsigned char)s[1] & 0x3F);
-        return s + 2;
-    } else if ((c & 0xF0) == 0xE0) {
-        *code = ((c & 0x0F) << 12) | (((unsigned char)s[1] & 0x3F) << 6) | ((unsigned char)s[2] & 0x3F);
-        return s + 3;
-    }
-    *code = c;
-    return s + 1;
-}
-void vsprintf(unsigned int *str, const char *format, va_list args) {
-    char temp[64];
     while (*format) {
         if (*format == '%') {
             format++;
-            switch (*format) {
-                case 's': {
-                    char *s = va_arg(args, char *);
-                    if (!s) s = "(null)";
-                    while (*s) *str++ = *s++;
-                    break;
+            if (*format == 'd' || *format == 'i') {
+                int n = va_arg(args, int);
+                char buf[16]; int i = 0, is_neg = 0;
+                if (n == 0) { str[pos++] = '0'; }
+                else {
+                    if (n < 0) { is_neg = 1; n = -n; }
+                    while (n > 0) { buf[i++] = (n % 10) + '0'; n /= 10; }
+                    if (is_neg) buf[i++] = '-';
+                    while (--i >= 0) str[pos++] = buf[i];
                 }
-                case 'd':
-                case 'i': {
-                    int n = va_arg(args, int);
-                    itoa_lib(n, temp, 10);
-                    char *t = temp;
-                    while (*t) *str++ = *t++;
-                    break;
+            } else if (*format == 'x' || *format == 'X') {
+                unsigned int n = va_arg(args, unsigned int);
+                char buf[16]; int i = 0;
+                if (n == 0) { str[pos++] = '0'; }
+                else {
+                    while (n > 0) {
+                        int rem = n % 16; buf[i++] = (rem < 10) ? (rem + '0') : (rem - 10 + 'A'); n /= 16;
+                    }
+                    while (--i >= 0) str[pos++] = buf[i];
                 }
-                case 'x': {
-                    unsigned int n = va_arg(args, unsigned int);
-                    itoa_unsigned_lib(n, temp, 16);
-                    char *t = temp;
-                    while (*t) *str++ = *t++;
-                    break;
-                }
-                case 'c': {
-                    char c = (unsigned int)va_arg(args, int);
-                    *str++ = c;
-                    break;
-                }
-                default:
-                    *str++ = '%';
-                    *str++ = *format;
-                    break;
+            } else if (*format == 's') {
+                char* s = va_arg(args, char*);
+                if (!s) s = "(null)";
+                while (*s) str[pos++] = *s++;
+            } else if (*format == 'c') {
+                str[pos++] = (char)va_arg(args, int);
+            } else if (*format == '%') {
+                str[pos++] = '%';
             }
         } else {
-            unsigned int code;
-            format = utf8_to_unicode(format, &code);
-            *str++ = code;
-            continue;
+            str[pos++] = *format;
         }
         format++;
     }
-    *str = '\0';
+    str[pos] = '\0';
 }
-void print_unicode(unsigned int *str) {
-    char out[1024]; 
-    int pos = 0;
-    for(int i = 0; str[i] != 0 && pos < 1020; i++){
-        unsigned int c = str[i];
-        if (c < 0x80) { out[pos++] = c; }
-        else if (c < 0x800) { out[pos++] = 0xC0 | (c >> 6); out[pos++] = 0x80 | (c & 0x3F); }
-        else { out[pos++] = 0xE0 | (c >> 12); out[pos++] = 0x80 | ((c >> 6) & 0x3F); out[pos++] = 0x80 | (c & 0x3F); }
-    }
-    out[pos] = '\0';
-    write_file(stdout, (uint8_t*)out, pos);
+
+void sprintf(char *str, const char *format, ...) {
+    va_list args; va_start(args, format); vsprintf(str, format, args); va_end(args);
 }
-void printf(const char* format, ...) {
-    unsigned int buffer[256];
-    va_list args;
-    va_start(args, format);
+
+void vprintf(const char* format, va_list args) {
+    char buffer[1024]; 
     vsprintf(buffer, format, args);
-    va_end(args);
-    print_unicode(buffer);
+    print(buffer);     
 }
-int strcmp(const char *c1, const char *c2) {
-    while (*c1 && (*c1 == *c2)) {
-        c1++;
-        c2++;
+
+void printf(const char* format, ...) {
+    va_list args; va_start(args, format); vprintf(format, args); va_end(args);
+}
+
+
+unsigned int getc(void) { char ch = 0; read(0, &ch, 1); return ch; }
+void *malloc(int size) { void *ptr; __asm__ volatile("int $0x80" : "=a"(ptr) : "a"(45), "b"(size)); return ptr; }
+void free(void *ptr) { __asm__ volatile("int $0x80" : : "a"(46), "b"(ptr)); }
+
+int read_file(char *file_name, uint8_t *file_buffer) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(5), "b"(file_name), "c"(file_buffer) : "memory"); return ret; }
+int write_file(char *filename, uint8_t *buffer, uint32_t size) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(6), "b"(filename), "c"(buffer), "d"(size) : "memory"); return ret; }
+int get_file_size(char *file_name) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(8), "b"(file_name) : "memory"); return ret; }
+int delete_file(char *file_name) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(10), "b"(file_name) : "memory"); return ret; }
+void waitpid(int pid) { __asm__ volatile("int $0x80" : : "a"(7), "b"(pid)); }
+void kill(int pid) { __asm__ volatile("int $0x80" : : "a"(37), "b"(pid)); }
+
+int chdir(char *path) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(12), "b"(path) : "memory"); return ret; }
+int getcwd(char *buf) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(79), "b"(buf) : "memory"); return ret; }
+int readdir(char *path, int index, vfs_dirent_t *out) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(89), "b"(path), "c"(index), "d"(out) : "memory"); return ret; }
+int mkdir(char *path) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(39), "b"(path) : "memory"); return ret; }
+
+void set_color(int fg, int bg) { __asm__ volatile("int $0x80" : : "a"(13), "b"(fg), "c"(bg)); }
+int get_tasks(task_info_user_t* buffer, int max_count) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(14), "b"(buffer), "c"(max_count) : "memory"); return ret; }
+void get_mem_info(uint32_t* used, uint32_t* total) { __asm__ volatile("int $0x80" : : "a"(15), "b"(used), "c"(total) : "memory"); }
+void get_cursor(int *x, int *y) { __asm__ volatile("int $0x80" : : "a"(16), "b"(x), "c"(y) : "memory"); }
+void set_cursor(int x, int y) { __asm__ volatile("int $0x80" : : "a"(17), "b"(x), "c"(y)); }
+void clear_screen(void) { __asm__ volatile("int $0x80" : : "a"(18)); }
+int getenv(char* key, char* out_buf) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(19), "b"(key), "c"(out_buf) : "memory"); return ret; }
+
+int strcmp(const char *s1, const char *s2) { while (*s1 && (*s1 == *s2)) { s1++; s2++; } return *(const unsigned char*)s1 - *(const unsigned char*)s2; }
+int strlen(const char *s) { int i = 0; while(s[i]) i++; return i; }
+void strcpy(char *dst, const char *src) { while(*src) *dst++ = *src++; *dst = '\0'; }
+void strcat(char *dst, const char *src) { while(*dst) dst++; while(*src) *dst++ = *src++; *dst = '\0'; }
+int atoi(const char *str) { int res=0; while(*str>='0' && *str<='9') { res=res*10+(*str-'0'); str++; } return res; }
+void gets(char *buffer, int max_len) {
+    int pos = 0;
+    while(1) {
+        char c = getc();
+        if (c == '\n' || c == '\r') {
+            buffer[pos] = '\0'; printf("\n"); break;
+        } else if (c == '\b') {
+            if (pos > 0) { pos--; buffer[pos] = '\0'; printf("\b \b"); }
+        } else if (c >= 32 && c <= 126 && pos < max_len - 1) {
+            buffer[pos++] = c; printf("%c", c);
+        }
     }
-    return *(const unsigned char*)c1 - *(const unsigned char*)c2;
 }
-void print_window(Window *win, text_struct* ts){
-    __asm__ volatile("int $0x80" : : "a"(35), "b"(win), "c"(ts));
-}
-void sleep(unsigned long ms){
-    __asm__ volatile("int $0x80" : : "a"(36), "b"(ms));
-}
-int fork(process_struct *p){
-    int pid;
-    __asm__ volatile("int $0x80" : "=a"(pid) : "a"(37), "b"(p));
-    return pid;
-}
-void kill(int pid){
-    __asm__ volatile("int $0x80" : : "a"(38), "b"(pid));
-}
-void window_refresh(Window *win) {
-    __asm__ volatile("int $0x80" : : "a"(39), "b"(win));
-}
-void window_redraw_content(Window *win) {
-    __asm__ volatile("int $0x80" : : "a"(40), "b"(win));
-}
-void window_draw_char(Window *win, text_struct *ts, unsigned int c){
-    __asm__ volatile("int $0x80" : : "a"(41), "b"(win), "c"(ts), "d"(c));
-}
-void system(char *cmd){
-    __asm__ volatile(
-        "int $0x80"
-        :
-        : "a"(42), "b"(cmd)
-    );
-}
-void get_system_info(uint32_t *used, uint32_t *total, uint32_t *cpu) {
-    __asm__ volatile("int $0x80" : : "a"(43), "b"(used), "c"(total), "d"(cpu));
-}
-
-int get_task_list(task_info_t *buffer, int max_tasks) {
-    int count;
-    __asm__ volatile("int $0x80" : "=a"(count) : "a"(44), "b"(buffer), "c"(max_tasks));
-    return count;
-}
-
-void set_window_blur(int enable) {
-    __asm__ volatile("int $0x80" : : "a"(46), "b"(enable));
-}
-void window_redraw_char_at(Window *win, int col, int row) {
-    __asm__ volatile("int $0x80" : : "a"(47), "b"(win), "c"(col), "d"(row));
+int getuid(void) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(20) : "memory"); return ret; }
+int setuid(int uid) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(21), "b"(uid) : "memory"); return ret; }
+int spawn(char* path, char** argv, char* redirect_out) { 
+    int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(11), "b"(path), "c"(argv), "d"(redirect_out) : "memory"); return ret; 
 }

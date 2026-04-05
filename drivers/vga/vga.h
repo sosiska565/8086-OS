@@ -121,14 +121,6 @@ void vprintf(const char* format, va_list args);
 void itoa(unsigned int n, char* buffer, int base);
 void strcat(char *dest, char* str);
 long atoi(const char *str, int base);
-
-//псевдо графика
-void draw_text_box_ex(char* lines[], char* title, 
-                      uint8_t padding_top, uint8_t padding_bottom,
-                      uint8_t padding_left, uint8_t padding_right,
-                      uint8_t border_color, uint8_t text_color, uint8_t title_color, uint8_t centered);
-void draw_text_box(char* lines[], char* title, uint8_t padding, 
-                   uint8_t border_color, uint8_t text_color, uint8_t title_color, uint8_t centered);
-void draw_simple_box(char* lines[], char* title, uint8_t centered);
+int strncmp(const char *s1, const char *s2, int n);
 
 #endif

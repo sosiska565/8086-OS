@@ -20,5 +20,6 @@ void system_division_handler_c(struct interrupt_frame *frame){
 }
 
 void page_fault_handler_c(registers_t *regs){
-    panic_with_regs(regs, "PAGE FAULT");
+    // panic_with_regs(regs, "PAGE FAULT");
+    printf("PAGE FAULT!");
 }

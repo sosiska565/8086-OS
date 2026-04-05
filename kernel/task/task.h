@@ -2,8 +2,9 @@
 #define TASK_H
 
 #include <stdint.h>
-#include "drivers/video/graphics.h"
 #include "mm/paging.h"
+
+#define MAX_FDS 16 
 
 typedef struct {
     int id;
@@ -12,26 +13,16 @@ typedef struct {
     char name[32];
 } task_info_t;
 
-typedef enum {
-    TASK_RUNNING,
-    TASK_READY,
-    TASK_SLEEPING,
-    TASK_DEAD
-} TaskState;
+typedef enum { TASK_RUNNING, TASK_READY, TASK_SLEEPING, TASK_DEAD } TaskState;
 
-typedef struct AllocList {
-    void *ptr;
-    struct AllocList *next;
-} AllocList;
+typedef struct AllocList { void *ptr; struct AllocList *next; } AllocList;
 
-typedef struct Task{
+typedef struct Task {
     int id;
     uint32_t esp;
     uint32_t stack_start;
     struct Task *next;
-    Window *window;
     TaskState state;
-    int owns_window;
     int kill_me;
     uint32_t wake_tick;
     int parent_id;
@@ -39,9 +30,18 @@ typedef struct Task{
     char name[32];
     struct page_directory_t *page_dir;
     uint32_t app_phys_addr;
+
+    char cwd[64]; 
+    int fd_table[MAX_FDS]; 
+
+    
+    int uid; 
+    char redirect_path[128]; 
+    uint8_t* redirect_buf;   
+    uint32_t redirect_size;
 } Task;
 
-typedef struct process_struct{
+typedef struct process_struct {
     void (*foo)(int, char**);
     int argc;
     char **argv;
@@ -50,23 +50,21 @@ typedef struct process_struct{
 
 extern Task *current_task;
 extern Task *ready_queue;
-void check_kill_flag();
+extern int foreground_task_id; 
 
-void init_tasking();
-void cleanup_zombies();
+void check_kill_flag(void);
+void init_tasking(void);
+void cleanup_zombies(void);
 void create_thread(void (*function)(void));
-void task_scheduler();
-void yield();
-void task_exit();
+void task_scheduler(void);
+void yield(void);
 int create_process(void (*entry)(int, char**), int argc, char **argv, char *name, struct page_directory_t *pd);
-void exit_process();
+void exit_process(void);
 void wait_process(int pid);
-void kill_focused_process();
 void task_sleep(int ms);
 void kill_task(int pid);
 void track_allocation(Task *task, void *ptr);
 void untrack_allocation(Task *task, void *ptr);
-Task* get_task_by_window(Window *win);
-Task* get_focused_task();
+int spawn_process(char* path, char** argv, char* redirect_out);
 
 #endif

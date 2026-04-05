@@ -6,7 +6,6 @@
 #include "utils/utils.h"
 #include "drivers/video/bga/gfx_console.h"
 #include "drivers/video/vesa.h"
-#include "drivers/video/graphics.h"
 #include "task/task.h"
 
 #define HISTORY_SIZE 10
@@ -69,40 +68,17 @@ void execute_command(char **tokens) {
     printf("Unknown command: %s\n", tokens[0]);
 }
 
-void draw_console_cursor(Window *win, int state) {
-    if (!is_window_visible(win)) return; 
-
-    extern int font_scale; 
-    int fw = 8 * font_scale;
-
-    if (state) {
-        if (win->cursor_y < win->height) {
-            draw_rect_filled(win->x + win->cursor_x, win->y + win->cursor_y, fw, fw, 0xFFFFFFFF);
-            vesa_render_rect(win->x + win->cursor_x, win->y + win->cursor_y, fw, fw);
-        }
-    } else {
-        
-        int col = win->cursor_x / fw;
-        int row = win->cursor_y / fw;
-        __asm__ volatile("int $0x80" : : "a"(47), "b"(win), "c"(col), "d"(row));
-    }
-}
-
 int console_main(void) {
     keyboard_flush();
     
-    Window *my_win = wm_create_window(VGA32_COLOR_BLACK | 0x80000000);
-    current_task->window = my_win; 
-    current_task->owns_window = 1; 
-    wm_set_focused_window(my_win);
-    printf("\n");
+    printf("Welcome to 8086-OS Shell\n");
     
     int local_should_exit = 0;
 
     while(!local_should_exit) {
-        current_task->window = my_win;
-        printf("%s> ", path);
-        draw_console_cursor(my_win, 1);
+        char cwd_buf[64];
+    __asm__ volatile("int $0x80" : : "a"(79), "b"(cwd_buf));
+    printf("%s> ", cwd_buf);
 
         char command[CMD_MAX_LEN];
         memset(command, 0, CMD_MAX_LEN);
@@ -110,60 +86,28 @@ int console_main(void) {
         history_browse_idx = history_count;
 
         while(1) {
-            draw_console_cursor(my_win, 1);
             uint8_t scancode = wait_scancode();
-            draw_console_cursor(my_win, 0);
 
-            if (scancode == 0x1C) {
+            if (scancode == 0x1C) { // Enter
                 command[pos] = '\0';
                 printf("\n");
                 add_to_history(command);
                 if (strcmp(command, "exit") == 0) local_should_exit = 1;
                 break;
             }
-            else if (scancode == 0x0E) {
+            else if (scancode == 0x0E) { // Backspace
                 if (pos > 0) {
                     pos--;
-                    while (pos > 0 && (command[pos] & 0xC0) == 0x80) pos--;
                     command[pos] = '\0';
                     printf("\b \b");
-                }
-            }
-            else if (scancode == 0x48) {
-                if (history_browse_idx > 0) {
-                    int visual_len = 0;
-                    for(int i=0; i<pos; i++) if((command[i]&0xC0) != 0x80) visual_len++;
-                    clear_current_line(visual_len);
-                    history_browse_idx--;
-                    strcpy(command, history[history_browse_idx]);
-                    pos = strlen(command);
-                    printf(command);
-                }
-            }
-            else if (scancode == 0x50) {
-                if (history_browse_idx < history_count) {
-                    int visual_len = 0;
-                    for(int i=0; i<pos; i++) if((command[i]&0xC0) != 0x80) visual_len++;
-                    clear_current_line(visual_len);
-                    history_browse_idx++;
-                    if (history_browse_idx == history_count) {
-                        pos = 0;
-                        command[0] = '\0';
-                    } else {
-                        strcpy(command, history[history_browse_idx]);
-                        pos = strlen(command);
-                        printf(command);
-                    }
                 }
             }
             else {
                 if (scancode & 0x80) continue;
                 unsigned int c = scancode_to_char_layout(scancode);
                 if (c != 0) {
-                    char tmp[4];
-                    int bytes = utf8_encode(c, tmp);
-                    if (pos + bytes < CMD_MAX_LEN - 1) {
-                        for(int i=0; i<bytes; i++) command[pos++] = tmp[i];
+                    if (pos < CMD_MAX_LEN - 1) {
+                        command[pos++] = (char)c;
                         printf("%c", c);
                     }
                 }

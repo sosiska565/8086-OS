@@ -2,11 +2,6 @@
 #include "drivers/io/io.h"
 #include "drivers/vga/vga.h"
 #include "drivers/video/vesa.h"
-#include "drivers/video/graphics.h"
-
-MouseState mouse = {0, 0, 0, 0, 0};
-uint8_t mouse_cycle = 0;
-int8_t mouse_byte[3];
 
 void mouse_wait(uint8_t type) {
     uint32_t timeout = 100000;
@@ -41,6 +36,12 @@ void mouse_init() {
     mouse_read();
 }
 
+MouseState mouse = {0, 0, 0, 0, 0};
+uint8_t mouse_cycle = 0;
+uint8_t mouse_byte[3]; 
+
+
+
 void mouse_handler_c(void) {
     uint8_t status = inb(0x64);
     if (!(status & 0x01)) return; 
@@ -48,9 +49,12 @@ void mouse_handler_c(void) {
     
     uint8_t data = inb(0x60);
     
-    if (data == 0xFA) return; 
-
     
+    
+    if (mouse_cycle == 0 && data == 0xFA) {
+        return; 
+    }
+
     
     if (mouse_cycle == 0 && (data & 0x08) == 0) return;
 
@@ -75,9 +79,9 @@ void mouse_handler_c(void) {
         extern int screen_width, screen_height;
         if (mouse.x < 0) mouse.x = 0;
         if (mouse.y < 0) mouse.y = 0;
-        if (mouse.x >= screen_width) mouse.x = screen_width - 2;
-        if (mouse.y >= screen_height) mouse.y = screen_height - 2;
+        if (mouse.x >= screen_width) mouse.x = screen_width - 1;
+        if (mouse.y >= screen_height) mouse.y = screen_height - 1;
 
-        wm_update_cursor();
+        // wm_update_cursor();
     }
 }

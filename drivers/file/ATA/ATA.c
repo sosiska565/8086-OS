@@ -9,14 +9,15 @@ drive_info_t sys_drives[MAX_SYS_DRIVES];
 int sys_drive_count = 0;
 int active_drive_index = 0;
 
+
 int ata_wait_bsy(void){
-    int timeout = 100000;
+    int timeout = 10000000; 
     while((inb(ATA_STATUS) & ATA_SR_BSY) && --timeout);
     return timeout > 0;
 }
 
 int ata_wait_drq(void){
-    int timeout = 100000;
+    int timeout = 10000000;
     while(!(inb(ATA_STATUS) & (ATA_SR_DRQ | ATA_SR_ERR)) && --timeout);
     return timeout > 0;
 }
@@ -76,9 +77,7 @@ int disk_read_sector(uint32_t lba, uint8_t *buffer) {
 }
 
 int disk_write_sector(uint32_t lba, uint8_t *buffer) {
-    if(isReadMode == 1){
-        return 0;
-    }
+    if(isReadMode == 1) return 0;
     if (sys_drive_count == 0) return 0;
 
     drive_info_t *drv = &sys_drives[active_drive_index];
@@ -142,18 +141,10 @@ void ata_identify(uint8_t drive, struct disk_struct *ds) {
     outb(ATA_COMMAND, ATA_CMD_IDENTIFY);
     
     uint8_t status = inb(ATA_STATUS);
-    if(status == 0 || status == 0xFF) {
-        strcpy(ds->name, "NO DISK"); return;
-    }
-    if (!ata_wait_bsy()) {
-        strcpy(ds->name, "ERROR"); return;
-    }
-    if (inb(ATA_STATUS) & ATA_SR_ERR) {
-        strcpy(ds->name, "ERROR/CD-ROM"); return;
-    }
-    if (!ata_wait_drq()) {
-        strcpy(ds->name, "ERROR"); return;
-    }
+    if(status == 0 || status == 0xFF) { strcpy(ds->name, "NO DISK"); return; }
+    if (!ata_wait_bsy()) { strcpy(ds->name, "ERROR"); return; }
+    if (inb(ATA_STATUS) & ATA_SR_ERR) { strcpy(ds->name, "ERROR/CD-ROM"); return; }
+    if (!ata_wait_drq()) { strcpy(ds->name, "ERROR"); return; }
     for(int i = 0; i < 256; i++) ds->buffer[i] = inw(ATA_DATA);
     
     int name_idx = 0;
