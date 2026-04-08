@@ -8,6 +8,8 @@
 #include "task/task.h"
 
 static unsigned long next = 1;
+
+
 char sys_log_buffer[65536];
 int sys_log_pos = 0;
 
@@ -123,9 +125,26 @@ void config_save(char *filename, Config *cfg) {
 int get_pixels_in_string(char *str){ return strlen(str) * 8; }
 
 void klog(char *msg) {
-    int i = 0;
-    while(msg[i] != '\0' && sys_log_pos < 65534) sys_log_buffer[sys_log_pos++] = msg[i++];
-    if(sys_log_pos < 65534) sys_log_buffer[sys_log_pos++] = '\n';
+    
+    // printf("%s\n", msg);
+    
+    
+    char time_str[32];
+    itoa(get_ticks() / 1000, time_str, 10);
+    
+    char prefix[] = "[";
+    for(int i=0; prefix[i] && sys_log_pos < 65530; i++) sys_log_buffer[sys_log_pos++] = prefix[i];
+    for(int i=0; time_str[i] && sys_log_pos < 65530; i++) sys_log_buffer[sys_log_pos++] = time_str[i];
+    
+    char suffix[] = "s] ";
+    for(int i=0; suffix[i] && sys_log_pos < 65530; i++) sys_log_buffer[sys_log_pos++] = suffix[i];
+    
+    
+    for(int i = 0; msg[i] != '\0' && sys_log_pos < 65530; i++) {
+        sys_log_buffer[sys_log_pos++] = msg[i];
+    }
+    
+    if(sys_log_pos < 65530) sys_log_buffer[sys_log_pos++] = '\n';
     sys_log_buffer[sys_log_pos] = '\0';
 }
 
@@ -133,7 +152,6 @@ void klog_save() {
     int result = fat32_write_file("/sys.log", (uint8_t*)sys_log_buffer, sys_log_pos);
     if (result > 0) printf("System log saved to sys.log (%d bytes)\n", sys_log_pos);
 }
-
 
 const char* utf8_to_unicode(const char* s, unsigned int* code) {
     unsigned char c = (unsigned char)*s;

@@ -39,6 +39,7 @@ typedef struct Task {
     char redirect_path[128]; 
     uint8_t* redirect_buf;   
     uint32_t redirect_size;
+    uint32_t lib_offset;
 } Task;
 
 typedef struct process_struct {
@@ -66,5 +67,7 @@ void kill_task(int pid);
 void track_allocation(Task *task, void *ptr);
 void untrack_allocation(Task *task, void *ptr);
 int spawn_process(char* path, char** argv, char* redirect_out);
+uint32_t load_library(Task* t, char* lib_name);
+uint32_t get_symbol(Task* t, uint32_t lib_handle, char* sym_name);
 
 #endif

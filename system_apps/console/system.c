@@ -278,7 +278,7 @@ int is_executable(char* filename) {
 
 void cmd_exec(char **tokens){
     if(!tokens[1]){ printf("Usage: exec <filename>\n"); return; }
-    if (!is_executable(tokens[1])) { printf("File is not executable. Only '.bin' files.\n."); return; }
+    // if (!is_executable(tokens[1])) { printf("File is not executable. Only '.bin' files.\n."); return; }
 
     char abs_path[256];
     get_absolute_path(current_task->cwd, tokens[1], abs_path);

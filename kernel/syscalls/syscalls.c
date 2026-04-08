@@ -21,7 +21,6 @@ static void sys_read(struct syscall_registers *regs) {
 static void sys_write(struct syscall_registers *regs) {
     int fd = (int)regs->ebx; char* buf = (char*)regs->ecx; uint32_t size = (uint32_t)regs->edx;
     if (fd == 1 || fd == 2) { 
-        
         if (current_task->redirect_buf != 0) {
             for(uint32_t i = 0; i < size; i++) {
                 if (current_task->redirect_size < 65535) { 
@@ -31,7 +30,6 @@ static void sys_write(struct syscall_registers *regs) {
             regs->eax = size; return;
         }
 
-        
         uint32_t i = 0;
         while (i < size) {
             unsigned int code = 0;
@@ -47,7 +45,6 @@ static void sys_write(struct syscall_registers *regs) {
 
 static void sys_write_file(struct syscall_registers *regs) {
     char abs_path[256]; get_absolute_path(current_task->cwd, (char*)regs->ebx, abs_path);
-    
     if (current_task->uid != 0) {
         if (strcmp(abs_path, "/kernel.cfg") == 0 || strncmp(abs_path, "/path", 5) == 0) { regs->eax = -1; return; }
     }
@@ -64,7 +61,6 @@ static void sys_delete_file(struct syscall_registers *regs) {
 
 static void sys_spawn(struct syscall_registers *regs) {
     char abs_path[256]; get_absolute_path(current_task->cwd, (char*)regs->ebx, abs_path);
-    
     char* redirect = (char*)regs->edx;
     if (redirect && redirect[0] != '\0') {
         char r_path[256]; get_absolute_path(current_task->cwd, redirect, r_path);
@@ -74,15 +70,10 @@ static void sys_spawn(struct syscall_registers *regs) {
     }
 }
 
-
 static void sys_getuid(struct syscall_registers *regs) { regs->eax = current_task->uid; }
 static void sys_setuid(struct syscall_registers *regs) {
-    
-    // if (current_task->uid == 0) { current_task->uid = regs->ebx; regs->eax = 0; }
     current_task->uid = regs->ebx; regs->eax = 0;
-    // else regs->eax = -1; 
 }
-
 
 static void sys_read_file(struct syscall_registers *regs) { char abs_path[256]; get_absolute_path(current_task->cwd, (char*)regs->ebx, abs_path); regs->eax = vfs_read(abs_path, (uint8_t*)regs->ecx); }
 static void sys_get_file_size(struct syscall_registers *regs) { char abs_path[256]; get_absolute_path(current_task->cwd, (char*)regs->ebx, abs_path); regs->eax = vfs_get_size(abs_path); }
@@ -93,6 +84,30 @@ extern void gfx_get_cursor(int *x, int *y); extern void gfx_set_cursor(int x, in
 static void sys_get_cursor(struct syscall_registers *regs) { gfx_get_cursor((int*)regs->ebx, (int*)regs->ecx); }
 static void sys_set_cursor(struct syscall_registers *regs) { gfx_set_cursor((int)regs->ebx, (int)regs->ecx); }
 static void sys_clear(struct syscall_registers *regs) { clear_screen(); regs->eax = 0; }
+
+extern int term_cols;
+extern int term_rows;
+static void sys_get_term_size(struct syscall_registers *regs) {
+    int *cols = (int*)regs->ebx;
+    int *rows = (int*)regs->ecx;
+    if (cols) *cols = term_cols;
+    if (rows) *rows = term_rows;
+    regs->eax = 0;
+}
+
+
+static void sys_print(struct syscall_registers *regs) {
+    char* str = (char*)regs->ebx;
+    if (!str) { regs->eax = 0; return; }
+    
+    
+    int i = 0;
+    while (str[i] != '\0') {
+        gfx_putc(str[i]); 
+        i++;
+    }
+    regs->eax = i; 
+}
 
 typedef struct { int id; int parent_id; int state; char name[32]; } task_info_user_t;
 static void sys_get_tasks(struct syscall_registers *regs) {
@@ -120,13 +135,20 @@ static void sys_chdir(struct syscall_registers *regs) { char abs_path[256]; get_
 static void sys_readdir(struct syscall_registers *regs) { char abs_path[256]; get_absolute_path(current_task->cwd, (char*)regs->ebx, abs_path); regs->eax = vfs_readdir(abs_path, (int)regs->ecx, (vfs_dirent_t*)regs->edx); }
 static void sys_mkdir(struct syscall_registers *regs) { char abs_path[256]; get_absolute_path(current_task->cwd, (char*)regs->ebx, abs_path); regs->eax = vfs_mkdir(abs_path); }
 static void sys_getcwd(struct syscall_registers *regs) { strcpy((char*)regs->ebx, current_task->cwd); regs->eax = 0; }
+static void sys_dlopen(struct syscall_registers *regs) {
+    regs->eax = load_library(current_task, (char*)regs->ebx);
+}
+static void sys_dlsym(struct syscall_registers *regs) {
+    regs->eax = get_symbol(current_task, regs->ebx, (char*)regs->ecx);
+}
 
 static syscall_handler_t syscall_table[256] = {
     [1]  = sys_exit, [2]  = sys_fork, [3]  = sys_read, [4]  = sys_write, [5]  = sys_read_file, [6]  = sys_write_file, 
     [7]  = sys_waitpid, [8]  = sys_get_file_size, [10] = sys_delete_file, [11] = sys_spawn, [12] = sys_chdir, [13] = sys_set_color,     
     [14] = sys_get_tasks, [15] = sys_get_mem_info, [16] = sys_get_cursor, [17] = sys_set_cursor, [18] = sys_clear, [19] = sys_getenv,
-    [20] = sys_getuid, [21] = sys_setuid, 
+    [20] = sys_getuid, [21] = sys_setuid, [22] = sys_get_term_size, [23] = sys_print,
     [37] = sys_kill, [39] = sys_mkdir, [45] = sys_malloc, [46] = sys_free, [79] = sys_getcwd, [89] = sys_readdir,   
+    [90] = sys_dlopen, [91] = sys_dlsym,
 };
 
 void syscall_handler_c(struct syscall_registers *regs) {

@@ -5,6 +5,7 @@
 #include "drivers/timer/timer.h"
 #include "utils/utils.h"
 #include "fs/vfs.h"
+#include "include/elf.h"
 
 extern void switch_to_task(Task *next, Task *prev);
 
@@ -15,6 +16,9 @@ Task *zombie_task = 0;
 volatile int tasks_need_cleanup = 0; 
 
 int foreground_task_id = 0; 
+
+
+char* current_spawn_redirect = NULL;
 
 void track_allocation(Task *task, void *ptr) {
     if (!task || !ptr) return;
@@ -108,7 +112,16 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
     new_task->id = next_pid++; new_task->state = TASK_READY; new_task->kill_me = 0;
     new_task->allocations = 0; new_task->page_dir = pd ? pd : kernel_dir;
     new_task->app_phys_addr = 0; new_task->wake_tick = 0;
-    new_task->redirect_buf = 0;
+
+    
+    if (current_spawn_redirect) {
+        strcpy(new_task->redirect_path, current_spawn_redirect);
+        new_task->redirect_buf = kmalloc(65536);
+        new_task->redirect_size = 0;
+        current_spawn_redirect = NULL; 
+    } else {
+        new_task->redirect_buf = 0;
+    }
 
     task_set_name(new_task, name);
     if (current_task) {
@@ -123,11 +136,32 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
 
     uint32_t *stack = (uint32_t*)kmalloc(65536);
     new_task->stack_start = (uint32_t)stack;
-    uint32_t *esp = stack + (65536 / 4);
+    
+    char *stack_top = (char*)stack + 65536;
+
+    char **new_argv = 0;
+    if (argc > 0 && argv) {
+        uint32_t ptrs[64]; 
+        for (int i = argc - 1; i >= 0; i--) {
+            int len = strlen(argv[i]) + 1;
+            stack_top -= len;
+            strcpy(stack_top, argv[i]);
+            ptrs[i] = (uint32_t)stack_top;
+        }
+        stack_top = (char*)((uint32_t)stack_top & ~3); 
+        stack_top -= (argc + 1) * sizeof(char*);
+        new_argv = (char**)stack_top;
+        for (int i = 0; i < argc; i++) new_argv[i] = (char*)ptrs[i];
+        new_argv[argc] = 0;
+    }
+
+    uint32_t *esp = (uint32_t*)stack_top;
     extern void exit_process(); 
 
-    *(--esp) = (uint32_t)argv; *(--esp) = (uint32_t)argc;
-    *(--esp) = (uint32_t)exit_process; *(--esp) = (uint32_t)entry;
+    *(--esp) = (uint32_t)new_argv; 
+    *(--esp) = (uint32_t)argc;
+    *(--esp) = (uint32_t)exit_process; 
+    *(--esp) = (uint32_t)entry;
     for(int i = 0; i < 8; i++) *(--esp) = 0;
     *(--esp) = 0x202;
     new_task->esp = (uint32_t)esp;
@@ -175,7 +209,6 @@ void exit_process() {
 
     kill_children_of(current_task->id);
 
-    
     if (current_task->redirect_buf != 0) {
         vfs_write(current_task->redirect_path, current_task->redirect_buf, current_task->redirect_size);
         kfree(current_task->redirect_buf);
@@ -246,35 +279,141 @@ int spawn_process(char* path, char** argv, char* redirect_out) {
     int file_size = vfs_get_size(path);
     if (file_size <= 0) return -1;
 
-    uint32_t alloc_size = file_size + 1024 * 1024; 
-    uint32_t phys_addr = (uint32_t)kmalloc_a(alloc_size);
-    if (!phys_addr) return -1;
-    fast_memset((void*)phys_addr, 0, alloc_size / 4);
-    vfs_read(path, (uint8_t*)phys_addr);
+    uint8_t *file_buf = (uint8_t*)kmalloc(file_size);
+    vfs_read(path, file_buf);
 
     page_directory_t *app_pd = clone_page_directory();
-    uint32_t size_aligned = (alloc_size + 4095) & ~4095;
-    for(uint32_t i = 0; i < size_aligned; i += 4096) paging_map_user(app_pd, phys_addr + i, 0x40000000 + i, 7);
+    uint32_t entry_point = 0x40000000;
+    uint32_t phys_addr_to_track = 0;
+
+    Elf32_Ehdr *hdr = (Elf32_Ehdr*)file_buf;
+
+    
+    if (*(uint32_t*)hdr->e_ident == ELF_MAGIC) {
+        entry_point = hdr->e_entry;
+        Elf32_Phdr *phdrs = (Elf32_Phdr*)(file_buf + hdr->e_phoff);
+        
+        for (int i = 0; i < hdr->e_phnum; i++) {
+            if (phdrs[i].p_type == PT_LOAD) {
+                uint32_t mem_sz = phdrs[i].p_memsz;
+                uint32_t file_sz = phdrs[i].p_filesz;
+                uint32_t vaddr = phdrs[i].p_vaddr;
+
+                uint32_t alloc_size = (mem_sz + 4095) & ~4095;
+                uint32_t phys_addr = (uint32_t)kmalloc_a(alloc_size);
+                if(phys_addr_to_track == 0) phys_addr_to_track = phys_addr; 
+                
+                fast_memset((void*)phys_addr, 0, alloc_size / 4);
+                fast_memcpy((void*)phys_addr, file_buf + phdrs[i].p_offset, file_sz);
+
+                for (uint32_t j = 0; j < alloc_size; j += 4096) {
+                    paging_map_user(app_pd, phys_addr + j, (vaddr & 0xFFFFF000) + j, 7);
+                }
+            }
+        }
+    } else {
+        
+        uint32_t alloc_size = (file_size + 1024 * 1024 + 4095) & ~4095; 
+        uint32_t phys_addr = (uint32_t)kmalloc_a(alloc_size);
+        phys_addr_to_track = phys_addr;
+        fast_memset((void*)phys_addr, 0, alloc_size / 4);
+        fast_memcpy((void*)phys_addr, file_buf, file_size);
+
+        for(uint32_t i = 0; i < alloc_size; i += 4096) {
+            paging_map_user(app_pd, phys_addr + i, 0x40000000 + i, 7);
+        }
+    }
+
+    kfree(file_buf);
 
     int argc = 0; if (argv) { while(argv[argc]) argc++; }
     char* name = path; for(int i = 0; path[i]; i++) if(path[i] == '/') name = &path[i+1];
 
-    int pid = create_process((void (*)(int, char**))0x40000000, argc, argv, name, app_pd);
+    current_spawn_redirect = redirect_out; 
+    int pid = create_process((void (*)(int, char**))entry_point, argc, argv, name, app_pd);
     
     Task *t = ready_queue;
     do {
         if (t->id == pid) { 
-            t->app_phys_addr = phys_addr; 
-            
-            if (redirect_out != NULL) {
-                strcpy(t->redirect_path, redirect_out);
-                t->redirect_buf = kmalloc(65536); 
-                t->redirect_size = 0;
-            }
+            t->app_phys_addr = phys_addr_to_track; 
+            t->lib_offset = 0x50000000; 
             break; 
         }
         t = t->next;
     } while (t != ready_queue);
 
     return pid;
+}
+
+uint32_t load_library(Task* t, char* lib_name) {
+    char path[128];
+    if (lib_name[0] == '/') strcpy(path, lib_name);
+    else { strcpy(path, "/lib/"); strcat(path, lib_name); } 
+
+    int size = vfs_get_size(path);
+    if (size <= 0) return 0;
+
+    uint8_t *file_buf = kmalloc(size);
+    vfs_read(path, file_buf);
+
+    Elf32_Ehdr *hdr = (Elf32_Ehdr*)file_buf;
+    if (*(uint32_t*)hdr->e_ident != ELF_MAGIC) { kfree(file_buf); return 0; }
+
+    uint32_t base_addr = t->lib_offset;
+    Elf32_Phdr *phdrs = (Elf32_Phdr*)(file_buf + hdr->e_phoff);
+
+    for (int i = 0; i < hdr->e_phnum; i++) {
+        if (phdrs[i].p_type == PT_LOAD) {
+            uint32_t mem_sz = phdrs[i].p_memsz;
+            uint32_t alloc_size = (mem_sz + 4095) & ~4095;
+            uint32_t phys_addr = (uint32_t)kmalloc_a(alloc_size);
+            track_allocation(t, (void*)phys_addr); 
+            
+            fast_memset((void*)phys_addr, 0, alloc_size / 4);
+            fast_memcpy((void*)phys_addr, file_buf + phdrs[i].p_offset, phdrs[i].p_filesz);
+
+            for (uint32_t j = 0; j < alloc_size; j += 4096) {
+                paging_map_user(t->page_dir, phys_addr + j, base_addr + (phdrs[i].p_vaddr & 0xFFFFF000) + j, 7);
+            }
+        }
+    }
+
+    
+    track_allocation(t, file_buf); 
+    
+    t->lib_offset += 0x01000000; 
+    return (uint32_t)file_buf; 
+}
+
+
+uint32_t get_symbol(Task* t, uint32_t lib_handle, char* sym_name) {
+    if (!lib_handle) return 0;
+    uint8_t *file_buf = (uint8_t*)lib_handle;
+    Elf32_Ehdr *hdr = (Elf32_Ehdr*)file_buf;
+    Elf32_Shdr *shdrs = (Elf32_Shdr*)(file_buf + hdr->e_shoff);
+
+    Elf32_Shdr *symtab = NULL;
+    Elf32_Shdr *strtab = NULL;
+
+    for (int i = 0; i < hdr->e_shnum; i++) {
+        if (shdrs[i].sh_type == SHT_SYMTAB) symtab = &shdrs[i];
+        if (shdrs[i].sh_type == SHT_STRTAB && i != hdr->e_shstrndx) strtab = &shdrs[i];
+    }
+
+    if (!symtab || !strtab) return 0;
+
+    Elf32_Sym *syms = (Elf32_Sym*)(file_buf + symtab->sh_offset);
+    int num_syms = symtab->sh_size / symtab->sh_entsize;
+    char *strings = (char*)(file_buf + strtab->sh_offset);
+
+    for (int i = 0; i < num_syms; i++) {
+        char *name = strings + syms[i].st_name;
+        if (strcmp(name, sym_name) == 0) {
+            
+            
+            uint32_t base = 0x50000000; 
+            return base + syms[i].st_value;
+        }
+    }
+    return 0;
 }

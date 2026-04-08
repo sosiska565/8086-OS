@@ -5,6 +5,7 @@
 #include "drivers/vga/vga.h"
 #include "drivers/timer/timer.h"
 #include "drivers/file/ATA/ATA.h"
+#include "utils/utils.h"
 
 HBA_MEM *abar;
 HBA_PORT *active_sata_port = 0;
@@ -44,7 +45,7 @@ static void start_cmd(HBA_PORT *port) {
     }
     
     if (port->cmd & HBA_PxCMD_CR) {
-        printf("[AHCI] Error: Port stuck!\n");
+        klog("[AHCI] ERROR: Port stuck!");
         return;
     }
     
@@ -193,7 +194,7 @@ int ahci_write_sector(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t
 }
 
 void ahci_init(void) {
-    printf("[AHCI] Scanning for controller...\n");
+    klog("[AHCI] Scanning PCI for AHCI controller...");
     uint8_t bus = 0, dev = 0;
     int found = 0;
 
@@ -215,22 +216,27 @@ void ahci_init(void) {
     }
 
     if(!found) {
-        printf(" [AHCI] Controller not found.\n");
+        klog("[AHCI] Controller not found on PCI bus.");
         return;
     }
 
-    printf(" [AHCI] Controller found. Enabling PCI busmaster...\n");
+    klog("[AHCI] Controller found. Enabling PCI busmaster...");
     uint32_t pci_cmd = pci_read(bus, dev, 0, 0x04);
     pci_cmd |= 0x06;
     pci_write(bus, dev, 0, 0x04, pci_cmd);
 
     uint32_t abar_phys = pci_read(bus, dev, 0, 0x24) & 0xFFFFFFF0;
     if (abar_phys == 0) {
-        printf("[AHCI] Error: ABAR is 0.\n");
+        klog("[AHCI] ERROR: ABAR memory address is 0.");
         return;
     }
 
-    printf("[AHCI] Mapping ABAR memory (0x%x)...\n", abar_phys);
+    char log_msg[64] = "[AHCI] Mapping ABAR at ";
+    char hex[16];
+    itoa(abar_phys, hex, 16);
+    strcat(log_msg, hex);
+    klog(log_msg);
+
     uint32_t abar_page = abar_phys & 0xFFFFF000;
     paging_map(abar_page, abar_page, 3);
     paging_map(abar_page + 4096, abar_page + 4096, 3);
@@ -240,15 +246,17 @@ void ahci_init(void) {
     abar->ghc |= (1 << 31); 
     abar->ghc &= ~(1 << 1); 
 
-    printf(" [AHCI] Scanning SATA ports...\n");
+    klog("[AHCI] Scanning SATA ports...");
     uint32_t pi = abar->pi;
     for (int i = 0; i < 32; i++) {
         if (pi & (1<<i)) {
-            printf(" [AHCI] Checking port %d...\n", i);
             int dt = check_type(&abar->ports[i]);
-            
             if (dt == AHCI_DEV_SATA) {
-                printf(" [AHCI] Found SATA drive on port %d. Rebasing...\n", i);
+                char port_msg[64] = "[AHCI] Rebased SATA Drive on Port ";
+                char port_num[4];
+                itoa(i, port_num, 10);
+                strcat(port_msg, port_num);
+                klog(port_msg);
                 
                 abar->ports[i].serr = 0xFFFFFFFF;
                 abar->ports[i].is = 0xFFFFFFFF;
@@ -257,7 +265,6 @@ void ahci_init(void) {
                 for(volatile int w=0; w<10000; w++);
 
                 port_rebase(&abar->ports[i], i);
-                printf(" [AHCI] Port %d successfully rebased.\n", i);
                 
                 if (active_sata_port == 0) {
                     active_sata_port = &abar->ports[i];
@@ -269,11 +276,8 @@ void ahci_init(void) {
                     strcpy(sys_drives[sys_drive_count].name, "AHCI SATA Drive");
                     sys_drive_count++;
                 }
-                printf(" [AHCI] Port %d config done.\n", i);
-            } else {
-                printf(" [AHCI] Port %d is not SATA (type %d).\n", i, dt);
             }
         }
     }
-    printf("[AHCI] Initialization complete.\n");
+    klog("[AHCI] Subsystem setup complete.");
 }

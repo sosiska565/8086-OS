@@ -1,6 +1,7 @@
 #include "drivers/pci/pci.h"
 #include "drivers/io/io.h"
 #include "drivers/vga/vga.h"
+#include "utils/utils.h"
 
 uint32_t pci_read(uint8_t bus, uint8_t device, uint8_t func, uint8_t offset){
     uint32_t address = (1 << 31) | (bus << 16) | (device << 11) | (func << 8) | (offset & 0xFC);
@@ -9,7 +10,7 @@ uint32_t pci_read(uint8_t bus, uint8_t device, uint8_t func, uint8_t offset){
 }
 
 void pci_scan(void){
-    printf("PCI scanning...\n");
+    klog("[PCI] Scanning PCI buses for hardware...");
 
     for(uint16_t bus = 0; bus < 256; bus++){
         for(uint8_t dev = 0; dev < 32; dev++){
@@ -20,25 +21,24 @@ void pci_scan(void){
 
             if(vendor_id == 0xFFFF) continue;
 
-            printf("Found device! Bus: ");
-            printf("%d", bus);
-            printf(" device: ");
-            printf("%d", dev);
-            printf(" [Vendor: ");
-            printf("%X", vendor_id);
-            printf(" Device: ");
-            printf("%X", device_id);
-
             uint32_t class_reg = pci_read(bus, dev, 0, 0x08);
             uint8_t class_code = (class_reg >> 24) & 0xFF;
-            uint8_t subclass = (class_reg >> 16) & 0xFF;
+
+            char log_msg[128] = "[PCI] Device Found -> Vendor: ";
+            char hex[16];
+            itoa(vendor_id, hex, 16);
+            strcat(log_msg, hex);
+            strcat(log_msg, " | Device: ");
+            itoa(device_id, hex, 16);
+            strcat(log_msg, hex);
+            strcat(log_msg, " | Class: ");
+            itoa(class_code, hex, 16);
+            strcat(log_msg, hex);
             
-            printf(" Class: ");
-            printf("%X", class_code);
-            printf("]");
-            printf("\n");
+            klog(log_msg);
         }
     }
+    klog("[PCI] Hardware scan complete.");
 }
 
 void pci_write(uint8_t bus, uint8_t device, uint8_t func, uint8_t offset, uint32_t val) {

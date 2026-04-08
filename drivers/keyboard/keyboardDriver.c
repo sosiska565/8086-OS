@@ -10,6 +10,8 @@
 static uint8_t shift_pressed = 0;
 static uint8_t caps_lock = 0;
 static uint8_t ctrl_pressed = 0; 
+static uint8_t alt_pressed = 0; 
+static uint8_t win_pressed = 0;
 
 static unsigned int key_buffer[BUFFER_SIZE];
 static volatile int buffer_count = 0;
@@ -44,13 +46,18 @@ static unsigned int get_letter(unsigned int lower, unsigned int upper, uint8_t s
 unsigned int scancode_to_char(uint8_t scancode) {
     if (scancode & 0x80) return 0;
     switch(scancode) {
+        case 0x01: return 27; 
         case 0x02: return shift_pressed ? '!' : '1'; case 0x03: return shift_pressed ? '@' : '2';
         case 0x04: return shift_pressed ? '#' : '3'; case 0x05: return shift_pressed ? '$' : '4';
         case 0x06: return shift_pressed ? '%' : '5'; case 0x07: return shift_pressed ? '^' : '6';
         case 0x08: return shift_pressed ? '&' : '7'; case 0x09: return shift_pressed ? '*' : '8';
         case 0x0A: return shift_pressed ? '(' : '9'; case 0x0B: return shift_pressed ? ')' : '0';
         case 0x0C: return shift_pressed ? '_' : '-'; case 0x0D: return shift_pressed ? '+' : '=';
-        case 0x0E: return '\b'; case 0x0F: return '\t';
+        case 0x0E: return '\b'; 
+        case 0x0F: 
+            if (win_pressed) return 23;  
+            if (alt_pressed) return 24;  
+            return '\t';
         case 0x10: return get_letter('q', 'Q', shift_pressed, caps_lock); case 0x11: return get_letter('w', 'W', shift_pressed, caps_lock);
         case 0x12: return get_letter('e', 'E', shift_pressed, caps_lock); case 0x13: return get_letter('r', 'R', shift_pressed, caps_lock);
         case 0x14: return get_letter('t', 'T', shift_pressed, caps_lock); case 0x15: return get_letter('y', 'Y', shift_pressed, caps_lock);
@@ -68,7 +75,12 @@ unsigned int scancode_to_char(uint8_t scancode) {
         case 0x30: return get_letter('b', 'B', shift_pressed, caps_lock); case 0x31: return get_letter('n', 'N', shift_pressed, caps_lock);
         case 0x32: return get_letter('m', 'M', shift_pressed, caps_lock); case 0x33: return shift_pressed ? '<' : ',';
         case 0x34: return shift_pressed ? '>' : '.'; case 0x35: return shift_pressed ? '?' : '/'; case 0x39: return ' ';
-        case 0x48: return 17; case 0x50: return 18;
+        case 0x3B: return 21; 
+        case 0x3C: return 22; 
+        case 0x48: return 17; 
+        case 0x4B: return 19; 
+        case 0x4D: return 20; 
+        case 0x50: return 18; 
         default: return 0;
     }
 }
@@ -90,7 +102,8 @@ void keyboard_handler_c(void) {
     if (make_code == 0x2A || make_code == 0x36) shift_pressed = !is_release;
     else if (make_code == 0x3A && !is_release) caps_lock = !caps_lock;
     else if (make_code == 0x1D) ctrl_pressed = !is_release; 
-    
+    else if (make_code == 0x38) alt_pressed = !is_release;
+    else if (make_code == 0x5B) win_pressed = !is_release;
     
     if (!is_release && ctrl_pressed && make_code == 0x2E) {
         if (foreground_task_id > 1) { 

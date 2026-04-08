@@ -3,6 +3,7 @@
 #include "drivers/vga/vga.h"
 #include "global.h"
 #include "mm/memory.h" 
+#include "utils/utils.h"
 
 struct fat32_bpb bpb;
 uint32_t fat_start_sector;
@@ -29,6 +30,7 @@ static void set_dos_name(struct fat_directory_entry *entry, char *dos_name) {
 }
 
 void fat32_init() {
+    klog("[FAT32] Mounting Boot Sector and calculating clusters...");
     uint32_t partition_lba_offset = 0;
     disk_read_sector(0, fat_dma_buffer);
     if (fat_dma_buffer[0] != 0xEB && fat_dma_buffer[0] != 0xE9) {
@@ -43,7 +45,9 @@ void fat32_init() {
     fat_start_sector = partition_lba_offset + bpb.reserved_sectors;
     data_start_sector = partition_lba_offset + bpb.reserved_sectors + (bpb.num_fats * bpb.sectors_per_fat_32);
     last_free_fat_sector = 0; 
+    klog("[FAT32] Filesystem successfully mounted.");
 }
+
 
 void fat32_write_fat_entry(uint32_t cluster, uint32_t value) {
     if (cluster < 2) return;

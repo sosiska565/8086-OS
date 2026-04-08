@@ -43,41 +43,41 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
 
     mbi = (struct multiboot_info*) mb_info_addr;
 
+    klog("[INIT] Kernel started booting.");
+
     heap_init();
+    klog("[INIT] Heap memory manager initialized.");
+
     init_vesa();
     init_gfx_console();
+    klog("[INIT] VESA Graphics and BGA Console initialized.");
 
     init_paging();
-
-    printf("Gfx console initialized.\n");
+    klog("[INIT] Paging and Virtual Memory enabled.");
 
     pci_scan();
-    printf("[DEBUG] pci_scan() finished.\n");
+    klog("[INIT] PCI Bus scan finished.");
 
-    printf("[DEBUG] Starting disk_manager_init()...\n");
     disk_manager_init();
-    printf("[DEBUG] disk_manager_init() finished.\n");
+    klog("[INIT] ATA/IDE Disk manager finished.");
 
-    printf("[DEBUG] Starting ahci_init()...\n");
     ahci_init();
-    printf("[DEBUG] ahci_init() finished.\n");
+    klog("[INIT] AHCI SATA driver initialized.");
 
-    printf("[DEBUG] Starting fat32_init()...\n");
     fat32_init();
-    printf("[DEBUG] fat32_init() finished.\n");
+    klog("[INIT] FAT32 File System mounted.");
 
     vfs_init();
 
     srand(get_ticks());
 
-    printf("Window manager initialized.\n");
-
     init_tasking();
-    printf("Tasking initialized.\n");
+    klog("[INIT] Multitasking engine initialized.");
 
-    printf("Please press any key to continue...\n");
     mouse_init();
+    klog("[INIT] PS/2 Mouse driver initialized.");
 
+    klog("[INIT] Spawning Initd process...");
     create_process(initd, 0, 0, "initd", kernel_dir);
 
     while(1) {

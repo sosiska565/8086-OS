@@ -36,7 +36,7 @@ LIB_ASM_OBJS    := $(LIB_ASM_SOURCES:.asm=.o)
 LIB_OBJS        := $(LIB_ASM_OBJS) $(LIB_C_OBJS)
 
 USER_SOURCES    := $(wildcard userland/apps/*.c)
-USER_BINS       := $(patsubst userland/apps/%.c, $(PATH_DIR)/%.bin, $(USER_SOURCES))
+USER_BINS       := $(patsubst userland/apps/%.c, $(PATH_DIR)/%.elf, $(USER_SOURCES))
 
 .PHONY: all clean run build-all iso
 
@@ -63,7 +63,7 @@ userland/lib/%.o: userland/lib/%.asm
 	@echo "NASM Lib $<"
 	@$(NASM) $(NASMFLAGS) $< -o $@
 
-$(PATH_DIR)/%.bin: userland/apps/%.c $(LIB_OBJS)
+$(PATH_DIR)/%.elf: userland/apps/%.c $(LIB_OBJS)
 	@mkdir -p $(PATH_DIR)
 	@echo "CC App $<"
 	@$(CC) $(USER_CFLAGS) -c $< -o userland/apps/$*.o
@@ -111,4 +111,3 @@ clean:
 	@find . -name "*.o" -type f -delete
 	@rm -f $(KERNEL_BIN) $(DISK_IMG) $(ISO)
 	@rm -rf iso
-	@rm -rf $(DISK_DIR)

@@ -12,18 +12,16 @@
 static const char* dev_files[] = {"stdin", "stdout", "stderr", "null", "random", "urandom", "zero"};
 static const int num_dev_files = 7;
 
-static const char* proc_files[] = {"meminfo", "cpuinfo", "version", "uptime"};
-static const int num_proc_files = 4;
+static const char* proc_files[] = {"meminfo", "cpuinfo", "version", "uptime", "klog"};
+static const int num_proc_files = 5;
 
-void vfs_init(void) { printf("[VFS] Virtual File System initialized.\n"); }
+void vfs_init(void) { klog("[VFS] Virtual File System initialized."); }
 
 int vfs_read(char* path, uint8_t* buffer) {    
-    
     if (strcmp(path, "/dev/stdin") == 0) { buffer[0] = (uint8_t)getch(); buffer[1] = '\0'; return 1; }
     if (strcmp(path, "/dev/urandom") == 0 || strcmp(path, "/dev/random") == 0) { buffer[0] = (uint8_t)(random() % 256); return 1; }
     if (strcmp(path, "/dev/zero") == 0) { buffer[0] = 0; return 1; }
     if (strcmp(path, "/dev/null") == 0 || strcmp(path, "/dev/stdout") == 0 || strcmp(path, "/dev/stderr") == 0) return 0;
-    
     
     if (strncmp(path, "/proc/", 6) == 0) {
         char buf[512]; buf[0] = '\0';
@@ -46,6 +44,12 @@ int vfs_read(char* path, uint8_t* buffer) {
             itoa(get_ticks() / 1000, temp, 10);
             strcpy(buf, temp); strcat(buf, " seconds\n");
         }
+        else if (strcmp(path, "/proc/klog") == 0) {
+            extern char sys_log_buffer[];
+            extern int sys_log_pos;
+            strcpy((char*)buffer, sys_log_buffer);
+            return sys_log_pos;
+        }
         
         int len = strlen(buf);
         strcpy((char*)buffer, buf);
@@ -67,6 +71,10 @@ int vfs_write(char* path, uint8_t* buffer, uint32_t size) {
 
 int vfs_get_size(char* path) {
     if (strncmp(path, "/dev/", 5) == 0) return 1; 
+    if (strcmp(path, "/proc/klog") == 0) {
+        extern int sys_log_pos;
+        return sys_log_pos;
+    }
     if (strncmp(path, "/proc/", 6) == 0) return 512; 
     return fat32_get_file_size(path);
 }
@@ -98,7 +106,14 @@ int vfs_readdir(char* path, int index, vfs_dirent_t* out_dirent) {
     if (strcmp(path, "/proc") == 0 || strcmp(path, "/proc/") == 0) {
         if (index >= num_proc_files) return 0; 
         strcpy(out_dirent->name, (char*)proc_files[index]);
-        out_dirent->size = 0; out_dirent->type = VFS_ATTR_FILE; return 1;
+        if (strcmp(proc_files[index], "klog") == 0) {
+            extern int sys_log_pos;
+            out_dirent->size = sys_log_pos;
+        } else {
+            out_dirent->size = 0; 
+        }
+        out_dirent->type = VFS_ATTR_FILE; 
+        return 1;
     }
 
     if (strcmp(path, "/") == 0) {

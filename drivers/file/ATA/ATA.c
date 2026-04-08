@@ -4,11 +4,11 @@
 #include "global.h"
 #include "drivers/AHCI/AHCI.h"
 #include "fs/fat/fat32.h"
+#include "utils/utils.h"
 
 drive_info_t sys_drives[MAX_SYS_DRIVES];
 int sys_drive_count = 0;
 int active_drive_index = 0;
-
 
 int ata_wait_bsy(void){
     int timeout = 10000000; 
@@ -27,32 +27,38 @@ void ata_wait_io() {
 }
 
 void disk_manager_init(void) {
-    printf(" [ATA] Checking IDE drives...\n");
+    klog("[ATA] Probing IDE Master & Slave drives...");
     sys_drive_count = 0;
     active_drive_index = 0;
 
     struct disk_struct ds;
     
-    printf(" [ATA] Checking Master...\n");
     ata_identify(ATA_MASTER, &ds);
     if (strcmp(ds.name, "NO DISK") != 0 && strcmp(ds.name, "ERROR") != 0 && strcmp(ds.name, "ERROR/CD-ROM") != 0) {
         sys_drives[sys_drive_count].type = DRIVE_TYPE_ATA;
         sys_drives[sys_drive_count].ata_id = ATA_MASTER;
         strcpy(sys_drives[sys_drive_count].name, "ATA Master - ");
         strcat(sys_drives[sys_drive_count].name, ds.name);
+        
+        char msg[128] = "[ATA] Mapped Master: ";
+        strcat(msg, ds.name);
+        klog(msg);
         sys_drive_count++;
     }
 
-    printf(" [ATA] Checking Slave...\n");
     ata_identify(ATA_SLAVE, &ds);
     if (strcmp(ds.name, "NO DISK") != 0 && strcmp(ds.name, "ERROR") != 0 && strcmp(ds.name, "ERROR/CD-ROM") != 0) {
         sys_drives[sys_drive_count].type = DRIVE_TYPE_ATA;
         sys_drives[sys_drive_count].ata_id = ATA_SLAVE;
         strcpy(sys_drives[sys_drive_count].name, "ATA Slave - ");
         strcat(sys_drives[sys_drive_count].name, ds.name);
+        
+        char msg[128] = "[ATA] Mapped Slave: ";
+        strcat(msg, ds.name);
+        klog(msg);
         sys_drive_count++;
     }
-    printf(" [ATA] Check done.\n");
+    klog("[ATA] Drive mapping complete.");
 }
 
 int disk_select(int index) {

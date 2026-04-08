@@ -1,6 +1,7 @@
 #include "irq/interrupts.h"
 #include "drivers/vga/vga.h"
 #include "utils/utils.h"
+#include "task/task.h"
 
 struct interrupt_frame {
     unsigned int rip;
@@ -11,15 +12,19 @@ struct interrupt_frame {
 } __attribute__((packed));
 
 void system_division_handler_c(struct interrupt_frame *frame){
-    print_info("ERROR", "Division by zero.\n", VGA_COLOR_RED, VGA_COLOR_LIGHT_GREY);
-    print_info("INFO", "Location: ", VGA_COLOR_YELLOW, VGA_COLOR_LIGHT_GREY);
-    printhex(frame->rip);
-    printf("\n");
-    
-    frame->rip += 2;
+    if (current_task && current_task->id > 1) {
+        printf("\n%C[KILL] Process PID %d killed: Division by Zero!%C\n", VGA32_COLOR_RED, current_task->id, VGA32_COLOR_WHITE);
+        exit_process();
+    } else {
+        panic("Kernel Panic: Division by zero inside Kernel!");
+    }
 }
 
-void page_fault_handler_c(registers_t *regs){
-    // panic_with_regs(regs, "PAGE FAULT");
-    printf("PAGE FAULT!");
+void page_fault_handler_c(struct registers_t *regs){
+    if (current_task && current_task->id > 1) {
+        printf("\n%C[SEGFAULT] Process PID %d killed: Access Violation (Page Fault)!%C\n", VGA32_COLOR_RED, current_task->id, VGA32_COLOR_WHITE);
+        exit_process();
+    } else {
+        panic("Kernel Panic: Page Fault inside Kernel!");
+    }
 }

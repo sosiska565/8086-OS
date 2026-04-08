@@ -6,14 +6,26 @@ int main(int argc, char** argv) {
     char* target = (argc > 1) ? argv[1] : ".";
     
     while (readdir(target, idx++, &entry) == 1) {
-        if (entry.type == VFS_ATTR_DIR) { set_color(9, 0); printf("[DIR]  "); }
-        else if (entry.type == VFS_ATTR_DEV) { set_color(14, 0); printf("[DEV]  "); }
-        else { set_color(7, 0); printf("[FILE] "); }
+        if (entry.type == VFS_ATTR_DIR) { 
+            set_color(COLOR_LIGHT_BLUE, COLOR_BLACK); 
+            printf("[DIR]  "); 
+        }
+        else if (entry.type == VFS_ATTR_DEV) { 
+            set_color(COLOR_YELLOW, COLOR_BLACK); 
+            printf("[DEV]  "); 
+        }
+        else { 
+            set_color(COLOR_LIGHT_GRAY, COLOR_BLACK); 
+            printf("[FILE] "); 
+        }
         
         printf(entry.name);
-        if (entry.type == VFS_ATTR_FILE) { printf("\t"); printf("%d", entry.size); print(" B"); }
+        if (entry.type == VFS_ATTR_FILE) { 
+            printf("\t%d B", entry.size); 
+        }
         printf("\n");
     }
-    set_color(7, 0);
+    
+    set_color(COLOR_LIGHT_GRAY, COLOR_BLACK);
     return 0;
 }
