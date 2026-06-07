@@ -2,6 +2,7 @@
 #define UTILS_H
 
 #include <stdint.h>
+#include <stdarg.h>
 #include "irq/interrupts.h"
 
 typedef struct {
@@ -38,5 +39,9 @@ void panic_with_regs(registers_t *regs, char *msg);
 void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color);
 
 void get_absolute_path(char* cwd, char* input_path, char* output_path);
+
+
+void vsprintf(char *str, const char *format, va_list args);
+void sprintf(char *str, const char *format, ...);
 
 #endif

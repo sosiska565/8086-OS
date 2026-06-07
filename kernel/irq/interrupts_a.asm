@@ -6,6 +6,7 @@ global mouse_handler
 global page_fault_handler
 
 global ignore_handler
+global invalid_opcode_handler
 
 extern syscall_handler_c
 extern system_division_handler_c
@@ -13,6 +14,7 @@ extern timer_handler_c
 extern keyboard_handler_c
 extern mouse_handler_c
 extern page_fault_handler_c
+extern invalid_opcode_handler_c
 
 syscall_handler:
     pusha
@@ -76,4 +78,14 @@ page_fault_handler:
     iret
 
 ignore_handler:
+    iret
+
+invalid_opcode_handler:
+    push 6
+    pusha
+    push esp
+    call invalid_opcode_handler_c
+    add esp, 4
+    popa
+    add esp, 4
     iret

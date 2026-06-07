@@ -34,12 +34,14 @@ typedef struct Task {
     char cwd[64]; 
     int fd_table[MAX_FDS]; 
 
-    
     int uid; 
     char redirect_path[128]; 
     uint8_t* redirect_buf;   
     uint32_t redirect_size;
     uint32_t lib_offset;
+
+    uint32_t heap_start;
+    uint32_t heap_end;
 } Task;
 
 typedef struct process_struct {
@@ -64,8 +66,11 @@ void exit_process(void);
 void wait_process(int pid);
 void task_sleep(int ms);
 void kill_task(int pid);
+
 void track_allocation(Task *task, void *ptr);
+void track_allocation_a(Task *task, void *ptr);
 void untrack_allocation(Task *task, void *ptr);
+
 int spawn_process(char* path, char** argv, char* redirect_out);
 uint32_t load_library(Task* t, char* lib_name);
 uint32_t get_symbol(Task* t, uint32_t lib_handle, char* sym_name);

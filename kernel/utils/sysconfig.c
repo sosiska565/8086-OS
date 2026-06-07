@@ -6,6 +6,7 @@
 #include "drivers/vga/vga.h"
 
 Config *global_cfg = 0;
+static uint8_t *current_cfg_buffer = 0;
 
 void sysconfig_reload(void) {
     int file_size = vfs_get_size("/kernel.cfg");
@@ -22,9 +23,10 @@ void sysconfig_reload(void) {
     file_buffer[file_size] = '\0';
     
     if (global_cfg) config_free(global_cfg);
+    if (current_cfg_buffer) kfree_a(current_cfg_buffer);
     global_cfg = config_parse((char *)file_buffer);
 
-    kfree_a(file_buffer);
+    current_cfg_buffer = file_buffer;
 }
 
 void sysconfig_init(void) { sysconfig_reload(); }

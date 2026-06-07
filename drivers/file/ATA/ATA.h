@@ -32,7 +32,8 @@
 typedef enum {
     DRIVE_TYPE_NONE,
     DRIVE_TYPE_ATA,
-    DRIVE_TYPE_AHCI
+    DRIVE_TYPE_AHCI,
+    DRIVE_TYPE_RAMDISK 
 } drive_type_t;
 
 typedef struct {
@@ -49,13 +50,12 @@ struct disk_struct {
 
 extern drive_info_t sys_drives[MAX_SYS_DRIVES];
 extern int sys_drive_count;
-extern int active_drive_index;
 
 void disk_manager_init(void);
-int disk_select(int index);
 
-int disk_read_sector(uint32_t lba, uint8_t *buffer);
-int disk_write_sector(uint32_t lba, uint8_t *buffer);
+
+int disk_read_sector(int drive_id, uint32_t lba, uint8_t *buffer);
+int disk_write_sector(int drive_id, uint32_t lba, uint8_t *buffer);
 
 int ata_read_sector(uint32_t lba, uint8_t *buffer, uint8_t drive);
 void ata_write_sector(uint32_t lba, uint8_t *buffer);

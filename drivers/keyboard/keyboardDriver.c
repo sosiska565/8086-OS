@@ -20,6 +20,13 @@ static volatile int scancode_count = 0;
 
 uint8_t current_layout = 0;
 
+static uint8_t key_states[128] = {0};
+
+int get_key_state(uint8_t scancode) {
+    if (scancode < 128) return key_states[scancode];
+    return 0;
+}
+
 static void add_to_buffer(unsigned int c) { if (buffer_count < BUFFER_SIZE) key_buffer[buffer_count++] = c; }
 static int is_buffer_empty(void) { return buffer_count == 0; }
 static unsigned int get_from_buffer(void) {
@@ -85,6 +92,27 @@ unsigned int scancode_to_char(uint8_t scancode) {
     }
 }
 
+void keyboard_init(void) {
+    while (inb(0x64) & 1) {
+        inb(0x60);
+    }
+
+    outb(0x64, 0x20);
+    while ((inb(0x64) & 2) != 0);
+    uint8_t status = inb(0x60);
+
+    status |= 1;
+    status &= ~0x10;
+
+    outb(0x64, 0x60);
+    while ((inb(0x64) & 2) != 0);
+    outb(0x60, status);
+
+    while (inb(0x64) & 1) {
+        inb(0x60);
+    }
+}
+
 unsigned int scancode_to_char_layout(uint8_t scancode) { return scancode_to_char(scancode); }
 
 void keyboard_flush(void) {
@@ -98,6 +126,8 @@ void keyboard_handler_c(void) {
     uint8_t scancode = inb(0x60);
     uint8_t is_release = (scancode & 0x80);
     uint8_t make_code = scancode & 0x7F;
+
+    key_states[make_code] = !is_release;
 
     if (make_code == 0x2A || make_code == 0x36) shift_pressed = !is_release;
     else if (make_code == 0x3A && !is_release) caps_lock = !caps_lock;
@@ -139,4 +169,22 @@ void gets(char* buffer, int max_len) {
         else if (c == '\b') { if (pos > 0) { pos--; buffer[pos] = '\0'; printf("\b \b"); } }
         else if (c != 0) { if (pos < max_len - 1) { buffer[pos++] = (char)c; printf("%c", c); } }
     }
+}
+
+unsigned int poll_buffer(void) {
+    if (buffer_count > 0) {
+        unsigned int c = key_buffer[0];
+        for (int i = 1; i < buffer_count; i++) key_buffer[i-1] = key_buffer[i];
+        buffer_count--; return c;
+    } return 0;
+}
+
+uint8_t get_keyboard_modifiers(void) {
+    uint8_t mods = 0;
+    if (shift_pressed) mods |= (1 << 0);
+    if (ctrl_pressed)  mods |= (1 << 1);
+    if (alt_pressed)   mods |= (1 << 2);
+    if (win_pressed)   mods |= (1 << 3);
+    if (caps_lock)     mods |= (1 << 4);
+    return mods;
 }

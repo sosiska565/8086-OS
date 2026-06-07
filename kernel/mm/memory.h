@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define HEAP_START 0x00200000
-#define HEAP_SIZE 0x20000000
+#define HEAP_START 0x08000000 
+#define HEAP_SIZE  0x08000000
 
 static inline uint32_t save_flags() {
     uint32_t flags;

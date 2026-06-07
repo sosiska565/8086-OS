@@ -14,28 +14,26 @@ void pci_scan(void){
 
     for(uint16_t bus = 0; bus < 256; bus++){
         for(uint8_t dev = 0; dev < 32; dev++){
-            uint32_t id = pci_read(bus, dev, 0, 0);
+            for(uint8_t func = 0; func < 8; func++){ 
+                uint32_t id = pci_read(bus, dev, func, 0);
 
-            uint16_t vendor_id = id & 0xFFFF;
-            uint16_t device_id = (id >> 16) & 0xFFFF;
+                uint16_t vendor_id = id & 0xFFFF;
+                if(vendor_id == 0xFFFF) continue; 
 
-            if(vendor_id == 0xFFFF) continue;
+                uint32_t class_reg = pci_read(bus, dev, func, 0x08);
+                uint8_t class_code = (class_reg >> 24) & 0xFF;
+                uint8_t subclass = (class_reg >> 16) & 0xFF;
 
-            uint32_t class_reg = pci_read(bus, dev, 0, 0x08);
-            uint8_t class_code = (class_reg >> 24) & 0xFF;
-
-            char log_msg[128] = "[PCI] Device Found -> Vendor: ";
-            char hex[16];
-            itoa(vendor_id, hex, 16);
-            strcat(log_msg, hex);
-            strcat(log_msg, " | Device: ");
-            itoa(device_id, hex, 16);
-            strcat(log_msg, hex);
-            strcat(log_msg, " | Class: ");
-            itoa(class_code, hex, 16);
-            strcat(log_msg, hex);
-            
-            klog(log_msg);
+                char log_msg[128] = "[PCI] Dev: ";
+                char hex[16];
+                itoa(vendor_id, hex, 16); strcat(log_msg, hex);
+                strcat(log_msg, " | Class: ");
+                itoa(class_code, hex, 16); strcat(log_msg, hex);
+                strcat(log_msg, " | Sub: ");
+                itoa(subclass, hex, 16); strcat(log_msg, hex);
+                
+                klog(log_msg);
+            }
         }
     }
     klog("[PCI] Hardware scan complete.");

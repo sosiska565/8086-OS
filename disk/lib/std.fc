@@ -1,0 +1,8 @@
+#include "mem.fc"
+#include "io.fc"
+#include "string.fc"
+#include "fs.fc"
+
+
+fn exit(code: int) { syscall(1, code, 0, 0, 0); }
+fn clear() { syscall(18, 0, 0, 0, 0); }

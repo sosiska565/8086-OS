@@ -10,8 +10,7 @@ void initd(int argc, char **argv){
     printf("\n=== 8086-OS Kernel Booted ===\n");
     printf("Mounting root filesystem...\n");
     
-    
-    int sh_pid = spawn_process("/path/login.elf", NULL, NULL); 
+    int sh_pid = spawn_process("/path/sh.elf", NULL, NULL);
     
     if (sh_pid < 0) {
         printf("%C[WARN] Failed to start Userland Login (/path/login.bin)!%C\n", VGA32_COLOR_YELLOW, VGA32_COLOR_WHITE);

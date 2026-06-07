@@ -22,7 +22,7 @@ typedef enum {
     VGA_COLOR_LIGHT_MAGENTA = 13,
     VGA_COLOR_YELLOW = 14,
     VGA_COLOR_WHITE = 15,
-    //32bit
+    
     VGA32_COLOR_BLACK = 0x00000000,
     VGA32_COLOR_BLUE = 0x000000FF,
     VGA32_COLOR_GREEN = 0x0000FF00,
@@ -98,28 +98,25 @@ void set_cursor_position(unsigned int x, unsigned int y);
 void move_cursor_next_line(void);
 void get_cursor_xy(unsigned int *x, unsigned int *y);
 
-//utils
 
 void scroll_screen(void);
-int strcmp(char *c1, char *c2);
+int strcmp(const char *c1, const char *c2); 
 char **parse_str(char *str, char parse_char);
-
-//
 
 void print_header(int header_bg_color, int header_text_color, char *title);
 void print_footer(int footer_bg_color, int footer_text_color, char *text);
 void print_info(char *status, char *info, unsigned short color_status, unsigned short color_info);
 int strtn(char *str);
-void strcpy(char *s1, char *s2);
+void strcpy(char *s1, const char *s2);
 void *memset(void *ptr, int value, size_t num);
 char* toupper(char *str);
 char toupper_char(unsigned int c);
 void set_current_color(vga_color_t color);
-int strlen(char *str);
+int strlen(const char *str);
 void printf(const char* format, ...);
 void vprintf(const char* format, va_list args);
 void itoa(unsigned int n, char* buffer, int base);
-void strcat(char *dest, char* str);
+void strcat(char *dest, const char* str);
 long atoi(const char *str, int base);
 int strncmp(const char *s1, const char *s2, int n);
 

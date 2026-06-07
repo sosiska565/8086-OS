@@ -15,6 +15,15 @@ static int check_type(HBA_PORT *port) {
     uint8_t ipm = (ssts >> 8) & 0x0F;
     uint8_t det = ssts & 0x0F;
 
+    int timer = 0;
+    while (det != HBA_PORT_DET_PRESENT && timer < 500) {
+        sleep(10);
+        timer += 10;
+        ssts = port->ssts;
+        det = ssts & 0x0F;
+        ipm = (ssts >> 8) & 0x0F;
+    }
+
     if (det != HBA_PORT_DET_PRESENT || ipm != HBA_PORT_IPM_ACTIVE)
         return AHCI_DEV_NULL;
 
@@ -195,22 +204,30 @@ int ahci_write_sector(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t
 
 void ahci_init(void) {
     klog("[AHCI] Scanning PCI for AHCI controller...");
-    uint8_t bus = 0, dev = 0;
+    
+    
+    uint8_t target_bus = 0, target_dev = 0, target_func = 0;
     int found = 0;
 
-    for(bus = 0; bus < 255; bus++) {
-        for(dev = 0; dev < 32; dev++) {
-            uint32_t id = pci_read(bus, dev, 0, 0);
-            if((id & 0xFFFF) == 0xFFFF) continue;
-            
-            uint32_t class_reg = pci_read(bus, dev, 0, 0x08);
-            uint8_t class_code = (class_reg >> 24) & 0xFF;
-            uint8_t subclass = (class_reg >> 16) & 0xFF;
+    for(uint16_t bus = 0; bus < 256; bus++) {
+        for(uint8_t dev = 0; dev < 32; dev++) {
+            for(uint8_t func = 0; func < 8; func++) { 
+                uint32_t id = pci_read(bus, dev, func, 0);
+                if((id & 0xFFFF) == 0xFFFF) continue;
+                
+                uint32_t class_reg = pci_read(bus, dev, func, 0x08);
+                uint8_t class_code = (class_reg >> 24) & 0xFF;
+                uint8_t subclass = (class_reg >> 16) & 0xFF;
 
-            if (class_code == 0x01 && subclass == 0x06) {
-                found = 1;
-                break;
+                if (class_code == 0x01 && subclass == 0x06) {
+                    target_bus = bus;
+                    target_dev = dev;
+                    target_func = func; 
+                    found = 1;
+                    break;
+                }
             }
+            if (found) break;
         }
         if (found) break;
     }
@@ -221,11 +238,12 @@ void ahci_init(void) {
     }
 
     klog("[AHCI] Controller found. Enabling PCI busmaster...");
-    uint32_t pci_cmd = pci_read(bus, dev, 0, 0x04);
+    
+    uint32_t pci_cmd = pci_read(target_bus, target_dev, target_func, 0x04);
     pci_cmd |= 0x06;
-    pci_write(bus, dev, 0, 0x04, pci_cmd);
+    pci_write(target_bus, target_dev, target_func, 0x04, pci_cmd);
 
-    uint32_t abar_phys = pci_read(bus, dev, 0, 0x24) & 0xFFFFFFF0;
+    uint32_t abar_phys = pci_read(target_bus, target_dev, target_func, 0x24) & 0xFFFFFFF0;
     if (abar_phys == 0) {
         klog("[AHCI] ERROR: ABAR memory address is 0.");
         return;
@@ -250,6 +268,9 @@ void ahci_init(void) {
     uint32_t pi = abar->pi;
     for (int i = 0; i < 32; i++) {
         if (pi & (1<<i)) {
+            abar->ports[i].cmd |= 0x02; 
+            sleep(10);
+
             int dt = check_type(&abar->ports[i]);
             if (dt == AHCI_DEV_SATA) {
                 char port_msg[64] = "[AHCI] Rebased SATA Drive on Port ";
@@ -261,9 +282,6 @@ void ahci_init(void) {
                 abar->ports[i].serr = 0xFFFFFFFF;
                 abar->ports[i].is = 0xFFFFFFFF;
                 
-                abar->ports[i].cmd |= 0x02; 
-                for(volatile int w=0; w<10000; w++);
-
                 port_rebase(&abar->ports[i], i);
                 
                 if (active_sata_port == 0) {

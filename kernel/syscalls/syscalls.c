@@ -7,6 +7,8 @@
 #include "task/task.h"
 #include "drivers/video/bga/gfx_console.h"
 #include "fs/vfs.h"
+#include "drivers/mouse/mouse.h"
+#include "fs/fd.h"
 
 typedef void (*syscall_handler_t)(struct syscall_registers *);
 
@@ -95,17 +97,11 @@ static void sys_get_term_size(struct syscall_registers *regs) {
     regs->eax = 0;
 }
 
-
 static void sys_print(struct syscall_registers *regs) {
     char* str = (char*)regs->ebx;
     if (!str) { regs->eax = 0; return; }
-    
-    
     int i = 0;
-    while (str[i] != '\0') {
-        gfx_putc(str[i]); 
-        i++;
-    }
+    while (str[i] != '\0') { gfx_putc(str[i]); i++; }
     regs->eax = i; 
 }
 
@@ -135,11 +131,123 @@ static void sys_chdir(struct syscall_registers *regs) { char abs_path[256]; get_
 static void sys_readdir(struct syscall_registers *regs) { char abs_path[256]; get_absolute_path(current_task->cwd, (char*)regs->ebx, abs_path); regs->eax = vfs_readdir(abs_path, (int)regs->ecx, (vfs_dirent_t*)regs->edx); }
 static void sys_mkdir(struct syscall_registers *regs) { char abs_path[256]; get_absolute_path(current_task->cwd, (char*)regs->ebx, abs_path); regs->eax = vfs_mkdir(abs_path); }
 static void sys_getcwd(struct syscall_registers *regs) { strcpy((char*)regs->ebx, current_task->cwd); regs->eax = 0; }
-static void sys_dlopen(struct syscall_registers *regs) {
-    regs->eax = load_library(current_task, (char*)regs->ebx);
+static void sys_dlopen(struct syscall_registers *regs) { regs->eax = load_library(current_task, (char*)regs->ebx); }
+static void sys_dlsym(struct syscall_registers *regs) { regs->eax = get_symbol(current_task, regs->ebx, (char*)regs->ecx); }
+
+
+static void sys_mount(struct syscall_registers *regs) { regs->eax = vfs_mount((char*)regs->ebx, (char*)regs->ecx, (char*)regs->edx); }
+static void sys_unmount(struct syscall_registers *regs) { regs->eax = vfs_unmount((char*)regs->ebx); }
+
+static void sys_detach(struct syscall_registers *regs) {
+    current_task->parent_id = 1; 
+    regs->eax = 0;
 }
-static void sys_dlsym(struct syscall_registers *regs) {
-    regs->eax = get_symbol(current_task, regs->ebx, (char*)regs->ecx);
+
+extern int screen_width;
+extern int screen_height;
+extern int screen_bpp;
+extern int screen_pitch;
+
+static void sys_get_screen_info(struct syscall_registers *regs) {
+    int *w = (int*)regs->ebx;
+    int *h = (int*)regs->ecx;
+    int *bpp = (int*)regs->edx;
+    
+    if(w) *w = screen_width;
+    if(h) *h = screen_height;
+    if(bpp) *bpp = screen_bpp;
+    regs->eax = 0;
+}
+
+extern uint32_t *video_memory; 
+
+static void sys_flush_screen(struct syscall_registers *regs) {
+    uint32_t *user_buffer = (uint32_t*)regs->ebx;
+    
+    if (user_buffer && video_memory) {
+        fast_memcpy(video_memory, user_buffer, screen_height * screen_pitch);
+    }
+    regs->eax = 0;
+}
+
+static void sys_get_mouse(struct syscall_registers *regs) {
+    int *x = (int*)regs->ebx;
+    int *y = (int*)regs->ecx;
+    int *buttons = (int*)regs->edx; 
+
+    if(x) *x = mouse.x;
+    if(y) *y = mouse.y;
+    if(buttons) {
+        *buttons = 0;
+        if(mouse.left_button) *buttons |= 1;
+        if(mouse.right_button) *buttons |= 2;
+        if(mouse.middle_button) *buttons |= 4;
+    }
+    regs->eax = 0;
+}
+
+static void sys_poll_key(struct syscall_registers *regs) {
+    regs->eax = poll_buffer(); 
+}
+
+static void sys_get_key_modifiers(struct syscall_registers *regs) {
+    regs->eax = get_keyboard_modifiers();
+}
+
+static void sys_yield(struct syscall_registers *regs) {
+    yield();
+}
+
+
+static void sys_sbrk(struct syscall_registers *regs) {
+    int incr = (int)regs->ebx;
+    uint32_t old_end = current_task->heap_end;
+    
+    if (incr == 0) {
+        regs->eax = old_end;
+        return;
+    }
+
+    uint32_t new_end = old_end + incr;
+    uint32_t start_page = (old_end + 4095) & ~4095;
+    uint32_t end_page = (new_end + 4095) & ~4095;
+
+    for (uint32_t page = start_page; page < end_page; page += 4096) {
+        uint32_t phys = (uint32_t)kmalloc_a(4096);
+        if (!phys) {
+            regs->eax = -1;
+            return;
+        }
+        fast_memset((void*)phys, 0, 1024); 
+        paging_map_user(current_task->page_dir, phys, page, 7);
+        track_allocation_a(current_task, (void*)phys);
+    }
+
+    current_task->heap_end = new_end;
+    regs->eax = old_end;
+}
+
+static void wrap_open(struct syscall_registers *regs) { regs->eax = sys_open((char*)regs->ebx, regs->ecx); }
+static void wrap_close(struct syscall_registers *regs) { regs->eax = sys_close(regs->ebx); }
+static void wrap_read_fd(struct syscall_registers *regs) { 
+    if (regs->ebx == 0) { 
+        char* buf = (char*)regs->ecx; buf[0] = (char)getch(); regs->eax = 1; return;
+    }
+    regs->eax = sys_read_fd(regs->ebx, (uint8_t*)regs->ecx, regs->edx); 
+}
+static void wrap_write_fd(struct syscall_registers *regs) {
+    if (regs->ebx == 1 || regs->ebx == 2) { sys_write(regs); return; } 
+    regs->eax = sys_write_fd(regs->ebx, (uint8_t*)regs->ecx, regs->edx);
+}
+static void wrap_lseek(struct syscall_registers *regs) { regs->eax = sys_lseek(regs->ebx, regs->ecx, regs->edx); }
+
+static void sys_get_ticks(struct syscall_registers *regs) {
+    regs->eax = (uint32_t)get_ticks();
+}
+
+extern int get_key_state(uint8_t scancode);
+static void sys_get_key_state(struct syscall_registers *regs) {
+    regs->eax = get_key_state((uint8_t)regs->ebx);
 }
 
 static syscall_handler_t syscall_table[256] = {
@@ -149,6 +257,23 @@ static syscall_handler_t syscall_table[256] = {
     [20] = sys_getuid, [21] = sys_setuid, [22] = sys_get_term_size, [23] = sys_print,
     [37] = sys_kill, [39] = sys_mkdir, [45] = sys_malloc, [46] = sys_free, [79] = sys_getcwd, [89] = sys_readdir,   
     [90] = sys_dlopen, [91] = sys_dlsym,
+    [92] = sys_mount, [93] = sys_unmount,
+    [24] = sys_detach,
+    [25] = sys_get_screen_info, 
+    [26] = sys_flush_screen, 
+    [27] = sys_get_mouse, 
+    [28] = sys_poll_key,
+    [29] = sys_get_key_modifiers,
+    [30] = sys_yield,
+    [31] = sys_get_ticks,
+    [32] = sys_get_key_state,
+    
+    [100] = wrap_open,
+    [101] = wrap_close,
+    [102] = wrap_lseek,
+    [103] = sys_sbrk,
+    [104] = wrap_read_fd,
+    [105] = wrap_write_fd
 };
 
 void syscall_handler_c(struct syscall_registers *regs) {

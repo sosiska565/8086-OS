@@ -2,13 +2,12 @@
 #include "drivers/vga/vga.h"
 #include "drivers/timer/timer.h"
 #include "mm/memory.h"
-#include "fs/fat/fat32.h"
+#include "fs/vfs.h"      
 #include "global.h"
 #include "drivers/video/vesa.h"
 #include "task/task.h"
 
 static unsigned long next = 1;
-
 
 char sys_log_buffer[65536];
 int sys_log_pos = 0;
@@ -18,6 +17,59 @@ void itoa_hex_32(uint32_t val, char *buf) {
     const char* hex_chars = "0123456789ABCDEF";
     for(int i = 7; i >= 0; i--) { buf[2 + i] = hex_chars[val & 0xF]; val >>= 4; }
     buf[10] = '\0';
+}
+
+void vsprintf(char *str, const char *format, va_list args) {
+    int pos = 0;
+    while (*format) {
+        if (*format == '%') {
+            format++;
+            if (*format == 'd' || *format == 'i') {
+                int n = va_arg(args, int);
+                char buf[16]; int i = 0, is_neg = 0;
+                if (n == 0) { str[pos++] = '0'; }
+                else {
+                    if (n < 0) { is_neg = 1; n = -n; }
+                    while (n > 0) { buf[i++] = (n % 10) + '0'; n /= 10; }
+                    if (is_neg) buf[i++] = '-';
+                    while (--i >= 0) str[pos++] = buf[i];
+                }
+            } else if (*format == 'u') {
+                uint32_t n = va_arg(args, uint32_t);
+                char buf[16]; int i = 0;
+                if (n == 0) { str[pos++] = '0'; }
+                else {
+                    while (n > 0) { buf[i++] = (n % 10) + '0'; n /= 10; }
+                    while (--i >= 0) str[pos++] = buf[i];
+                }
+            } else if (*format == 'x' || *format == 'X') {
+                unsigned int n = va_arg(args, unsigned int);
+                char buf[16]; int i = 0;
+                if (n == 0) { str[pos++] = '0'; }
+                else {
+                    while (n > 0) { int rem = n % 16; buf[i++] = (rem < 10) ? (rem + '0') : (rem - 10 + 'A'); n /= 16; }
+                    while (--i >= 0) str[pos++] = buf[i];
+                }
+            } else if (*format == 'c') {
+                str[pos++] = (char)va_arg(args, int);
+            } else if (*format == 's') {
+                char* s = va_arg(args, char*);
+                if (!s) s = "(null)";
+                while (*s) str[pos++] = *s++;
+            } else if (*format == '%') {
+                str[pos++] = '%';
+            }
+        } else { str[pos++] = *format; }
+        format++;
+    }
+    str[pos] = '\0';
+}
+
+void sprintf(char *str, const char *format, ...) { 
+    va_list args; 
+    va_start(args, format); 
+    vsprintf(str, format, args); 
+    va_end(args); 
 }
 
 void _print_screen(char *str, int x, int y, uint32_t color, uint32_t bg_color){
@@ -49,8 +101,11 @@ void panic(char *err){
     set_text_color(4);
     clear_screen();
     printf("\nKernel panic!\nErr: %s\nSystem will reboot in 5 seconds...\n", err);
-    unsigned long newTick = get_ticks() + 9100;
-    while(get_ticks() < newTick);
+    __asm__ volatile ("sti"); 
+    unsigned long newTick = get_ticks() + 5000;
+    while(get_ticks() < newTick) {
+        __asm__ volatile("hlt"); 
+    }
     __asm__ volatile ("mov $0xFE, %al\nout %al, $0x64\n");
 }
 
@@ -118,17 +173,15 @@ void config_save(char *filename, Config *cfg) {
         while (*v) out_buffer[pos++] = *v++;
         out_buffer[pos++] = '\n';
     }
-    fat32_write_file(filename, out_buffer, pos);
+    
+    vfs_write(filename, out_buffer, pos);
+    
     kfree(out_buffer);
 }
 
 int get_pixels_in_string(char *str){ return strlen(str) * 8; }
 
 void klog(char *msg) {
-    
-    // printf("%s\n", msg);
-    
-    
     char time_str[32];
     itoa(get_ticks() / 1000, time_str, 10);
     
@@ -139,7 +192,6 @@ void klog(char *msg) {
     char suffix[] = "s] ";
     for(int i=0; suffix[i] && sys_log_pos < 65530; i++) sys_log_buffer[sys_log_pos++] = suffix[i];
     
-    
     for(int i = 0; msg[i] != '\0' && sys_log_pos < 65530; i++) {
         sys_log_buffer[sys_log_pos++] = msg[i];
     }
@@ -149,7 +201,7 @@ void klog(char *msg) {
 }
 
 void klog_save() {
-    int result = fat32_write_file("/sys.log", (uint8_t*)sys_log_buffer, sys_log_pos);
+    int result = vfs_write("/sys.log", (uint8_t*)sys_log_buffer, sys_log_pos);
     if (result > 0) printf("System log saved to sys.log (%d bytes)\n", sys_log_pos);
 }
 

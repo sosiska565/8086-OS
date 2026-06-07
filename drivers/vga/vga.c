@@ -300,8 +300,6 @@ void printhex_colored(unsigned int num, uint8_t color) {
     update_cursor();
 }
 
-
-
 char** parse_str(char* str, char parse_char) {
     static char* tokens[256]; 
     static char buffer[256]; 
@@ -336,7 +334,7 @@ char** parse_str(char* str, char parse_char) {
     return tokens;
 }
 
-int strcmp(char *c1, char *c2) {
+int strcmp(const char *c1, const char *c2) {
     for(int i = 0; ; i++) {
         if(c1[i] != c2[i]) {
             return c1[i] - c2[i];
@@ -346,8 +344,6 @@ int strcmp(char *c1, char *c2) {
         }
     }
 }
-
-
 
 void print_header(int header_bg_color, int header_text_color, char *title){
     int len = 0;
@@ -433,7 +429,7 @@ int strtn(char *str){
     return n;
 }
 
-void strcpy(char *dst, char *src){
+void strcpy(char *dst, const char *src){
     int i = 0;
     while (src[i]) {
         dst[i] = src[i];
@@ -442,7 +438,7 @@ void strcpy(char *dst, char *src){
     dst[i] = '\0';
 }
 
-int strlen(char *str){
+int strlen(const char *str){
     int i = 0;
     for(; str[i] != '\0'; i++);
     return i;
@@ -653,7 +649,7 @@ long atoi(const char *str, int base){
     return result * sign;
 }
 
-void strcat(char *dest, char* str){
+void strcat(char *dest, const char* str){
     while(*dest != '\0'){
         dest++;
     }

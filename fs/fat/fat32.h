@@ -2,8 +2,8 @@
 #define FAT32_H
 
 #include <stdint.h>
-
 #include "fs/vfs.h"
+#include "drivers/file/ATA/ATA.h"
 
 struct fat32_bpb {
     uint8_t  jmp_boot[3];
@@ -52,14 +52,36 @@ struct fat_directory_entry {
     uint32_t file_size;
 } __attribute__((packed));
 
-void fat32_init();
-int fat32_read_file(char* filename, uint8_t* out_buffer);
-int fat32_get_file_size(char* file_name);
-int fat32_write_file(char* filename, uint8_t* buffer, uint32_t size);
-int fat32_delete_file(char* filename);
-int fat32_readdir(char* path, int index, vfs_dirent_t* out_dirent);
-uint32_t fat32_get_cluster_for_path(char* path, uint8_t* out_type, uint32_t* out_size);
-int fat32_mkdir(char* path);
-uint32_t fat32_find_free_cluster();
+// Структура для записей длинных имен LFN
+struct fat_lfn_entry {
+    uint8_t  order;
+    uint8_t  name1[10];
+    uint8_t  attributes; // Всегда 0x0F
+    uint8_t  type;       // Всегда 0
+    uint8_t  checksum;
+    uint8_t  name2[12];
+    uint16_t zero;
+    uint8_t  name3[4];
+} __attribute__((packed));
+
+typedef struct {
+    struct fat32_bpb bpb;
+    uint32_t fat_start_sector;
+    uint32_t data_start_sector;
+    uint32_t last_free_fat_sector;
+    int is_mounted;
+} fat32_state_t;
+
+extern fat32_state_t fat_states[MAX_SYS_DRIVES];
+
+int fat32_mount(int drive_id);
+int fat32_read_file(int drive_id, char* filename, uint8_t* out_buffer);
+int fat32_get_file_size(int drive_id, char* file_name);
+int fat32_write_file(int drive_id, char* filename, uint8_t* buffer, uint32_t size);
+int fat32_delete_file(int drive_id, char* filename);
+int fat32_readdir(int drive_id, char* path, int index, vfs_dirent_t* out_dirent);
+int fat32_mkdir(int drive_id, char* path);
+
+uint32_t fat32_get_cluster_for_path(int drive_id, char* path, uint8_t* out_type, uint32_t* out_size);
 
 #endif

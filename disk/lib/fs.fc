@@ -1,0 +1,20 @@
+struct FS {}
+
+impl FS {
+    pub fn read_to_string(path: string) -> *String {
+        let mut size: int = syscall(8, path, 0, 0, 0);
+        if size <= 0 { return String::new(); }
+        
+        let mut buf: string = alloc(size + 1);
+        syscall(5, path, buf, 0, 0); // read_file
+        buf[size] = 0;
+        
+        let mut res: *String = String::from(buf);
+        free(buf);
+        return res;
+    }
+
+    pub fn write(path: string, content: *String) -> int {
+        return syscall(6, path, content.data, content.len, 0);
+    }
+}

@@ -29,6 +29,24 @@ int $;
 char* path = "/";
 struct multiboot_info* mbi;
 
+void enable_fpu_sse(void) {
+    uint32_t cr0, cr4;
+    
+    
+    __asm__ volatile("mov %%cr0, %0" : "=r"(cr0));
+    cr0 &= ~(1 << 2); 
+    cr0 |= (1 << 1);  
+    __asm__ volatile("mov %0, %%cr0" :: "r"(cr0));
+
+    
+    __asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
+    cr4 |= (1 << 9);  
+    cr4 |= (1 << 10); 
+    __asm__ volatile("mov %0, %%cr4" :: "r"(cr4));
+    
+    __asm__ volatile("fninit");
+}
+
 void kmain(unsigned long magic, unsigned long mb_info_addr){
     if(magic != 0x2BADB002){
         panic("Magic value is not correct");
@@ -38,6 +56,8 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     idt_install();
     idt_init();
     timer_install();
+
+    keyboard_init();
 
     __asm__ volatile("sti");
 
@@ -55,22 +75,23 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
     init_paging();
     klog("[INIT] Paging and Virtual Memory enabled.");
 
+    enable_fpu_sse();
+    klog("[INIT] FPU and SSE extensions enabled.");
+
     pci_scan();
     klog("[INIT] PCI Bus scan finished.");
 
+    
     disk_manager_init();
     klog("[INIT] ATA/IDE Disk manager finished.");
 
     ahci_init();
     klog("[INIT] AHCI SATA driver initialized.");
 
-    fat32_init();
-    klog("[INIT] FAT32 File System mounted.");
-
+    initrd_files(mbi);
     vfs_init();
 
     srand(get_ticks());
-
     init_tasking();
     klog("[INIT] Multitasking engine initialized.");
 

@@ -6,6 +6,20 @@
 #include "utils/utils.h"
 #include "fs/vfs.h"
 #include "include/elf.h"
+#include "fs/fd.h"
+
+typedef struct {
+    int in_use;
+    char path[256];
+    uint8_t *buffer;
+    uint32_t size;
+    uint32_t offset;
+    uint32_t capacity;
+    int mode;
+    int is_dirty;
+} KFile;
+
+#define PROC_STACK_SIZE 1048576
 
 extern void switch_to_task(Task *next, Task *prev);
 
@@ -16,21 +30,34 @@ Task *zombie_task = 0;
 volatile int tasks_need_cleanup = 0; 
 
 int foreground_task_id = 0; 
-
-
 char* current_spawn_redirect = NULL;
+
 
 void track_allocation(Task *task, void *ptr) {
     if (!task || !ptr) return;
     AllocList *node = (AllocList*)kmalloc(sizeof(AllocList));
-    if (!node) return; node->ptr = ptr; node->next = task->allocations; task->allocations = node;
+    if (!node) return; 
+    node->ptr = ptr; 
+    node->next = task->allocations; 
+    task->allocations = node;
+}
+
+
+void track_allocation_a(Task *task, void *ptr) {
+    if (!task || !ptr) return;
+    AllocList *node = (AllocList*)kmalloc(sizeof(AllocList));
+    if (!node) return;
+    node->ptr = (void*)((uint32_t)ptr | 1); 
+    node->next = task->allocations;
+    task->allocations = node;
 }
 
 void untrack_allocation(Task *task, void *ptr) {
     if (!task || !task->allocations) return;
     AllocList *curr = task->allocations; AllocList *prev = 0;
     while (curr) {
-        if (curr->ptr == ptr) {
+        uint32_t val = (uint32_t)curr->ptr;
+        if ((void*)(val & ~1) == ptr) { 
             if (prev) prev->next = curr->next; else task->allocations = curr->next;
             kfree(curr); return;
         }
@@ -40,24 +67,37 @@ void untrack_allocation(Task *task, void *ptr) {
 
 void free_task_memory(Task *task) {
     AllocList *curr = task->allocations;
-    while (curr) { AllocList *temp = curr; kfree(curr->ptr); curr = curr->next; kfree(temp); }
+    while (curr) { 
+        AllocList *temp = curr; 
+        uint32_t val = (uint32_t)curr->ptr;
+        
+        
+        if (val & 1) kfree_a((void*)(val & ~1));
+        else kfree((void*)val);
+        
+        curr = curr->next; 
+        kfree(temp); 
+    }
     task->allocations = 0;
 }
 
 void free_task_struct(Task *t) {
     if (!t) return;
-    free_task_memory(t);
+    free_task_memory(t); 
+
     if (t->app_phys_addr) {
-        if (t->page_dir && t->page_dir != kernel_dir) {
-            for (int i = 256; i < 1024; i++) {
-                if (t->page_dir->entries[i] & 1 && t->page_dir->entries[i] != kernel_dir->entries[i]) {
-                    kfree_a((void*)(t->page_dir->entries[i] & 0xFFFFF000));
-                }
-            }
-            kfree_a(t->page_dir);
-        }
         kfree_a((void*)t->app_phys_addr);
     }
+
+    if (t->page_dir && t->page_dir != kernel_dir) {
+        for (int i = 256; i < 1024; i++) {
+            if (t->page_dir->entries[i] & 1 && t->page_dir->entries[i] != kernel_dir->entries[i]) {
+                kfree_a((void*)(t->page_dir->entries[i] & 0xFFFFF000));
+            }
+        }
+        kfree_a(t->page_dir);
+    }
+
     if (t->stack_start) kfree((void*)t->stack_start);
     kfree(t);
 }
@@ -98,6 +138,8 @@ void init_tasking() {
     ktask->cwd[0] = '/'; ktask->cwd[1] = '\0';
     ktask->uid = 0; 
     ktask->redirect_buf = 0;
+    ktask->heap_start = 0x60000000;
+    ktask->heap_end = 0x60000000;
     
     for(int i = 0; i < MAX_FDS; i++) ktask->fd_table[i] = (i < 3) ? i : -1;
     task_set_name(ktask, "kernel");
@@ -109,11 +151,16 @@ void init_tasking() {
 int create_process(void (*entry)(int, char**), int argc, char **argv, char *name, struct page_directory_t *pd) {
     cleanup_zombies();
     Task *new_task = (Task*)kmalloc(sizeof(Task));
+    if (!new_task) return -1;
+
     new_task->id = next_pid++; new_task->state = TASK_READY; new_task->kill_me = 0;
     new_task->allocations = 0; new_task->page_dir = pd ? pd : kernel_dir;
     new_task->app_phys_addr = 0; new_task->wake_tick = 0;
-
     
+    
+    new_task->heap_start = 0x60000000;
+    new_task->heap_end = 0x60000000;
+
     if (current_spawn_redirect) {
         strcpy(new_task->redirect_path, current_spawn_redirect);
         new_task->redirect_buf = kmalloc(65536);
@@ -134,10 +181,15 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
         new_task->cwd[0] = '/'; new_task->cwd[1] = '\0';
     }
 
-    uint32_t *stack = (uint32_t*)kmalloc(65536);
+    uint32_t *stack = (uint32_t*)kmalloc(PROC_STACK_SIZE);
+    if (!stack) {
+        printf("[KERNEL] Warning: Out of memory for process stack!\n");
+        kfree(new_task);
+        return -1;
+    }
+
     new_task->stack_start = (uint32_t)stack;
-    
-    char *stack_top = (char*)stack + 65536;
+    char *stack_top = (char*)stack + PROC_STACK_SIZE;
 
     char **new_argv = 0;
     if (argc > 0 && argv) {
@@ -166,9 +218,12 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
     *(--esp) = 0x202;
     new_task->esp = (uint32_t)esp;
 
-    __asm__ volatile("cli");
-    Task *temp = ready_queue->next; ready_queue->next = new_task; new_task->next = temp;
-    __asm__ volatile("sti");
+    uint32_t flags = save_flags();
+    Task *temp = ready_queue->next; 
+    ready_queue->next = new_task; 
+    new_task->next = temp;
+    restore_flags(flags); 
+    
     return new_task->id;
 }
 
@@ -195,9 +250,7 @@ void kill_children_of(int pid) {
     Task *t = ready_queue;
     do {
         if (t->parent_id == pid && t->state != TASK_DEAD) {
-            kill_children_of(t->id); 
-            if (t == current_task) t->kill_me = 1;
-            else { t->state = TASK_DEAD; tasks_need_cleanup = 1; }
+            t->parent_id = 1; 
         }
         t = t->next;
     } while (t != ready_queue);
@@ -206,6 +259,7 @@ void kill_children_of(int pid) {
 void exit_process() {
     __asm__ volatile("cli");
     outb(0x20, 0x20);
+    cleanup_zombies();
 
     kill_children_of(current_task->id);
 
@@ -213,6 +267,22 @@ void exit_process() {
         vfs_write(current_task->redirect_path, current_task->redirect_buf, current_task->redirect_size);
         kfree(current_task->redirect_buf);
         current_task->redirect_buf = 0;
+    }
+
+    
+    extern KFile system_open_files[]; 
+    for (int i = 3; i < MAX_FDS; i++) {
+        int sys_fd = current_task->fd_table[i];
+        if (sys_fd != -1) {
+            
+            if (system_open_files[sys_fd].is_dirty) {
+                vfs_write(system_open_files[sys_fd].path, system_open_files[sys_fd].buffer, system_open_files[sys_fd].size);
+            }
+            
+            kfree(system_open_files[sys_fd].buffer);
+            system_open_files[sys_fd].in_use = 0;
+            current_task->fd_table[i] = -1;
+        }
     }
 
     Task *task_to_kill = current_task;
@@ -280,42 +350,70 @@ int spawn_process(char* path, char** argv, char* redirect_out) {
     if (file_size <= 0) return -1;
 
     uint8_t *file_buf = (uint8_t*)kmalloc(file_size);
+    if (!file_buf) return -1;
     vfs_read(path, file_buf);
 
     page_directory_t *app_pd = clone_page_directory();
     uint32_t entry_point = 0x40000000;
-    uint32_t phys_addr_to_track = 0;
+
+    uint32_t allocs[32]; 
+    int alloc_cnt = 0;
 
     Elf32_Ehdr *hdr = (Elf32_Ehdr*)file_buf;
 
-    
     if (*(uint32_t*)hdr->e_ident == ELF_MAGIC) {
         entry_point = hdr->e_entry;
         Elf32_Phdr *phdrs = (Elf32_Phdr*)(file_buf + hdr->e_phoff);
         
+        uint32_t min_vaddr = 0xFFFFFFFF;
+        uint32_t max_vaddr = 0;
+
+        
         for (int i = 0; i < hdr->e_phnum; i++) {
-            if (phdrs[i].p_type == PT_LOAD) {
-                uint32_t mem_sz = phdrs[i].p_memsz;
-                uint32_t file_sz = phdrs[i].p_filesz;
-                uint32_t vaddr = phdrs[i].p_vaddr;
+            if (phdrs[i].p_type == PT_LOAD) { 
+                if (phdrs[i].p_vaddr < min_vaddr) min_vaddr = phdrs[i].p_vaddr;
+                uint32_t end_vaddr = phdrs[i].p_vaddr + phdrs[i].p_memsz;
+                if (end_vaddr > max_vaddr) max_vaddr = end_vaddr;
+            }
+        }
 
-                uint32_t alloc_size = (mem_sz + 4095) & ~4095;
-                uint32_t phys_addr = (uint32_t)kmalloc_a(alloc_size);
-                if(phys_addr_to_track == 0) phys_addr_to_track = phys_addr; 
-                
-                fast_memset((void*)phys_addr, 0, alloc_size / 4);
-                fast_memcpy((void*)phys_addr, file_buf + phdrs[i].p_offset, file_sz);
+        if (min_vaddr != 0xFFFFFFFF) {
+            
+            uint32_t base_page = min_vaddr & 0xFFFFF000;
+            uint32_t top_page = (max_vaddr + 4095) & ~4095;
+            uint32_t total_alloc_size = top_page - base_page;
+            
+            
+            uint32_t phys_addr = (uint32_t)kmalloc_a(total_alloc_size);
+            if (!phys_addr) { 
+                for(int c = 0; c < alloc_cnt; c++) kfree_a((void*)allocs[c]);
+                kfree(file_buf); return -1; 
+            }
+            if (alloc_cnt < 32) allocs[alloc_cnt++] = phys_addr;
+            
+            
+            fast_memset((void*)phys_addr, 0, total_alloc_size / 4);
 
-                for (uint32_t j = 0; j < alloc_size; j += 4096) {
-                    paging_map_user(app_pd, phys_addr + j, (vaddr & 0xFFFFF000) + j, 7);
+            
+            for (int i = 0; i < hdr->e_phnum; i++) {
+                if (phdrs[i].p_type == PT_LOAD) {
+                    uint32_t dest_offset = phdrs[i].p_vaddr - base_page;
+                    fast_memcpy((void*)(phys_addr + dest_offset), file_buf + phdrs[i].p_offset, phdrs[i].p_filesz);
                 }
+            }
+
+            
+            for (uint32_t j = 0; j < total_alloc_size; j += 4096) {
+                paging_map_user(app_pd, phys_addr + j, base_page + j, 7);
             }
         }
     } else {
-        
         uint32_t alloc_size = (file_size + 1024 * 1024 + 4095) & ~4095; 
         uint32_t phys_addr = (uint32_t)kmalloc_a(alloc_size);
-        phys_addr_to_track = phys_addr;
+        if (!phys_addr) { kfree(file_buf); return -1; }
+        
+        if (alloc_cnt < 32) allocs[alloc_cnt++] = phys_addr;
+
         fast_memset((void*)phys_addr, 0, alloc_size / 4);
         fast_memcpy((void*)phys_addr, file_buf, file_size);
 
@@ -330,17 +428,28 @@ int spawn_process(char* path, char** argv, char* redirect_out) {
     char* name = path; for(int i = 0; path[i]; i++) if(path[i] == '/') name = &path[i+1];
 
     current_spawn_redirect = redirect_out; 
+    uint32_t flags = save_flags(); 
+
     int pid = create_process((void (*)(int, char**))entry_point, argc, argv, name, app_pd);
     
+    if (pid < 0) {
+        for(int c=0; c<alloc_cnt; c++) kfree_a((void*)allocs[c]);
+        kfree_a(app_pd); 
+        restore_flags(flags);
+        return -1;
+    }
+
     Task *t = ready_queue;
     do {
         if (t->id == pid) { 
-            t->app_phys_addr = phys_addr_to_track; 
             t->lib_offset = 0x50000000; 
+            for(int i=0; i<alloc_cnt; i++) track_allocation_a(t, (void*)allocs[i]);
             break; 
         }
         t = t->next;
     } while (t != ready_queue);
+
+    restore_flags(flags); 
 
     return pid;
 }
@@ -367,7 +476,9 @@ uint32_t load_library(Task* t, char* lib_name) {
             uint32_t mem_sz = phdrs[i].p_memsz;
             uint32_t alloc_size = (mem_sz + 4095) & ~4095;
             uint32_t phys_addr = (uint32_t)kmalloc_a(alloc_size);
-            track_allocation(t, (void*)phys_addr); 
+            if (!phys_addr) continue;
+
+            track_allocation_a(t, (void*)phys_addr); 
             
             fast_memset((void*)phys_addr, 0, alloc_size / 4);
             fast_memcpy((void*)phys_addr, file_buf + phdrs[i].p_offset, phdrs[i].p_filesz);
@@ -378,9 +489,7 @@ uint32_t load_library(Task* t, char* lib_name) {
         }
     }
 
-    
     track_allocation(t, file_buf); 
-    
     t->lib_offset += 0x01000000; 
     return (uint32_t)file_buf; 
 }
@@ -409,8 +518,6 @@ uint32_t get_symbol(Task* t, uint32_t lib_handle, char* sym_name) {
     for (int i = 0; i < num_syms; i++) {
         char *name = strings + syms[i].st_name;
         if (strcmp(name, sym_name) == 0) {
-            
-            
             uint32_t base = 0x50000000; 
             return base + syms[i].st_value;
         }

@@ -14,6 +14,7 @@
 #include "drivers/video/vesa.h"
 #include "task/task.h"
 #include "drivers/file/ATA/ATA.h"
+#include "utils/sysconfig.h"
 
 #define PROGRAM_LOAD_ADDRES 0x40000000
 
@@ -52,16 +53,50 @@ command_t commands[] = {
     {"kill",          cmd_kill,          "Kill process"},
     {"writemode",     cmd_writemode,     "Enable Read/Write disk mode"},
     {"disks",         cmd_disks,         "List all connected drives"},
-    {"use",           cmd_use,           "Switch active drive (use <ID>)"},
+    {"use",           cmd_use,           "Switch active drive (Obsolete)"},
+
+    {"lsblk",         cmd_lsblk,         "List block devices"},
+    {"mount",         cmd_mount,         "Mount a filesystem"},
+    {"umount",        cmd_umount,        "Unmount a filesystem"},
     
     {NULL, NULL, NULL}
 };
 
-typedef struct {
-    char name[64];
-    uint32_t size;
-    uint8_t type;
-} vfs_dirent_t_app;
+void cmd_lsblk(char **tokens) {
+    int sz = vfs_get_size("/proc/disks");
+    if (sz <= 0) {
+        printf("lsblk: failed to read /proc/disks\n");
+        return;
+    }
+    uint8_t* buf = kmalloc(sz + 1);
+    vfs_read("/proc/disks", buf);
+    buf[sz] = '\0';
+    
+    set_color(VGA_COLOR_CYAN, VGA_COLOR_BLACK);
+    printf("\n=== Block Devices ===\n");
+    set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    printf("%s\n", buf);
+    kfree(buf);
+}
+
+void cmd_mount(char **tokens) {
+    if (!tokens[1] || !tokens[2] || !tokens[3]) {
+        printf("Usage: mount /dev/sdX /mnt/folder fs_type\n");
+        return;
+    }
+    int res = vfs_mount(tokens[1], tokens[2], tokens[3]);
+    if (res == 0) printf("Mounted %s to %s successfully.\n", tokens[1], tokens[2]);
+    else printf("Mount failed with code: %d\n", res);
+}
+
+void cmd_umount(char **tokens) {
+    if (!tokens[1]) {
+        printf("Usage: umount /mnt/folder\n");
+        return;
+    }
+    if (vfs_unmount(tokens[1]) == 0) printf("Unmounted successfully.\n");
+    else printf("Unmount failed.\n");
+}
 
 void register_commands(void) {}
 
@@ -216,10 +251,13 @@ void cmd_ls(char **tokens) {
     char target_path[64];
     if (tokens[1]) strcpy(target_path, tokens[1]);
     else strcpy(target_path, "."); 
-    vfs_dirent_t_app entry;
+    
+    
+    vfs_dirent_t entry; 
     int index = 0;
     while (1) {
         int ret;
+        
         __asm__ volatile("int $0x80" : "=a"(ret) : "a"(89), "b"(target_path), "c"(index), "d"(&entry));
         if (ret == 0) break; 
         if (entry.type == 1) printf("[DIR]  %s\n", entry.name);
@@ -278,7 +316,6 @@ int is_executable(char* filename) {
 
 void cmd_exec(char **tokens){
     if(!tokens[1]){ printf("Usage: exec <filename>\n"); return; }
-    // if (!is_executable(tokens[1])) { printf("File is not executable. Only '.bin' files.\n."); return; }
 
     char abs_path[256];
     get_absolute_path(current_task->cwd, tokens[1], abs_path);
@@ -360,7 +397,7 @@ void cmd_writemode(char **tokens) {
 
 void cmd_readsystemcfg(char **tokens) {
     printf("Reloading system configuration...\n");
-    __asm__ volatile("int $0x80" : : "a"(45));
+    sysconfig_reload();
     printf("Done!\n");
 }
 
@@ -402,17 +439,14 @@ void cmd_kill(char **tokens){
 }
 
 void cmd_disks(char **tokens) {
-    printf("--- Connected Drives ---\n");
-    if (sys_drive_count == 0) { printf("No drives found.\n"); return; }
+    printf("--- Connected Physical Drives ---\n");
+    if (sys_drive_count == 0) { printf("No physical drives found.\n"); return; }
     for (int i = 0; i < sys_drive_count; i++) {
-        if (i == active_drive_index) printf("%C*> [%d] %s%C\n", VGA32_COLOR_GREEN, i, sys_drives[i].name, VGA32_COLOR_WHITE);
-        else printf("   [%d] %s\n", i, sys_drives[i].name);
+        printf("   [%d] %s\n", i, sys_drives[i].name);
     }
 }
 
 void cmd_use(char **tokens) {
-    if (!tokens[1]) { printf("Usage: use <id>\n"); return; }
-    int idx = strtn(tokens[1]);
-    if (disk_select(idx)) printf("Switched to drive: %s\n", sys_drives[idx].name);
-    else printf("%CError: Invalid drive ID!%C\n", VGA32_COLOR_RED, VGA32_COLOR_WHITE);
+    printf("The 'use' command is obsolete in the new VFS architecture.\n");
+    printf("Please use 'mount /dev/sdX /mnt/point fat32' from userland shell instead.\n");
 }

@@ -1,0 +1,17 @@
+fn alloc(size: int) -> *void { return syscall(45, size, 0, 0, 0); }
+fn free(ptr: *void) { syscall(46, ptr, 0, 0, 0); }
+
+struct Box { ptr: *void; size: int; }
+
+impl Box {
+    pub fn new(size: int) -> *Box {
+        let mut b: *Box = alloc(8);
+        b.size = size;
+        b.ptr = alloc(size);
+        return b;
+    }
+    pub fn drop(self: *Box) {
+        free(self.ptr);
+        free(self);
+    }
+}

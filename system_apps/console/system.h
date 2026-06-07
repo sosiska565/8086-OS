@@ -35,5 +35,8 @@ void cmd_disks(char **tokens);
 void cmd_use(char **tokens);
 void cmd_cd(char **tokens);
 void cmd_mkdir(char **tokens);
+void cmd_lsblk(char **tokens);
+void cmd_mount(char **tokens);
+void cmd_umount(char **tokens);
 
 #endif
