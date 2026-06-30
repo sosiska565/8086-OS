@@ -1,11 +1,19 @@
+OS_NAME          = 8086-OS
+OS_VERSION_MAJOR = 0
+OS_VERSION_MINOR = 9
+OS_VERSION_PATCH = 2
+OS_VERSION_EXTRA = beta
+
+OS_RELEASE_STR   = $(OS_VERSION_MAJOR).$(OS_VERSION_MINOR).$(OS_VERSION_PATCH)-$(OS_VERSION_EXTRA)
+
+# =============================
+
 DETECTED_OS := $(shell uname -s)
 CC      = gcc
 LD      = ld
 NASM    = nasm
 
-
 GCC_INC := $(shell $(CC) -print-file-name=include)
-
 
 KERNEL_CFLAGS = -O1 -m32 -fno-pie -fno-stack-protector -ffreestanding -nostdlib -nostartfiles -nostdinc \
                 -isystem $(GCC_INC) \
@@ -28,15 +36,12 @@ DISK_DIR = disk
 PATH_DIR = $(DISK_DIR)/path
 KERNEL_BIN = os_kernel.bin
 
-
 KERNEL_C_SOURCES := $(shell find kernel drivers fs system_apps -path 'drivers/net/lwip' -prune -o -name '*.c' -print)
-
 
 LWIP_DIR = drivers/net/lwip/src
 LWIP_SOURCES = $(wildcard $(LWIP_DIR)/core/*.c) \
                $(wildcard $(LWIP_DIR)/core/ipv4/*.c) \
-               $(LWIP_DIR)/netif/ethernet.c
-
+               $(wildcard $(LWIP_DIR)/netif/ethernet.c)
 
 KERNEL_C_SOURCES += $(LWIP_SOURCES)
 
@@ -59,9 +64,9 @@ TCC_DIR    := tinycc
 TCC_OUT    := $(PATH_DIR)/tcc.elf
 TCC_CFLAGS := $(USER_CFLAGS) -DONE_SOURCE=1 -DTCC_TARGET_I386 -DCONFIG_TCCDIR=\"/path\" -DCONFIG_TCC_CRIPLED
 
-.PHONY: all clean run build-all iso prep_tcc
+.PHONY: all clean run run-nobuild build-all iso prep_tcc generate_version help
 
-all: prep_tcc $(KERNEL_BIN) $(USER_BINS) $(TCC_OUT)
+all: generate_version prep_tcc $(KERNEL_BIN) $(USER_BINS) $(TCC_OUT)
 	@echo "✅ Сборка успешно завершена! ✅"
 
 $(KERNEL_BIN): $(KERNEL_OBJS)
@@ -90,31 +95,24 @@ $(PATH_DIR)/%.elf: userland/apps/%.c $(LIB_OBJS)
 	@$(CC) $(USER_CFLAGS) -c $< -o userland/apps/$*.o
 	@$(LD) -m elf_i386 -T userland/app.ld -o $@ userland/apps/$*.o $(LIB_OBJS) $(LIBGCC)
 
+generate_version:
+	@echo "⚙️  Генерация kernel/include/version.h..."
+	@mkdir -p kernel/include
+	@printf '#ifndef _GENERATED_VERSION_H\n#define _GENERATED_VERSION_H\n\n' > kernel/include/version.h
+	@printf '#define OS_NAME          "%s"\n' $(OS_NAME) >> kernel/include/version.h
+	@printf '#define OS_VERSION_MAJOR %s\n' $(OS_VERSION_MAJOR) >> kernel/include/version.h
+	@printf '#define OS_VERSION_MINOR %s\n' $(OS_VERSION_MINOR) >> kernel/include/version.h
+	@printf '#define OS_VERSION_PATCH %s\n' $(OS_VERSION_PATCH) >> kernel/include/version.h
+	@printf '#define OS_VERSION_EXTRA "%s"\n' $(OS_VERSION_EXTRA) >> kernel/include/version.h
+	@printf '#define OS_RELEASE       "%s"\n' $(OS_RELEASE_STR) >> kernel/include/version.h
+	@printf '\n#endif\n' >> kernel/include/version.h
+	@echo "📝 Синхронизация версии в README.md..."
+	@sed -i -E "s|<!--VERSION-->.*<!--/VERSION-->|<!--VERSION-->$(OS_RELEASE_STR)<!--/VERSION-->|" README.md
+
 prep_tcc:
 	@if [ ! -d "$(TCC_DIR)" ]; then echo "❌ Скачайте TCC: git clone https://repo.or.cz/tinycc.git"; exit 1; fi
 	@echo "⚙️  Генерация изолированных заголовков в userland/lib..."
 	@mkdir -p userland/lib/sys
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
-	@printf '
 
 $(TCC_OUT): $(LIB_OBJS)
 	@mkdir -p $(PATH_DIR)
@@ -147,13 +145,13 @@ iso: $(KERNEL_BIN) $(DISK_IMG)
 
 build-all: iso $(DISK_IMG)
 
-run: build-all
+run: generate_version build-all
 	@echo "Запуск QEMU..."
 	qemu-system-i386 -accel kvm -accel whpx -accel hvf -accel tcg \
 		-device ahci,id=ahci -drive file=disk.img,format=raw,if=none,id=disk1 \
 		-device ide-hd,drive=disk1,bus=ahci.0 -drive file=os.iso,format=raw,if=none,id=cd1 \
 		-device ide-cd,drive=cd1,bus=ahci.1 -boot d -rtc base=localtime -m 2g \
- 		-display sdl,grab-mod=lctrl-lalt \
+		-display sdl,grab-mod=lctrl-lalt \
 		-netdev bridge,id=mynet0,br=virbr0 \
 		-device rtl8139,netdev=mynet0 \
 		-object filter-dump,id=f1,netdev=mynet0,file=network_dump.pcap
@@ -163,7 +161,7 @@ run-nobuild:
 		-device ahci,id=ahci -drive file=disk.img,format=raw,if=none,id=disk1 \
 		-device ide-hd,drive=disk1,bus=ahci.0 -drive file=os.iso,format=raw,if=none,id=cd1 \
 		-device ide-cd,drive=cd1,bus=ahci.1 -boot d -rtc base=localtime -m 2g \
- 		-display sdl,grab-mod=lctrl-lalt \
+		-display sdl,grab-mod=lctrl-lalt \
 		-netdev bridge,id=mynet0,br=virbr0 \
 		-device rtl8139,netdev=mynet0 \
 		-object filter-dump,id=f1,netdev=mynet0,file=network_dump.pcap
@@ -171,7 +169,7 @@ run-nobuild:
 clean:
 	@echo "Очистка..."
 	@find . -name "*.o" -type f -delete
-	@rm -f $(KERNEL_BIN) $(DISK_IMG) $(ISO)
+	@rm -f $(KERNEL_BIN) $(DISK_IMG) $(ISO) kernel/include/version.h
 	@rm -rf iso
 	@rm -rf userland/include
 
