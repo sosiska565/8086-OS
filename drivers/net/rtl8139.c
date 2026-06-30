@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/drivers/net/rtl8139.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "drivers/net/rtl8139.h"
 #include "drivers/pci/pci.h"
 #include "drivers/io/io.h"

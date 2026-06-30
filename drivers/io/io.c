@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/drivers/io/io.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "drivers/io/io.h"
 
 inline void outb(uint16_t port, uint8_t val) {

@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/kernel/syscalls/syscalls.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "syscalls/syscalls.h"
 #include "drivers/vga/vga.h"
 #include "drivers/keyboard/keyboardDriver.h"

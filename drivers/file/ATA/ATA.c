@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/drivers/file/ATA/ATA.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "drivers/file/ATA/ATA.h"
 #include "drivers/io/io.h"
 #include "drivers/vga/vga.h"

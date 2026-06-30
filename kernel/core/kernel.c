@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/kernel/core/kernel.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include <stdint.h>
 #include "drivers/vga/vga.h"
 #include "drivers/keyboard/keyboardDriver.h"
@@ -129,13 +139,6 @@ void kmain(unsigned long magic, unsigned long mb_info_addr){
         
         restore_flags(flags); 
 
-        // if (!dns_forced && rtl8139_netif.ip_addr.addr != 0) {
-        //     ip_addr_t dns_server;
-        //     dns_server.addr = 0x08080808; 
-        //     dns_setserver(0, &dns_server); 
-        //     dns_forced = 1;
-        //     klog("[NET] DHCP complete. Forced direct DNS to 8.8.8.8");
-        // }
         __asm__ volatile("hlt"); 
     }
 }

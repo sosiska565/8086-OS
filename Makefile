@@ -67,7 +67,7 @@ TCC_CFLAGS := $(USER_CFLAGS) -DONE_SOURCE=1 -DTCC_TARGET_I386 -DCONFIG_TCCDIR=\"
 .PHONY: all clean run run-nobuild build-all iso prep_tcc generate_version help
 
 all: generate_version prep_tcc $(KERNEL_BIN) $(USER_BINS) $(TCC_OUT)
-	@echo "✅ Сборка успешно завершена! ✅"
+	@echo "Сборка успешно завершена!"
 
 $(KERNEL_BIN): $(KERNEL_OBJS)
 	@echo "Линковка ядра..."
@@ -96,7 +96,7 @@ $(PATH_DIR)/%.elf: userland/apps/%.c $(LIB_OBJS)
 	@$(LD) -m elf_i386 -T userland/app.ld -o $@ userland/apps/$*.o $(LIB_OBJS) $(LIBGCC)
 
 generate_version:
-	@echo "⚙️  Генерация kernel/include/version.h..."
+	@echo "Генерация kernel/include/version.h..."
 	@mkdir -p kernel/include
 	@printf '#ifndef _GENERATED_VERSION_H\n#define _GENERATED_VERSION_H\n\n' > kernel/include/version.h
 	@printf '#define OS_NAME          "%s"\n' $(OS_NAME) >> kernel/include/version.h
@@ -106,12 +106,12 @@ generate_version:
 	@printf '#define OS_VERSION_EXTRA "%s"\n' $(OS_VERSION_EXTRA) >> kernel/include/version.h
 	@printf '#define OS_RELEASE       "%s"\n' $(OS_RELEASE_STR) >> kernel/include/version.h
 	@printf '\n#endif\n' >> kernel/include/version.h
-	@echo "📝 Синхронизация версии в README.md..."
+	@echo "Синхронизация версии в README.md..."
 	@sed -i -E "s|<!--VERSION-->.*<!--/VERSION-->|<!--VERSION-->$(OS_RELEASE_STR)<!--/VERSION-->|" README.md
 
 prep_tcc:
-	@if [ ! -d "$(TCC_DIR)" ]; then echo "❌ Скачайте TCC: git clone https://repo.or.cz/tinycc.git"; exit 1; fi
-	@echo "⚙️  Генерация изолированных заголовков в userland/lib..."
+	@if [ ! -d "$(TCC_DIR)" ]; then echo "Скачайте TCC: git clone https://repo.or.cz/tinycc.git"; exit 1; fi
+	@echo "Генерация изолированных заголовков в userland/lib..."
 	@mkdir -p userland/lib/sys
 
 $(TCC_OUT): $(LIB_OBJS)

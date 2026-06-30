@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/kernel/idt/idt.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "idt/idt.h"
 #include "drivers/io/io.h"
 
@@ -71,8 +81,6 @@ void pic_remap(void) {
     outb(0x21, 0x01);
     outb(0xA1, 0x01);
 
-    // outb(0x21, 0x00);
-    // outb(0xA1, 0x00);
 
     outb(0x21, 0xF8);
     outb(0xA1, 0xEF);

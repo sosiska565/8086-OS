@@ -1,13 +1,17 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/userland/lib/tcc_stubs.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "oslib.h"
 #include <time.h> 
 
 
-// int open(const char *pathname, int flags, ...) {
-//     int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(100), "b"(pathname), "c"(flags) : "memory"); return ret;
-// }
-// int close(int fd) {
-//     int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(101), "b"(fd) : "memory"); return ret;
-// }
 int lseek(int fd, int offset, int whence) {
     int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(102), "b"(fd), "c"(offset), "d"(whence) : "memory"); return ret;
 }
@@ -50,18 +54,6 @@ int remove(const char *pathname) {
 }
 
 
-// char *strchr(const char *s, int c) { while (*s != (char)c) { if (!*s++) return NULL; } return (char *)s; }
-// char *strrchr(const char *s, int c) { const char *last = NULL; do { if (*s == (char)c) last = s; } while (*s++); return (char *)last; }
-// char *strstr(const char *haystack, const char *needle) {
-//     if (!*needle) return (char *)haystack;
-//     for (; *haystack; haystack++) {
-//         if (*haystack == *needle) {
-//             const char *h = haystack, *n = needle;
-//             while (*h && *n && *h == *n) { h++; n++; }
-//             if (!*n) return (char *)haystack;
-//         }
-//     } return NULL;
-// }
 char *strpbrk(const char *s, const char *accept) {
     while (*s) {
         const char *a = accept;
@@ -77,12 +69,6 @@ int memcmp(const void *s1, const void *s2, uint32_t n) {
     const unsigned char *p1 = s1, *p2 = s2;
     while (n--) { if (*p1 != *p2) return *p1 - *p2; p1++; p2++; } return 0;
 }
-// void *memmove(void *dest, const void *src, uint32_t n) {
-//     unsigned char *d = dest; const unsigned char *s = src;
-//     if (d == s) return d;
-//     if (d < s) { while (n--) *d++ = *s++; } else { d += n; s += n; while (n--) *--d = *--s; }
-//     return dest;
-// }
 
 typedef struct header { struct header *ptr; unsigned int size; } Header;
 

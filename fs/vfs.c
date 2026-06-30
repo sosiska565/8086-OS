@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/fs/vfs.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "fs/vfs.h"
 #include "fs/fat/fat32.h"
 #include "drivers/video/bga/gfx_console.h"

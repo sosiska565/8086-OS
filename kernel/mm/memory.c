@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/kernel/mm/memory.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "mm/memory.h"
 #include "drivers/vga/vga.h"
 #include "utils/utils.h"
@@ -115,17 +125,11 @@ void* kmalloc(size_t size){
     found->is_free = 0;
     restore_flags(flags);
 
-    // char log[128];
-    // sprintf(log, "[MM] kmalloc(%d bytes) -> 0x%x", size, (uint32_t)(found + 1));
-    // klog(log);
 
     return (void*)(found + 1);
 }
 
 void kfree(void* ptr){
-    // char log[128];
-    // sprintf(log, "[MM] kfree(0x%x)", (uint32_t)ptr);
-    // klog(log);
 
     uint32_t flags = save_flags();
     if(ptr == NULL){ restore_flags(flags); return; }

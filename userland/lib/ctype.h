@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/userland/lib/ctype.h
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #ifndef _FAKE_CTYPE_H
 #define _FAKE_CTYPE_H
 static inline int isspace(int c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }

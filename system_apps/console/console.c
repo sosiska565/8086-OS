@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/system_apps/console/console.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "console.h"
 #include "drivers/vga/vga.h"
 #include "drivers/keyboard/keyboardDriver.h"
@@ -88,14 +98,14 @@ int console_main(void) {
         while(1) {
             uint8_t scancode = wait_scancode();
 
-            if (scancode == 0x1C) { // Enter
+            if (scancode == 0x1C) { 
                 command[pos] = '\0';
                 printf("\n");
                 add_to_history(command);
                 if (strcmp(command, "exit") == 0) local_should_exit = 1;
                 break;
             }
-            else if (scancode == 0x0E) { // Backspace
+            else if (scancode == 0x0E) { 
                 if (pos > 0) {
                     pos--;
                     command[pos] = '\0';

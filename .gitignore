@@ -13,3 +13,5 @@ os_kernel.bin
 network_dump.pcap
 os_kernel.elf
 os_kernel.bin
+setlicense.sh
+rc.sh

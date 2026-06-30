@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/userland/lib/tccdefs.h
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #ifndef _TCCDEFS_H
 #define _TCCDEFS_H
 #define __SIZE_TYPE__ unsigned int

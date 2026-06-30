@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/system_apps/initd/initd.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "system_apps/initd/initd.h"
 #include "task/task.h"
 #include "system_apps/console/console.h"
@@ -29,9 +39,7 @@ void initd(int argc, char **argv){
         wait_process(sh_pid);
     }
 
-    // create_process((void (*)(int, char**))console.main, 0, 0, "ksh", kernel_dir, -1, -1);
 
-    // rtl8139_send_packet();
 
     while(1){
         cleanup_zombies();

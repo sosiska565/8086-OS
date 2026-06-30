@@ -1,3 +1,11 @@
+;  SPDX-License-Identifier: MIT
+;
+;  8086-OS/boot/kernel.asm
+;
+;  Copyright (C) 2026  sosiska565
+;
+;  May be freely distributed as part of 8086-OS.
+
 bits 32
 section .text
     align 4

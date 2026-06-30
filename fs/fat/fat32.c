@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/fs/fat/fat32.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "fs/fat/fat32.h"
 #include "drivers/file/ATA/ATA.h"
 #include "drivers/vga/vga.h"

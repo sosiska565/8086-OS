@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/userland/lib/stdio.h
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "oslib.h"
 int vsnprintf(char *str, size_t size, const char *format, va_list ap);
 int snprintf(char *str, size_t size, const char *format, ...);

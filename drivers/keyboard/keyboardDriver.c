@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/drivers/keyboard/keyboardDriver.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include "drivers/keyboard/keyboardDriver.h"
 #include "drivers/vga/vga.h"
 #include "drivers/io/io.h"
