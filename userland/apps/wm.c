@@ -8,7 +8,7 @@
 #define COLOR_TITLE        0x00252526 
 #define COLOR_BORDER       0x00454545 
 #define TITLE_BAR_H        26         
-#define CORNER_RADIUS      12         
+
 
 #define MOD_SHIFT 1
 #define MOD_CTRL  2
@@ -190,126 +190,99 @@ void process_wm_queue() {
     }
 }
 
+
 void compose_screen(int mx, int my) {
+    
     if (scaled_wallpaper) {
         memcpy(wm_backbuffer, scaled_wallpaper, sw * sh * 4);
     } else {
+        
         for(int i = 0; i < sw * sh; i++) wm_backbuffer[i] = COLOR_BG;
     }
 
+    
     for (int i = 0; i < num_windows; i++) {
         Window *win = &windows[i];
-        if (win->is_frameless) continue; 
-        if (!win->shared_mem) continue; 
-
-        int is_active = (i == num_windows - 1);
-        uint32_t t_color = is_active ? COLOR_TITLE_ACTIVE : COLOR_TITLE;
-        uint32_t *client_pixels = win->shared_mem->pixels;
-
-        for (int r = -TITLE_BAR_H; r < 0; r++) {
-            int screen_y = win->y + r;
-            if (screen_y < 0 || screen_y >= sh) continue;
-            for (int cx = 0; cx < win->w; cx++) {
-                int screen_x = win->x + cx;
-                if (screen_x < 0 || screen_x >= sw) continue;
-
-                int draw = 1;
-                int is_border = 0;
-                
-                if (r < -TITLE_BAR_H + CORNER_RADIUS) {
-                    int dy = r - (-TITLE_BAR_H + CORNER_RADIUS);
-                    if (cx < CORNER_RADIUS) {
-                        int dx = cx - CORNER_RADIUS;
-                        int dist_sq = dx*dx + dy*dy;
-                        if (dist_sq > CORNER_RADIUS*CORNER_RADIUS) draw = 0;
-                        else if (dist_sq >= (CORNER_RADIUS - 1)*(CORNER_RADIUS - 1)) is_border = 1;
-                    } else if (cx >= win->w - CORNER_RADIUS) {
-                        int dx = cx - (win->w - CORNER_RADIUS - 1);
-                        int dist_sq = dx*dx + dy*dy;
-                        if (dist_sq > CORNER_RADIUS*CORNER_RADIUS) draw = 0;
-                        else if (dist_sq >= (CORNER_RADIUS - 1)*(CORNER_RADIUS - 1)) is_border = 1;
-                    }
-                }
-
-                if (draw) {
-                    if (cx == 0 || cx == win->w - 1 || r == -TITLE_BAR_H) is_border = 1;
-                    if (is_border) wm_put_pixel(screen_x, screen_y, COLOR_BORDER);
-                    else wm_put_pixel(screen_x, screen_y, t_color);
-                }
-            }
-        }
-
-        for (int r = 0; r < win->h; r++) {
-            int screen_y = win->y + r;
-            if (screen_y < 0 || screen_y >= sh) continue;
-            for (int cx = 0; cx < win->w; cx++) {
-                int screen_x = win->x + cx;
-                if (screen_x < 0 || screen_x >= sw) continue;
-
-                int draw = 1;
-                int is_border = 0;
-                
-                if (r >= win->h - CORNER_RADIUS) {
-                    int dy = r - (win->h - CORNER_RADIUS - 1);
-                    if (cx < CORNER_RADIUS) {
-                        int dx = cx - CORNER_RADIUS;
-                        int dist_sq = dx*dx + dy*dy;
-                        if (dist_sq > CORNER_RADIUS*CORNER_RADIUS) draw = 0;
-                        else if (dist_sq >= (CORNER_RADIUS - 1)*(CORNER_RADIUS - 1)) is_border = 1;
-                    } else if (cx >= win->w - CORNER_RADIUS) {
-                        int dx = cx - (win->w - CORNER_RADIUS - 1);
-                        int dist_sq = dx*dx + dy*dy;
-                        if (dist_sq > CORNER_RADIUS*CORNER_RADIUS) draw = 0;
-                        else if (dist_sq >= (CORNER_RADIUS - 1)*(CORNER_RADIUS - 1)) is_border = 1;
-                    }
-                }
-
-                if (draw) {
-                    if (cx == 0 || cx == win->w - 1 || r == win->h - 1) is_border = 1;
-                    if (is_border) {
-                        wm_put_pixel(screen_x, screen_y, COLOR_BORDER);
-                    } else {
-                        
-                        
-                        
-                        if (r < win->buf_h && cx < win->buf_w) {
-                            wm_put_pixel(screen_x, screen_y, client_pixels[r * win->buf_w + cx]);
-                        } else {
-                            
-                            wm_put_pixel(screen_x, screen_y, COLOR_TITLE);
-                        }
-                    }
-                }
-            }
-        }
-        
-        int btn_y = win->y - TITLE_BAR_H + (TITLE_BAR_H / 2); 
-        wm_draw_circle(win->x + 15, btn_y, 5, is_active ? 0x00FF5F56 : 0x004D4D4D);
-        wm_draw_circle(win->x + 35, btn_y, 5, is_active ? 0x00FFBD2E : 0x004D4D4D);
-        wm_draw_circle(win->x + 55, btn_y, 5, is_active ? 0x0027C93F : 0x004D4D4D);
-        
-        int text_w = 0; for(int k=0; win->title[k]; k++) text_w += font_get_width(win->title[k]);
-        int title_x = win->x + (win->w - text_w) / 2;
-        if (title_x > win->x + 70) wm_draw_string(title_x, win->y - TITLE_BAR_H + 9, win->title, is_active ? 0x00CCCCCC : 0x00888888);
-    }
-
-    for (int i = 0; i < num_windows; i++) {
-        Window *win = &windows[i];
-        if (!win->is_frameless) continue; 
         if (!win->shared_mem) continue; 
         uint32_t *client_pixels = win->shared_mem->pixels;
-        for (int r = 0; r < win->h; r++) {
-            int screen_y = win->y + r;
-            if (screen_y < 0 || screen_y >= sh) continue;
-            for (int c = 0; c < win->w; c++) {
-                int screen_x = win->x + c;
-                if (screen_x < 0 || screen_x >= sw) continue;
-                uint32_t pixel = client_pixels[r * win->buf_w + c];
-                if (pixel != 0x00FF00FF) wm_put_pixel(screen_x, screen_y, pixel);
+        if (!client_pixels) continue; 
+
+        if (!win->is_frameless) {
+            int is_active = (i == num_windows - 1);
+            uint32_t t_color = is_active ? COLOR_TITLE_ACTIVE : COLOR_TITLE;
+
+            
+            int title_start_y = win->y - TITLE_BAR_H;
+            if (title_start_y < 0) title_start_y = 0;
+            for (int r = title_start_y; r < win->y; r++) {
+                if (r >= sh) break;
+                int draw_x = (win->x < 0) ? 0 : win->x;
+                int draw_w = win->w - ((win->x < 0) ? -win->x : 0);
+                if (draw_x + draw_w > sw) draw_w = sw - draw_x;
+                if (draw_w > 0) {
+                    
+                    for(int c = 0; c < draw_w; c++) wm_backbuffer[r * sw + draw_x + c] = t_color;
+                }
+            }
+
+            
+            for (int r = 0; r < win->h; r++) {
+                int screen_y = win->y + r;
+                if (screen_y < 0) continue;
+                if (screen_y >= sh) break;
+                
+                
+                if (r >= win->buf_h) continue; 
+
+                int src_x = 0;
+                int dest_x = win->x;
+                int copy_w = win->w;
+
+                if (dest_x < 0) { src_x = -dest_x; copy_w += dest_x; dest_x = 0; }
+                if (dest_x + copy_w > sw) { copy_w = sw - dest_x; }
+                
+                
+                if (src_x + copy_w > win->buf_w) copy_w = win->buf_w - src_x;
+
+                if (copy_w > 0) {
+                    
+                    memcpy(&wm_backbuffer[screen_y * sw + dest_x], 
+                           &client_pixels[r * win->buf_w + src_x], 
+                           copy_w * 4);
+                }
+            }
+            
+            
+            int btn_y = win->y - TITLE_BAR_H + (TITLE_BAR_H / 2); 
+            wm_draw_circle(win->x + 15, btn_y, 5, is_active ? 0x00FF5F56 : 0x004D4D4D);
+            wm_draw_circle(win->x + 35, btn_y, 5, is_active ? 0x00FFBD2E : 0x004D4D4D);
+            wm_draw_circle(win->x + 55, btn_y, 5, is_active ? 0x0027C93F : 0x004D4D4D);
+            
+            
+            int text_w = 0; for(int k=0; win->title[k]; k++) text_w += font_get_width(win->title[k]);
+            int title_x = win->x + (win->w - text_w) / 2;
+            if (title_x > win->x + 70) wm_draw_string(title_x, win->y - TITLE_BAR_H + 9, win->title, is_active ? 0x00CCCCCC : 0x00888888);
+
+        } else {
+            
+            for (int r = 0; r < win->h; r++) {
+                int screen_y = win->y + r;
+                if (screen_y < 0 || screen_y >= sh) continue;
+                if (r >= win->buf_h) continue; 
+
+                for (int c = 0; c < win->w; c++) {
+                    int screen_x = win->x + c;
+                    if (screen_x < 0 || screen_x >= sw) continue;
+                    if (c >= win->buf_w) continue; 
+
+                    uint32_t pixel = client_pixels[r * win->buf_w + c];
+                    if (pixel != 0x00FF00FF) wm_backbuffer[screen_y * sw + screen_x] = pixel;
+                }
             }
         }
     }
 
+    
     static const uint8_t cur_normal[15][10] = { {2,0,0,0,0,0,0,0,0,0}, {2,2,0,0,0,0,0,0,0,0}, {2,1,2,0,0,0,0,0,0,0}, {2,1,1,2,0,0,0,0,0,0}, {2,1,1,1,2,0,0,0,0,0}, {2,1,1,1,1,2,0,0,0,0}, {2,1,1,1,1,1,2,0,0,0}, {2,1,1,1,1,1,1,2,0,0}, {2,1,1,1,1,1,1,1,2,0}, {2,1,1,1,1,1,2,2,2,2}, {2,1,1,2,1,1,2,0,0,0}, {2,1,2,0,2,1,1,2,0,0}, {2,2,0,0,2,1,1,2,0,0}, {2,0,0,0,0,2,2,0,0,0}, {0,0,0,0,0,0,0,0,0,0} };
     static const uint8_t cur_ns[15][10] =     { {0,0,0,0,2,0,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,2,1,1,1,2,0,0,0}, {0,2,1,1,1,1,1,2,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,2,1,1,1,1,1,2,0,0}, {0,0,2,1,1,1,2,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,0,2,0,0,0,0,0} };
     static const uint8_t cur_ew[15][10] =     { {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,2,0,0,2,0,0,0}, {0,0,2,1,2,2,1,2,0,0}, {0,2,1,1,1,1,1,1,2,0}, {2,1,1,1,1,1,1,1,1,2}, {0,2,1,1,1,1,1,1,2,0}, {0,0,2,1,2,2,1,2,0,0}, {0,0,0,2,0,0,2,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0} };

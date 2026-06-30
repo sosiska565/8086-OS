@@ -206,13 +206,7 @@ void gui_draw_char(gui_window_t *win, int x, int y, char c, uint32_t fg) {
 }
 
 void gui_draw_rounded_rect(gui_window_t *win, int x, int y, int w, int h, int r, uint32_t color) { 
-    gui_draw_rect(win, x, y + r, w, h - 2*r, color); 
-    gui_draw_rect(win, x + r, y, w - 2*r, r, color); 
-    gui_draw_rect(win, x + r, y + h - r, w - 2*r, r, color); 
-    gui_draw_circle_filled(win, x + r, y + r, r, color); 
-    gui_draw_circle_filled(win, x + w - r - 1, y + r, r, color); 
-    gui_draw_circle_filled(win, x + r, y + h - r - 1, r, color); 
-    gui_draw_circle_filled(win, x + w - r - 1, y + h - r - 1, r, color); 
+    gui_draw_rect(win, x, y, w, h, color); 
 }
 
 void gui_draw_string(gui_window_t *win, int x, int y, const char *str, uint32_t fg) { 

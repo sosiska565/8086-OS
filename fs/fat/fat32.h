@@ -52,12 +52,12 @@ struct fat_directory_entry {
     uint32_t file_size;
 } __attribute__((packed));
 
-// Структура для записей длинных имен LFN
+
 struct fat_lfn_entry {
     uint8_t  order;
     uint8_t  name1[10];
-    uint8_t  attributes; // Всегда 0x0F
-    uint8_t  type;       // Всегда 0
+    uint8_t  attributes; 
+    uint8_t  type;       
     uint8_t  checksum;
     uint8_t  name2[12];
     uint16_t zero;

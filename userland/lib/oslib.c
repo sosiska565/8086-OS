@@ -441,3 +441,16 @@ void get_rtc_time(rtc_time_t *t) {
 void detach_pid(int pid) { 
     __asm__ volatile("int $0x80" : : "a"(24), "b"(pid)); 
 }
+
+int uname(os_version_info *buf) {
+    int ret;
+    __asm__ volatile("int $0x80" : "=a"(ret) : "a"(34), "b"(buf) : "memory");
+    return ret;
+}
+
+void memset32(void *dest, uint32_t val, size_t count) {
+    uint32_t *ptr = (uint32_t *)dest;
+    while (count--) {
+        *ptr++ = val;
+    }
+}

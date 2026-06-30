@@ -9,6 +9,7 @@
 #include "mm/memory.h"
 #include "drivers/timer/timer.h"
 #include "drivers/file/ATA/ATA.h"
+#include "kernel/include/global.h"
 
 static const char* dev_files[] = {"stdin", "stdout", "stderr", "null", "random", "urandom", "zero"};
 static const int num_dev_files = 7;
@@ -138,8 +139,8 @@ int vfs_read(char* path, uint8_t* buffer) {
             strcpy(buf, "vendor_id\t: "); strcat(buf, cpu); strcat(buf, "\n");
         } 
         else if (strcmp(path, "/proc/version") == 0) {
-            strcpy(buf, "8086-OS Linux-like Kernel v0.5\n");
-        } 
+            sprintf(buf, "%s version %s (Compiled on %s)\n", OS_NAME, OS_RELEASE, __DATE__);
+        }
         else if (strcmp(path, "/proc/uptime") == 0) {
             itoa(get_ticks() / 1000, temp, 10);
             strcpy(buf, temp); strcat(buf, " seconds\n");

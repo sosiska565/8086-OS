@@ -38,6 +38,13 @@ typedef __builtin_va_list va_list;
 
 typedef struct { int fd; } FILE;
 
+typedef struct {
+  char sysname[65];  
+  char release[65];  
+  char version[65];  
+  char machine[65];  
+} os_version_info;
+
 extern FILE *stdin_ptr;
 extern FILE *stdout_ptr;
 extern FILE *stderr_ptr;
@@ -256,5 +263,8 @@ typedef struct {
 void get_rtc_time(rtc_time_t *t);
 
 int kill(int pid, int sig);
+
+int uname(os_version_info *buf);
+void memset32(void *dest, uint32_t val, size_t count);
 
 #endif
