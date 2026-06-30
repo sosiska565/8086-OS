@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim
+FROM --platform=linux/amd64 debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -10,14 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     sed \
     git \
-    
     grub-pc-bin \
     grub-common \
     xorriso \
-    
     dosfstools \
     mtools \
-    
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

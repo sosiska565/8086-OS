@@ -1,0 +1,6 @@
+[submodule "drivers/net/lwip"]
+	path = drivers/net/lwip
+	url = https://github.com/lwip-tcpip/lwip
+[submodule "tinycc"]
+	path = tinycc
+	url = https://github.com/TinyCC/tinycc

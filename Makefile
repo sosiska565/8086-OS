@@ -13,6 +13,14 @@ CC      = gcc
 LD      = ld
 NASM    = nasm
 
+ifeq ($(DETECTED_OS), Darwin)
+    QEMU_DISPLAY = -display cocoa
+    QEMU_NET     = -netdev user,id=mynet0
+else
+    QEMU_DISPLAY = -display sdl,grab-mod=lctrl-lalt
+    QEMU_NET     = -netdev bridge,id=mynet0,br=virbr0
+endif
+
 GCC_INC := $(shell $(CC) -print-file-name=include)
 
 KERNEL_CFLAGS = -O1 -m32 -fno-pie -fno-stack-protector -ffreestanding -nostdlib -nostartfiles -nostdinc \
@@ -151,8 +159,8 @@ run: generate_version build-all
 		-device ahci,id=ahci -drive file=disk.img,format=raw,if=none,id=disk1 \
 		-device ide-hd,drive=disk1,bus=ahci.0 -drive file=os.iso,format=raw,if=none,id=cd1 \
 		-device ide-cd,drive=cd1,bus=ahci.1 -boot d -rtc base=localtime -m 2g \
-		-display sdl,grab-mod=lctrl-lalt \
-		-netdev bridge,id=mynet0,br=virbr0 \
+		$(QEMU_DISPLAY) \
+		$(QEMU_NET) \
 		-device rtl8139,netdev=mynet0 \
 		-object filter-dump,id=f1,netdev=mynet0,file=network_dump.pcap
 
@@ -161,8 +169,8 @@ run-nobuild:
 		-device ahci,id=ahci -drive file=disk.img,format=raw,if=none,id=disk1 \
 		-device ide-hd,drive=disk1,bus=ahci.0 -drive file=os.iso,format=raw,if=none,id=cd1 \
 		-device ide-cd,drive=cd1,bus=ahci.1 -boot d -rtc base=localtime -m 2g \
-		-display sdl,grab-mod=lctrl-lalt \
-		-netdev bridge,id=mynet0,br=virbr0 \
+		$(QEMU_DISPLAY) \
+		$(QEMU_NET) \
 		-device rtl8139,netdev=mynet0 \
 		-object filter-dump,id=f1,netdev=mynet0,file=network_dump.pcap
 
