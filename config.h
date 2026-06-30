@@ -8,8 +8,6 @@
  *  May be freely distributed as part of 8086-OS.
  */
 
-/*
-
 #define TCC_VERSION "0.9.28rc"
 
 #define CC_NAME CC_gcc
