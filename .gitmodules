@@ -4,3 +4,6 @@
 [submodule "tinycc"]
 	path = tinycc
 	url = https://github.com/TinyCC/tinycc
+[submodule ".private"]
+	path = .private
+	url = https://github.com/sosiska565/8086-OS-private
