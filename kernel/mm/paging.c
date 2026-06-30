@@ -41,7 +41,9 @@ void init_paging() {
         kernel_dir->entries[i] = 0 | 2;
     }
     
-    for(uint32_t i = 0; i < 0x20400000; i += 0x400000) {
+    
+    
+    for(uint32_t i = 0; i < 0x50400000; i += 0x400000) {
         paging_map_4mb(i, i, 3);
     }
     
@@ -85,13 +87,21 @@ void paging_map_user(page_directory_t *dir, uint32_t phys, uint32_t virt, uint32
     uint32_t *pd_entry = &dir->entries[pd_idx];
     page_table_t *table;
 
+    
     if ((*pd_entry & 1) == 0) {
         table = (page_table_t*)kmalloc_a(sizeof(page_table_t));
         uint32_t *t_ptr = (uint32_t*)table;
         for(int i=0; i<1024; i++) t_ptr[i] = 0;
         *pd_entry = (uint32_t)table | 0x7; 
     } else {
+        
         table = (page_table_t*)(*pd_entry & 0xFFFFF000);
     }
-    table->entries[pt_idx] = (phys & 0xFFFFF000) | (flags | 1);
+    
+    
+    if (table->entries[pt_idx] != ((phys & 0xFFFFF000) | (flags | 1))) {
+        table->entries[pt_idx] = (phys & 0xFFFFF000) | (flags | 1);
+        
+        __asm__ volatile("invlpg (%0)" ::"r" (virt) : "memory");
+    }
 }

@@ -6,6 +6,7 @@
 typedef struct {
     int x;
     int y;
+    int z; 
     uint8_t left_button;
     uint8_t right_button;
     uint8_t middle_button;

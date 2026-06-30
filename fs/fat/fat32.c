@@ -367,10 +367,13 @@ int fat32_read_file(int drive_id, char* filename, uint8_t* out_buffer) {
     if (cluster == 0xFFFFFFFF || type != VFS_ATTR_FILE) return -1;
     
     uint32_t bytes_read = 0;
-    int safety_limit = 10000;
+    
+    int safety_limit = 2000000; 
+    
     while(bytes_read < size && cluster >= 2 && cluster < 0x0FFFFFF8 && safety_limit-- > 0) {
         uint32_t file_lba = cluster_to_lba(drive_id, cluster);
         if (file_lba == 0) break;
+        
         for(int s=0; s<fs->bpb.sectors_per_cluster; s++) {
             if (!disk_read_sector(drive_id, file_lba + s, fat_dma_buffer)) return -1;
             int remaining = size - bytes_read;

@@ -38,5 +38,6 @@ void cmd_mkdir(char **tokens);
 void cmd_lsblk(char **tokens);
 void cmd_mount(char **tokens);
 void cmd_umount(char **tokens);
+void cmd_ifconfig(char **tokens);
 
 #endif

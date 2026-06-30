@@ -1,7 +1,7 @@
 #include "oslib.h"
 
 
-#define CHUNK_SIZE 512
+#define CHUNK_SIZE 4096
 
 int main(int argc, char** argv) {
     if (argc < 2) { 

@@ -135,19 +135,25 @@ void keyboard_handler_c(void) {
     else if (make_code == 0x38) alt_pressed = !is_release;
     else if (make_code == 0x5B) win_pressed = !is_release;
     
-    if (!is_release && ctrl_pressed && make_code == 0x2E) {
+    extern void send_signal(int pid, int sig);
+    extern int foreground_task_id;
+
+    if (!is_release && ctrl_pressed && make_code == 0x2E) { 
         if (foreground_task_id > 1) { 
-            keyboard_flush();
-            kill_task(foreground_task_id);
-            printf("^C\n"); 
+            send_signal(foreground_task_id, 2); 
         }
-        return;
     }
 
     if (!is_release) {
         add_scancode_to_buffer(make_code);
         unsigned int c = scancode_to_char_layout(make_code);
-        if (c != 0) add_to_buffer(c);
+        if (c != 0) {
+            
+            uint8_t current_mods = get_keyboard_modifiers();
+            
+            unsigned int event = (c & 0xFFFFFF) | (current_mods << 24);
+            add_to_buffer(event);
+        }
     }
 }
 

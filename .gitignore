@@ -7,3 +7,5 @@ prop.txt
 a.txt
 kernel.bin
 os_kernel.bin
+network_dump.pcap
+os_kernel.elf

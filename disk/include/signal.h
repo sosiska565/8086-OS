@@ -19,3 +19,9 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 int sigemptyset(sigset_t *set);
 int sigaddset(sigset_t *set, int signum);
 int sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+
+typedef void (*sighandler_t)(int);
+#define SIG_DFL ((sighandler_t)0)
+#define SIG_IGN ((sighandler_t)1)
+
+sighandler_t signal(int signum, sighandler_t handler);

@@ -13,11 +13,13 @@ section .text
     dd 0, 0, 0, 0, 0
 
     dd 0       
-    dd 800
-    dd 600
+    dd 2560
+    dd 1440
     dd 32
 
-    ;1280x1024
+    ;2560 1440
+    ;1280 1024
+    ;800 600
 
 global start
 extern kmain

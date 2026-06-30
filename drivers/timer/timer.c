@@ -4,19 +4,23 @@
 #include "task/task.h"
 #include "drivers/video/vesa.h"
 
+
+#include "lwip/timeouts.h"
+
+
 volatile unsigned long ticks = 0;
 
 static int cpu_idle_ticks = 0;
 static int cpu_total_ticks = 0;
 uint32_t global_cpu_usage = 0;
 
-void timer_handler_c(void){
+extern void check_signals(uint32_t esp);
+
+void timer_handler_c(uint32_t esp){
     ticks++;
     cpu_total_ticks++;
 
-    if (current_task && current_task->id == 0) {
-        cpu_idle_ticks++;
-    }
+    if (current_task && current_task->id == 0) cpu_idle_ticks++;
 
     if (cpu_total_ticks >= 1000) {
         global_cpu_usage = 100 - ((cpu_idle_ticks * 100) / cpu_total_ticks);
@@ -28,6 +32,7 @@ void timer_handler_c(void){
     outb(0x20, 0x20);
 
     check_kill_flag();
+    check_signals(esp); 
     task_scheduler();
 }
 

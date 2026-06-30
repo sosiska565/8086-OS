@@ -1,3 +1,0 @@
-
-/mnt/myimage/A.ELF:     file format elf32-i386
-

@@ -16,7 +16,10 @@
 #include "drivers/file/ATA/ATA.h"
 #include "utils/sysconfig.h"
 
-#define PROGRAM_LOAD_ADDRES 0x40000000
+
+#include "lwip/netif.h"
+
+#define PROGRAM_LOAD_ADDRES 0x60000000
 
 void* ptr;
 
@@ -59,8 +62,35 @@ command_t commands[] = {
     {"mount",         cmd_mount,         "Mount a filesystem"},
     {"umount",        cmd_umount,        "Unmount a filesystem"},
     
+    {"ifconfig",      cmd_ifconfig,      "Show network interfaces IP"},
+    
     {NULL, NULL, NULL}
 };
+
+extern struct netif rtl8139_netif;
+
+void cmd_ifconfig(char **tokens) {
+    set_color(VGA_COLOR_CYAN, VGA_COLOR_BLACK);
+    printf("\n=== Network Interfaces ===\n");
+    set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+    
+    uint8_t *ip_bytes = (uint8_t*)&rtl8139_netif.ip_addr;
+    uint8_t *netmask_bytes = (uint8_t*)&rtl8139_netif.netmask;
+    uint8_t *gw_bytes = (uint8_t*)&rtl8139_netif.gw;
+
+    printf("eth0:\n");
+    printf("  IP Address  : %d.%d.%d.%d\n", ip_bytes[0], ip_bytes[1], ip_bytes[2], ip_bytes[3]);
+    printf("  Subnet Mask : %d.%d.%d.%d\n", netmask_bytes[0], netmask_bytes[1], netmask_bytes[2], netmask_bytes[3]);
+    printf("  Gateway     : %d.%d.%d.%d\n", gw_bytes[0], gw_bytes[1], gw_bytes[2], gw_bytes[3]);
+    
+    if (ip_bytes[0] == 0) {
+        set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
+        printf("  (Waiting for DHCP...)\n");
+        set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    }
+    printf("\n");
+}
 
 void cmd_lsblk(char **tokens) {
     int sz = vfs_get_size("/proc/disks");
@@ -252,12 +282,10 @@ void cmd_ls(char **tokens) {
     if (tokens[1]) strcpy(target_path, tokens[1]);
     else strcpy(target_path, "."); 
     
-    
     vfs_dirent_t entry; 
     int index = 0;
     while (1) {
         int ret;
-        
         __asm__ volatile("int $0x80" : "=a"(ret) : "a"(89), "b"(target_path), "c"(index), "d"(&entry));
         if (ret == 0) break; 
         if (entry.type == 1) printf("[DIR]  %s\n", entry.name);
@@ -341,7 +369,7 @@ void cmd_exec(char **tokens){
             paging_map_user(app_pd, phys_addr + i, PROGRAM_LOAD_ADDRES + i, 7);
         }
 
-        int pid = create_process((void (*)(int, char**))PROGRAM_LOAD_ADDRES, argc, &tokens[1], tokens[1], app_pd);
+        int pid = create_process((void (*)(int, char**))PROGRAM_LOAD_ADDRES, argc, &tokens[1], tokens[1], app_pd, -1, -1);
         
         Task *t = ready_queue;
         do {
@@ -381,10 +409,7 @@ void cmd_mkfile(char **tokens) {
 
 void cmd_rm(char **tokens){
     if(!tokens[1]) { printf("Usage: rm <filename>\n"); return; }
-    
-    char abs_path[256];
-    get_absolute_path(current_task->cwd, tokens[1], abs_path);
-    
+    char abs_path[256]; get_absolute_path(current_task->cwd, tokens[1], abs_path);
     if(vfs_delete(abs_path) != 1) printf("rm: Failed to remove file or directory.\n"); 
     else printf("rm: File removed successfully.\n");
 }
@@ -404,16 +429,12 @@ void cmd_readsystemcfg(char **tokens) {
 void cmd_tasklist(char **tokens){
     if (!ready_queue) return;
     Task *t = ready_queue;
-    
     printf("PID   State      Parent   Name\n");
     printf("---   -----      ------   ----\n");
-    
     do {
         if (t->state != TASK_DEAD) {
             printf("%d", t->id);
-            if(t->id < 10) printf("     ");
-            else if(t->id < 100) printf("    ");
-            else printf("   ");
+            if(t->id < 10) printf("     "); else if(t->id < 100) printf("    "); else printf("   ");
 
             if (t->state == TASK_RUNNING) printf("RUN        ");
             else if (t->state == TASK_SLEEPING) printf("SLEEP      ");
@@ -422,10 +443,8 @@ void cmd_tasklist(char **tokens){
             if(t->parent_id == -1) printf("NONE     ");
             else {
                 printf("%d", t->parent_id);
-                if(t->parent_id < 10) printf("        ");
-                else printf("       ");
+                if(t->parent_id < 10) printf("        "); else printf("       ");
             }
-
             printf("%s\n", t->name);
         }
         t = t->next;

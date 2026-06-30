@@ -6,6 +6,10 @@
 #include "global.h"
 #include "drivers/video/vesa.h"
 #include "task/task.h"
+#include "kernel/include/string.h"
+
+#define KLOG_MAX_SIZE 64000
+#define KLOG_TRIM_SIZE 16000 
 
 static unsigned long next = 1;
 
@@ -101,6 +105,9 @@ void panic(char *err){
     set_text_color(4);
     clear_screen();
     printf("\nKernel panic!\nErr: %s\nSystem will reboot in 5 seconds...\n", err);
+    
+    vesa_render_buffer(); 
+    
     __asm__ volatile ("sti"); 
     unsigned long newTick = get_ticks() + 5000;
     while(get_ticks() < newTick) {
@@ -185,20 +192,36 @@ void klog(char *msg) {
     char time_str[32];
     itoa(get_ticks() / 1000, time_str, 10);
     
-    char prefix[] = "[";
-    for(int i=0; prefix[i] && sys_log_pos < 65530; i++) sys_log_buffer[sys_log_pos++] = prefix[i];
-    for(int i=0; time_str[i] && sys_log_pos < 65530; i++) sys_log_buffer[sys_log_pos++] = time_str[i];
     
-    char suffix[] = "s] ";
-    for(int i=0; suffix[i] && sys_log_pos < 65530; i++) sys_log_buffer[sys_log_pos++] = suffix[i];
+    char formatted_msg[256];
+    formatted_msg[0] = '\0';
+    strcat(formatted_msg, "[");
+    strcat(formatted_msg, time_str);
+    strcat(formatted_msg, "s] ");
+    strcat(formatted_msg, msg);
+    strcat(formatted_msg, "\n");
+
+    int msg_len = strlen(formatted_msg);
+
     
-    for(int i = 0; msg[i] != '\0' && sys_log_pos < 65530; i++) {
-        sys_log_buffer[sys_log_pos++] = msg[i];
+    if (sys_log_pos + msg_len >= KLOG_MAX_SIZE) {
+        int shift_amount = sys_log_pos - KLOG_TRIM_SIZE;
+        if (shift_amount > 0) {
+            
+            memmove(sys_log_buffer, sys_log_buffer + KLOG_TRIM_SIZE, shift_amount);
+            sys_log_pos = shift_amount;
+        } else {
+            sys_log_pos = 0;
+        }
     }
     
-    if(sys_log_pos < 65530) sys_log_buffer[sys_log_pos++] = '\n';
-    sys_log_buffer[sys_log_pos] = '\0';
+    
+    for (int i = 0; i < msg_len; i++) {
+        sys_log_buffer[sys_log_pos++] = formatted_msg[i];
+    }
+    sys_log_buffer[sys_log_pos] = '\0'; 
 }
+
 
 void klog_save() {
     int result = vfs_write("/sys.log", (uint8_t*)sys_log_buffer, sys_log_pos);

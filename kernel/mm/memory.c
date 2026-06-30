@@ -114,10 +114,19 @@ void* kmalloc(size_t size){
     
     found->is_free = 0;
     restore_flags(flags);
+
+    // char log[128];
+    // sprintf(log, "[MM] kmalloc(%d bytes) -> 0x%x", size, (uint32_t)(found + 1));
+    // klog(log);
+
     return (void*)(found + 1);
 }
 
 void kfree(void* ptr){
+    // char log[128];
+    // sprintf(log, "[MM] kfree(0x%x)", (uint32_t)ptr);
+    // klog(log);
+
     uint32_t flags = save_flags();
     if(ptr == NULL){ restore_flags(flags); return; }
 
@@ -161,8 +170,43 @@ void kfree_a(void* ptr) {
 }
 
 void heap_dump(void) {
-    printf("\n%C=== DETAILED HEAP DUMP ===%C\n", VGA32_COLOR_YELLOW, VGA32_COLOR_WHITE);
+    uint32_t flags = save_flags();
     
+    printf("\n%C=== DETAILED HEAP ANALYSIS ===%C\n", VGA32_COLOR_YELLOW, VGA32_COLOR_WHITE);
+    
+    memory_block_t *curr = heap_start;
+    uint32_t total_free = 0;
+    uint32_t total_used = 0;
+    uint32_t free_blocks = 0;
+    uint32_t used_blocks = 0;
+    uint32_t largest_free = 0;
+
+    while(curr) {
+        if (curr->is_free) {
+            total_free += curr->size;
+            free_blocks++;
+            if (curr->size > largest_free) largest_free = curr->size;
+        } else {
+            total_used += curr->size;
+            used_blocks++;
+        }
+        curr = curr->next;
+    }
+
+    printf("Heap Start : 0x%x\n", (uint32_t)heap_start);
+    printf("Total Size : %d KB\n", HEAP_SIZE / 1024);
+    printf("Used Memory: %d KB (%d blocks)\n", total_used / 1024, used_blocks);
+    printf("Free Memory: %d KB (%d blocks)\n", total_free / 1024, free_blocks);
+    printf("Largest Free Block: %d KB (Fragment index: %d)\n", 
+            largest_free / 1024, 
+            (free_blocks > 0) ? (total_free / free_blocks) : 0);
+            
+    printf("==============================\n\n");
+    restore_flags(flags);
+
+    char log[128];
+    sprintf(log, "[MM] Heap Dump Triggered. Used: %d KB", total_used / 1024);
+    klog(log);
 }
 
 void fast_memset(void* dest, uint32_t val, size_t count_pixels) {
@@ -170,14 +214,17 @@ void fast_memset(void* dest, uint32_t val, size_t count_pixels) {
 }
 
 size_t get_used_memory(void) {
-    size_t free_mem = 0;
+    size_t used_mem = 0;
     uint32_t flags = save_flags(); 
-    for(int i = 0; i < 16; i++) {
-        memory_block_t *curr = free_bins[i];
-        while(curr) { free_mem += curr->size; curr = curr->free_next; }
+    memory_block_t *curr = heap_start;
+    while(curr) { 
+        if (!curr->is_free) {
+            used_mem += curr->size; 
+        }
+        curr = curr->next; 
     }
     restore_flags(flags);
-    return HEAP_SIZE - free_mem;
+    return used_mem;
 }
 
 size_t get_total_memory(void) { return HEAP_SIZE; }

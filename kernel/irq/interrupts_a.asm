@@ -7,6 +7,8 @@ global page_fault_handler
 
 global ignore_handler
 global invalid_opcode_handler
+global rtl8139_irq_handler
+global signal_trampoline_entry
 
 extern syscall_handler_c
 extern system_division_handler_c
@@ -15,6 +17,7 @@ extern keyboard_handler_c
 extern mouse_handler_c
 extern page_fault_handler_c
 extern invalid_opcode_handler_c
+extern rtl8139_handler_c
 
 syscall_handler:
     pusha
@@ -46,14 +49,24 @@ keyboard_handler:
 
 timer_handler:
     pusha
+    push esp
     call timer_handler_c
-    
+    add esp, 4
     popa
     iret
 
 mouse_handler:
     pusha
     call mouse_handler_c
+    mov al, 0x20
+    out 0xA0, al
+    out 0x20, al
+    popa
+    iret
+
+rtl8139_irq_handler:
+    pusha
+    call rtl8139_handler_c
     mov al, 0x20
     out 0xA0, al
     out 0x20, al
@@ -89,3 +102,13 @@ invalid_opcode_handler:
     popa
     add esp, 4
     iret
+
+signal_trampoline_entry:
+    push ebx
+    call eax
+    add esp, 4
+    mov eax, 119
+    int 0x80
+
+.hang:
+    jmp .hang

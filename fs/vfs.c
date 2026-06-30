@@ -14,8 +14,8 @@ static const char* dev_files[] = {"stdin", "stdout", "stderr", "null", "random",
 static const int num_dev_files = 7;
 
 
-static const char* proc_files[] = {"meminfo", "cpuinfo", "version", "uptime", "klog", "disks"};
-static const int num_proc_files = 6;
+static const char* proc_files[] = {"meminfo", "cpuinfo", "version", "uptime", "klog", "disks", "net"};
+static const int num_proc_files = 7;
 
 #define MAX_MOUNTS 16
 mount_t mount_table[MAX_MOUNTS];
@@ -147,10 +147,10 @@ int vfs_read(char* path, uint8_t* buffer) {
         else if (strcmp(path, "/proc/klog") == 0) {
             extern char sys_log_buffer[];
             extern int sys_log_pos;
-            strcpy((char*)buffer, sys_log_buffer);
+            fast_memcpy(buffer, sys_log_buffer, sys_log_pos);
+            buffer[sys_log_pos] = '\0';
             return sys_log_pos;
         }
-        
         else if (strcmp(path, "/proc/disks") == 0) {
             strcpy(buf, "NAME\tTYPE\tDESCRIPTION\n");
             for (int i = 0; i < sys_drive_count; i++) {
@@ -166,6 +166,17 @@ int vfs_read(char* path, uint8_t* buffer) {
                 sprintf(line, "%s\t%s\t%s\n", dev_name, type_str, sys_drives[i].name);
                 strcat(buf, line);
             }
+        }
+        
+        else if (strcmp(path, "/proc/net") == 0) {
+            #include "lwip/netif.h"
+            extern struct netif rtl8139_netif;
+            uint8_t *ip = (uint8_t*)&rtl8139_netif.ip_addr;
+            uint8_t *nm = (uint8_t*)&rtl8139_netif.netmask;
+            uint8_t *gw = (uint8_t*)&rtl8139_netif.gw;
+            
+            sprintf(buf, "eth0\n IP Address  : %d.%d.%d.%d\n Subnet Mask : %d.%d.%d.%d\n Gateway     : %d.%d.%d.%d\n",
+                    ip[0], ip[1], ip[2], ip[3], nm[0], nm[1], nm[2], nm[3], gw[0], gw[1], gw[2], gw[3]);
         }
         
         int len = strlen(buf);

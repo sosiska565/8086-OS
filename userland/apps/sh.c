@@ -1,10 +1,12 @@
 #include <oslib.h>
+#include <signal.h>
 
 #define MAX_HISTORY 16
 char history[MAX_HISTORY][256];
 int history_count = 0;
 
 char env_path[256] = "/path";
+char path_sug_buf[128];
 int c_user = 11, c_host = 10, c_path = 9, c_char = 15;
 
 #define MAX_BINARIES 64
@@ -65,6 +67,69 @@ void add_history(char* cmd) {
     else { for(int i = 1; i < MAX_HISTORY; i++) strcpy(history[i-1], history[i]); strcpy(history[MAX_HISTORY-1], cmd); }
 }
 
+char* get_path_suggestion(char* buffer) {
+    int len = strlen(buffer);
+    if (len == 0) return NULL;
+    
+    int word_start = len - 1;
+    while (word_start >= 0 && buffer[word_start] != ' ') word_start--;
+    word_start++; 
+
+    char* target = &buffer[word_start];
+    if (strlen(target) == 0) return NULL; 
+
+    char dir_path[128] = "."; 
+    char file_prefix[64] = "";
+    
+    char* last_slash = strrchr(target, '/');
+    if (last_slash) {
+        int dir_len = last_slash - target + 1;
+        strncpy(dir_path, target, dir_len);
+        dir_path[dir_len] = '\0';
+        strcpy(file_prefix, last_slash + 1);
+    } else {
+        strcpy(file_prefix, target);
+    }
+
+    
+    char file_prefix_upper[64];
+    strcpy(file_prefix_upper, file_prefix);
+    to_upper(file_prefix_upper); 
+    
+
+    vfs_dirent_t ent;
+    int idx = 0;
+    int matches = 0;
+    char last_match[64] = "";
+    uint8_t match_type = 0;
+
+    while (readdir(dir_path, idx++, &ent) == 1) {
+        
+        char ent_name_upper[64];
+        strncpy(ent_name_upper, ent.name, sizeof(ent_name_upper) - 1);
+        ent_name_upper[sizeof(ent_name_upper) - 1] = '\0';
+        to_upper(ent_name_upper); 
+        
+        if (strncmp(ent_name_upper, file_prefix_upper, strlen(file_prefix_upper)) == 0) {
+            strcpy(last_match, ent.name);
+            match_type = ent.type;
+            matches++;
+        }
+    }
+
+    if (matches == 1) {
+        char* remainder = last_match + strlen(file_prefix);
+        strcpy(path_sug_buf, remainder);
+        
+        if (match_type == VFS_ATTR_DIR) {
+            strcat(path_sug_buf, "/");
+        }
+        return to_lower(path_sug_buf);
+    }
+    
+    return NULL; 
+}
+
 int smart_readline(char* buffer) {
     int pos = 0; 
     int len = 0; 
@@ -83,14 +148,30 @@ int smart_readline(char* buffer) {
         set_color(c_char, 0);
         printf("%s", buffer);
         
-        char* sug = get_suggestion(buffer);
+        char* cmd_sug = get_suggestion(buffer);
+        char* path_sug = NULL;
         int sug_len = 0;
-        if (sug && pos == len && len > 0 && strlen(sug) > len) {
-            sug_len = strlen(sug) - len;
-            set_color(8, 0); 
-            printf("%s", sug + len);
-        }
+
         
+        if (cmd_sug && pos == len && len > 0 && strlen(cmd_sug) > len) {
+            sug_len = strlen(cmd_sug) - len;
+            set_color(8, 0); 
+            printf("%s", cmd_sug + len);
+        } 
+        
+        else if (!cmd_sug && pos == len && len > 0) {
+            char tmpbuff[256];
+            strcpy(tmpbuff, buffer);
+            to_upper(tmpbuff);
+
+            path_sug = get_path_suggestion(tmpbuff);
+            if (path_sug) {
+                sug_len = strlen(path_sug);
+                set_color(8, 0); 
+                printf("%s", path_sug);
+            }
+        }
+
         max_drawn_len = len > (len + sug_len) ? len : (len + sug_len);
         set_cursor(prompt_x + pos, prompt_y);
         set_color(0, 15); 
@@ -110,7 +191,17 @@ int smart_readline(char* buffer) {
         else if (c == KEY_LEFT) { if (pos > 0) pos--; }
         else if (c == KEY_RIGHT) { if (pos < len) pos++; }
         else if (c == '\b') { if (pos > 0) { for (int i = pos; i <= len; i++) buffer[i - 1] = buffer[i]; pos--; len--; } } 
-        else if (c == '\t') { if (sug && pos == len) { strcpy(buffer, sug); len = strlen(buffer); pos = len; } } 
+        else if (c == '\t') { 
+            if (cmd_sug && pos == len) { 
+                strcpy(buffer, cmd_sug); 
+                len = strlen(buffer); 
+                pos = len; 
+            } else if (path_sug && pos == len) {
+                strcat(buffer, path_sug);
+                len = strlen(buffer); 
+                pos = len; 
+            }
+        } 
         else if (c >= 32 && c <= 126 && len < 254) { for (int i = len; i >= pos; i--) buffer[i + 1] = buffer[i]; buffer[pos] = c; pos++; len++; }
     }
     return 0;
@@ -123,8 +214,18 @@ void split_args(char* input, char* argv[], int* argc) {
         while (*p == ' ') p++; 
         if (!*p) break;
         if (*p == '>') { argv[(*argc)++] = ">"; *p = '\0'; p++; continue; }
+        if (*p == '|') { argv[(*argc)++] = "|"; *p = '\0'; p++; continue; }
         if (*p == '"') { p++; argv[(*argc)++] = p; while (*p && *p != '"') p++; if (*p == '"') { *p = '\0'; p++; } } 
-        else { argv[(*argc)++] = p; while (*p && *p != ' ' && *p != '>') p++; if (*p == '>') { *p = '\0'; } else if (*p == ' ') { *p = '\0'; p++; } }
+        else { 
+            argv[(*argc)++] = p; 
+            while (*p && *p != ' ' && *p != '>' && *p != '|') p++; 
+            if (*p == '>' || *p == '|') { 
+                char tmp = *p; *p = '\0'; p++; 
+                if(tmp=='>') argv[(*argc)++] = ">"; else argv[(*argc)++] = "|"; 
+            } else if (*p == ' ') { 
+                *p = '\0'; p++; 
+            } 
+        }
     }
     argv[*argc] = NULL;
 }
@@ -141,19 +242,18 @@ int resolve_path(char* cmd, char* resolved) {
 
 void draw_prompt() {
     char cwd[256]; getcwd(cwd, 256);
-    set_color(12, 0); 
-    printf("\n┌──(root@8086-os)─[");
-    set_color(9, 0); 
-    printf("%s", cwd);
-    set_color(12, 0); 
-    printf("]\n└─# ");
+    set_color(12, 0); printf("\n┌──(root@8086-os)─[");
+    set_color(9, 0); printf("%s", cwd);
+    set_color(12, 0); printf("]\n└─# ");
     set_color(7, 0);
 }
 
 int main(int argc, char** argv) {
-    char input[256]; char* args[16]; int arg_count;
+    char input[256]; char* args[32]; int arg_count;
     load_config(); rehash_path();
     clear_screen();
+
+    signal(SIGINT, SIG_IGN);
 
     while (1) {
         draw_prompt();
@@ -164,15 +264,25 @@ int main(int argc, char** argv) {
         split_args(input, args, &arg_count);
         char* cmd = args[0];
 
-        char* redirect_path = NULL;
+        int run_in_background = 0;
+        if (arg_count > 0 && strcmp(args[arg_count - 1], "&") == 0) {
+            run_in_background = 1;
+            args[arg_count - 1] = NULL; 
+            arg_count--;
+        }
+
+        char* redirect_file = NULL;
+        int pipe_idx = -1;
+        
         for(int i=0; i<arg_count; i++) {
-            if (strcmp(args[i], ">") == 0) { args[i] = NULL; if (i + 1 < arg_count) redirect_path = args[i+1]; break; }
+            if (strcmp(args[i], ">") == 0) { args[i] = NULL; if (i + 1 < arg_count) redirect_file = args[i+1]; break; }
+            if (strcmp(args[i], "|") == 0) { args[i] = NULL; pipe_idx = i + 1; break; }
         }
 
         if (strcmp(cmd, "help") == 0) {
             set_color(7, 0);
             printf("Shell built-ins: cd, pwd, exit, clear, rehash, help, su, mount, umount\n");
-            printf("Included Apps  : ls, cat, nevim, eza, fcc, echo, installer\n");
+            printf("Included Apps  : ls, cat, nevim, eza, gcc, echo, installer\n");
         }
         else if (strcmp(cmd, "cd") == 0) { if (arg_count > 1) { if (chdir(args[1]) != 0) printf("cd: No such directory\n"); } }
         else if (strcmp(cmd, "pwd") == 0) { char c[256]; getcwd(c, 256); printf("%s\n", c); }
@@ -195,13 +305,34 @@ int main(int argc, char** argv) {
         else if (strcmp(cmd, "rehash") == 0) { load_config(); rehash_path(); printf("Config reloaded & Path refreshed.\n"); }
         else if (strcmp(cmd, "exit") == 0) { break; } 
         else {
-            set_color(7, 0); char resolved[256];
+            char resolved[256];
             if (resolve_path(cmd, resolved)) {
-                int pid = spawn(resolved, args, redirect_path);
-                if (pid > 0) waitpid(pid);
-                else {
-                    if (getuid() != 0) printf("sh: Permission denied.\n");
-                    else printf("sh: Error executing program.\n");
+                if (pipe_idx != -1) {
+                    char resolved2[256];
+                    if (resolve_path(args[pipe_idx], resolved2)) {
+                        int pfd[2];
+                        pipe(pfd);
+                        
+                        int pid1 = spawn_ext(resolved, args, -1, pfd[1]);
+                        int pid2 = spawn_ext(resolved2, &args[pipe_idx], pfd[0], -1);
+                        
+                        close(pfd[0]);
+                        close(pfd[1]);
+                        
+                        waitpid(pid1); waitpid(pid2);
+                    } else printf("sh: right command not found\n");
+                } else if (redirect_file) {
+                    int fd = open(redirect_file, O_WRONLY | O_CREAT | O_TRUNC);
+                    if(fd != -1) {
+                        int pid = spawn_ext(resolved, args, -1, fd);
+                        close(fd);
+                        if (!run_in_background) waitpid(pid);
+                        else printf("[%d] running in background\n", pid);
+                    } else printf("sh: failed to open redirect file\n");
+                } else {
+                    int pid = spawn_ext(resolved, args, -1, -1);
+                    if (!run_in_background) waitpid(pid);
+                    else printf("[%d] running in background\n", pid);
                 }
             } else printf("sh: command not found\n");
         }

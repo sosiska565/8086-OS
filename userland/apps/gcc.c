@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
         "tcc", 
         "-nostdlib", 
         "-I/include", 
-        "-Wl,-Ttext=0x40000000", 
+        "-Wl,-Ttext=0x60000000", 
         "-o", out_file, 
         "/lib/entry.o", 
         source_file, 

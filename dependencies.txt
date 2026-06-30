@@ -1,0 +1,6 @@
+makegcc (или кросс-компилятор i686-elf-gcc)
+ld (или i686-elf-ld)
+nasmfindddmkfs.fat (dosfstools)
+mcopy (mtools)
+grub-mkrescue (grub2)
+xorrisogitqemu-system-i386

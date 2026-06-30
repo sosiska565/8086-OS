@@ -538,7 +538,11 @@ void _set_console_color(unsigned int color) {
     gfx_set_color((color <= 15) ? vga_to_rgb[color] : color);
 }
 
+extern void gfx_start_batch(void);
+extern void gfx_end_batch(void);
+
 void vprintf(const char* format, va_list args) {
+    gfx_start_batch();
     while (*format != '\0') {
         if (*format == '%') {
             format++;
@@ -571,6 +575,7 @@ void vprintf(const char* format, va_list args) {
     }
 
     _set_console_color(DEF_COLOR_GFX);
+    gfx_end_batch();
 }
 
 void printf(const char* format, ...) {

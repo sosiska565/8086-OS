@@ -1,7 +1,6 @@
 #ifndef OSLIB_H
 #define OSLIB_H
 
-
 typedef unsigned int       uint32_t;
 typedef int                int32_t;
 typedef unsigned short     uint16_t;
@@ -15,11 +14,9 @@ typedef long long          int64_t;
 typedef unsigned int       uintptr_t; 
 typedef int                time_t;
 
-
 typedef int jmp_buf[6]; 
 int setjmp(jmp_buf env);
 void longjmp(jmp_buf env, int val);
-
 
 #define NULL ((void*)0)
 #define EOF (-1)
@@ -28,7 +25,6 @@ typedef __builtin_va_list va_list;
 #define va_start(v,l)   __builtin_va_start(v,l)
 #define va_end(v)       __builtin_va_end(v)
 #define va_arg(v,l)     __builtin_va_arg(v,l)
-
 
 #define O_RDONLY 0
 #define O_WRONLY 1
@@ -49,7 +45,6 @@ extern FILE *stderr_ptr;
 #define stdin stdin_ptr
 #define stdout stdout_ptr
 #define stderr stderr_ptr
-
 
 #define COLOR_BLACK 0
 #define COLOR_BLUE 1
@@ -103,11 +98,13 @@ extern FILE *stderr_ptr;
 typedef struct { char name[64]; uint32_t size; uint8_t type; } vfs_dirent_t;
 typedef struct { int id; int parent_id; int state; char name[32]; } task_info_user_t;
 
-
 int read_file(const char *file_name, uint8_t *file_buffer);
 int write_file(const char *filename, uint8_t *buffer, uint32_t size);
 int get_file_size(const char *file_name);
 int delete_file(const char *file_name);
+
+int open(const char *pathname, int flags, ...);
+int close(int fd);
 
 FILE *fopen(const char *path, const char *mode);
 int fclose(FILE *stream);
@@ -117,7 +114,7 @@ int fseek(FILE *stream, int offset, int whence);
 int ftell(FILE *stream);
 int fgetc(FILE *stream);
 
-int mkdir(const char *path);
+int mkdir(const char *path, ...);
 int readdir(const char *path, int index, vfs_dirent_t *out);
 int chdir(const char *path);
 char *getcwd(char *buf, uint32_t size);
@@ -128,17 +125,14 @@ int unmount(const char* mount_point);
 int read(int fd, void *buf, uint32_t count);
 int write(int fd, const void *buf, uint32_t count);
 
+int pipe(int pipefd[2]);
+int spawn_ext(const char* path, char** argv, int fd_in, int fd_out);
+
 void set_color(int fg_color, int bg_color);
 void clear_screen(void);
 void get_cursor(int *x, int *y);
 void set_cursor(int x, int y);
-void get_term_size(int *cols, int *rows);typedef unsigned int   uint32_t;
-typedef int            int32_t;
-typedef unsigned short uint16_t;
-typedef short          int16_t;
-typedef unsigned char  uint8_t;
-typedef char           int8_t;
-typedef unsigned int   size_t;
+void get_term_size(int *cols, int *rows);
 
 int printf(const char* format, ...);
 int vprintf(const char* format, va_list args);
@@ -185,15 +179,82 @@ void *dlsym(void *handle, const char* symbol_name);
 void *memcpy(void *dest, const void* src, uint32_t n);
 void *memset(void* dest, int val, uint32_t count_pixels);
 
-void detach(void);
+void detach_pid(int pid);
 void get_screen_info(int *w, int *h, int *bpp);
 void flush_screen(void *buffer);
-void get_mouse(int *x, int *y, int *buttons);
+void get_mouse(int *x, int *y, int *buttons, int *z);
 unsigned int poll_key(void);
 uint8_t get_key_modifiers(void);
 void yield();
 
 uint32_t get_ticks(void);
 int get_key_state(uint8_t scancode);
+int shm_get(int key, int size);
+void* shm_map(int key);
+
+
+
+#define AF_INET      2
+#define SOCK_STREAM  1
+#define SOCK_DGRAM   2
+#define SOCK_RAW     3
+#define IPPROTO_ICMP 1
+
+typedef uint32_t in_addr_t;
+
+struct in_addr {
+  in_addr_t s_addr;
+};
+
+struct sockaddr_in {
+  uint8_t         sin_len;
+  uint8_t         sin_family;
+  uint16_t        sin_port;
+  struct in_addr  sin_addr;
+  char            sin_zero[8];
+};
+
+struct sockaddr {
+  uint8_t         sa_len;
+  uint8_t         sa_family;
+  char            sa_data[14];
+};
+
+int socket(int domain, int type, int protocol);
+int connect(int fd, const struct sockaddr *addr, uint32_t addrlen);
+int send(int fd, const void *data, uint32_t size, int flags);
+int recv(int fd, void *mem, uint32_t len, int flags);
+
+uint16_t htons(uint16_t n);
+uint32_t inet_addr(const char *cp);
+
+uint32_t gethostbyname(const char *name);
+
+char *strstr(const char *haystack, const char *needle);
+
+char *strchr(const char *s, int c);
+char *strncpy(char *dest, const char *src, size_t n);
+void *memmove(void *dest, const void *src, size_t n);
+char *strrchr(const char *s, int c);
+char *to_upper(char *s);
+char *to_lower(char *s);
+
+char scancode_to_char(uint8_t sc);
+uint8_t wait_scancode();
+
+void *calloc(uint32_t nmemb, uint32_t size);
+
+typedef struct {
+    uint8_t second;
+    uint8_t minute;
+    uint8_t hour;
+    uint8_t day;
+    uint8_t month;
+    uint16_t year;
+} rtc_time_t;
+
+void get_rtc_time(rtc_time_t *t);
+
+int kill(int pid, int sig);
 
 #endif

@@ -46,6 +46,7 @@ void idt_init(void){
     extern void mouse_handler();
     extern void page_fault_handler();
     extern void invalid_opcode_handler();
+    extern void rtl8139_irq_handler();
 
     idt_set_gate(0, (uint32_t)system_division_handler);
     idt_set_gate(32, (uint32_t)timer_handler);
@@ -54,6 +55,7 @@ void idt_init(void){
     idt_set_gate(44, (uint32_t)mouse_handler);
     idt_set_gate(14, (uint32_t)page_fault_handler);
     idt_set_gate(6, (uint32_t)invalid_opcode_handler);
+    idt_set_gate(43, (uint32_t)rtl8139_irq_handler);
 }
 
 void pic_remap(void) {
@@ -74,4 +76,7 @@ void pic_remap(void) {
 
     outb(0x21, 0xF8);
     outb(0xA1, 0xEF);
+
+    outb(0x21, inb(0x21) & ~(1 << 2));
+    outb(0xA1, inb(0xA1) & ~(1 << 3)); 
 }

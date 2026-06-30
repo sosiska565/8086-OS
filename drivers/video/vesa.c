@@ -70,14 +70,38 @@ void vesa_render_rect(int x, int y, int w, int h) {
 }
 
 void vesa_draw_char(int x, int y, unsigned int c, uint32_t color, uint32_t bgcolor) {
-    int idx = (int)c;
     
+    if (x < 0 || y < 0 || x >= screen_width || y >= screen_height) return;
+    
+    int idx = (int)c;
     if(idx >= 9728) idx = '?'; 
     uint8_t *glyph = font8x8_basic[idx];
 
     int bpp_bytes = screen_bpp / 8;
     uint8_t *target = back_buffer ? (uint8_t*)back_buffer : (uint8_t*)video_memory;
+    if (!target) return; 
 
+    if (bpp_bytes == 4) {
+        int transparent_bg = (bgcolor & 0xFF000000) != 0;
+        for (int row = 0; row < 8; row++) {
+            if ((y + row) >= screen_height) break;
+            uint32_t *pixel_addr = (uint32_t*)(target + ((y + row) * screen_pitch) + (x * 4));
+            uint8_t line = glyph[row];
+            
+            for (int col = 0; col < 8; col++) {
+                if ((x + col) >= screen_width) break;
+                if ((line >> col) & 1) {
+                    *pixel_addr = color;
+                } else if (!transparent_bg) {
+                    *pixel_addr = bgcolor;
+                }
+                pixel_addr++; 
+            }
+        }
+        return;
+    }
+
+    
     for (int row = 0; row < 8; row++) {
         if ((y + row) >= screen_height) break;
         uint8_t line = glyph[row];

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-void timer_handler_c(void);
+void timer_handler_c(uint32_t esp);
 unsigned long get_ticks(void);
 void timer_install(void);
 void sleep(unsigned long ms);
