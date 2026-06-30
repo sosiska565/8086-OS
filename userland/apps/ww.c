@@ -1,3 +1,13 @@
+/*
+ *  SPDX-License-Identifier: MIT
+ *
+ *  8086-OS/userland/apps/ww.c
+ *
+ *  Copyright (C) 2026  sosiska565
+ *
+ *  May be freely distributed as part of 8086-OS.
+ */
+
 #include <oslib.h>
 
 #define MAX_LINES 1000
