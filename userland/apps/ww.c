@@ -26,8 +26,8 @@ enum Mode { NORMAL, INSERT, VISUAL, COMMAND };
 char* lines[MAX_LINES];
 int num_lines = 1;
 
-int cx = 0, cy = 0;       // Cursor position
-int scroll_y = 0;         // Vertical scroll offset
+int cx = 0, cy = 0;       
+int scroll_y = 0;         
 int screen_cols = 80, screen_rows = 25;
 enum Mode current_mode = NORMAL;
 char filename[128] = "";
@@ -38,7 +38,6 @@ int command_pos = 0;
 int vis_start_x = 0;
 int vis_start_y = 0;
 
-// C Keywords for syntax highlighting
 const char* keywords[] = {
     "int", "char", "void", "return", "if", "else", 
     "while", "for", "struct", "include", "define", "static", NULL
@@ -88,7 +87,7 @@ void save_file() {
     
     int total_len = 0;
     for (int i = 0; i < num_lines; i++) {
-        total_len += strlen(lines[i]) + 1; // +1 for '\n'
+        total_len += strlen(lines[i]) + 1; 
     }
     
     char* buf = malloc(total_len + 1);
@@ -105,13 +104,11 @@ void save_file() {
 }
 
 void draw_syntax_char(char c, int* color_state) {
-    // Basic state machine logic via pointer hack
-    // color_state: 0 = Normal, 1 = String, 2 = Comment
     if (*color_state == 0 && c == '"') *color_state = 1;
     
-    if (*color_state == 1) set_color(10, 0); // Green Strings
-    else if (*color_state == 2) set_color(8, 0); // Gray Comments
-    else set_color(7, 0); // Normal
+    if (*color_state == 1) set_color(10, 0); 
+    else if (*color_state == 2) set_color(8, 0); 
+    else set_color(7, 0); 
     
     print_char(c);
     
@@ -124,10 +121,8 @@ void print_line_with_syntax(int y) {
     int color_state = 0; 
     
     for (int i = 0; i < len; i++) {
-        // Simple comment check
         if (color_state == 0 && str[i] == '/' && str[i+1] == '/') color_state = 2;
         
-        // Visual mode highlighting check
         int is_selected = 0;
         if (current_mode == VISUAL) {
             int min_y = (y < vis_start_y) ? y : vis_start_y;
@@ -138,27 +133,25 @@ void print_line_with_syntax(int y) {
                 int max_x = (cx > vis_start_x) ? cx : vis_start_x;
                 if (i >= min_x && i <= max_x) is_selected = 1;
             }
-            // Basic multiline selection highlight
             else if (y == min_y && y != max_y && i >= ((y == vis_start_y) ? vis_start_x : cx)) is_selected = 1;
             else if (y == max_y && y != min_y && i <= ((y == cy) ? cx : vis_start_x)) is_selected = 1;
         }
 
-        if (is_selected) set_color(15, 1); // White on Blue
+        if (is_selected) set_color(15, 1); 
         else if (color_state != 0) {
             draw_syntax_char(str[i], &color_state);
             continue;
         } 
         else {
-            // Keyword check
             int is_kw = 0;
             if (is_alpha(str[i]) && (i == 0 || !is_alpha(str[i-1]))) {
                 for (int k = 0; keywords[k] != NULL; k++) {
                     int kw_len = strlen(keywords[k]);
                     if (strncmp(&str[i], keywords[k], kw_len) == 0 && !is_alpha(str[i + kw_len])) {
                         is_kw = 1;
-                        set_color(11, 0); // Cyan
+                        set_color(11, 0); 
                         for (int j = 0; j < kw_len; j++) print_char(str[i++]);
-                        i--; // Adjust loop counter
+                        i--; 
                         break;
                     }
                 }
@@ -182,14 +175,12 @@ void draw_screen() {
         int file_y = scroll_y + i;
         
         if (file_y < num_lines) {
-            // Print Line Number
             set_color(14, 0);
             printf("%d ", file_y + 1);
             if (file_y + 1 < 10) printf("   ");
             else if (file_y + 1 < 100) printf("  ");
             else printf(" ");
             
-            // Print Content
             print_line_with_syntax(file_y);
         } else {
             set_color(8, 0);
@@ -197,10 +188,9 @@ void draw_screen() {
         }
     }
 
-    // Status bar
     set_cursor(0, screen_rows - 1);
-    set_color(0, 7); // Black text on Gray background
-    for(int i=0; i<screen_cols; i++) print_char(' '); // Fill bar
+    set_color(0, 7); 
+    for(int i=0; i<screen_cols; i++) print_char(' '); 
     set_cursor(0, screen_rows - 1);
     
     if (current_mode == NORMAL) printf(" [NORMAL]  %s   Ln %d, Col %d ", filename, cy + 1, cx + 1);
@@ -208,9 +198,8 @@ void draw_screen() {
     else if (current_mode == VISUAL) printf(" [VISUAL]  %s ", filename);
     else if (current_mode == COMMAND) printf(" :%s", command_buf);
     
-    set_color(7, 0); // Restore normal colors
+    set_color(7, 0); 
     
-    // Position Hardware Cursor
     if (current_mode == COMMAND) {
         set_cursor(2 + command_pos, screen_rows - 1);
     } else {
@@ -318,7 +307,6 @@ int main(int argc, char** argv) {
             else if (c == 'j' || c == KEY_DOWN) { if (cy < num_lines - 1) cy++; }
             else if (c == 'k' || c == KEY_UP) { if (cy > 0) cy--; }
             else if (c == 'x' || c == 'd') {
-                // Placeholder: deleting selection is complex, just exit visual for now
                 current_mode = NORMAL; 
             }
         }

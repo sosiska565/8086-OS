@@ -1,7 +1,7 @@
 OS_NAME          = 8086-OS
 OS_VERSION_MAJOR = 0
 OS_VERSION_MINOR = 9
-OS_VERSION_PATCH = 3
+OS_VERSION_PATCH = 4
 OS_VERSION_EXTRA = beta
 
 OS_RELEASE_STR   = $(OS_VERSION_MAJOR).$(OS_VERSION_MINOR).$(OS_VERSION_PATCH)-$(OS_VERSION_EXTRA)
@@ -65,16 +65,31 @@ LIB_C_OBJS      := $(LIB_C_SOURCES:.c=.o)
 LIB_ASM_OBJS    := $(LIB_ASM_SOURCES:.asm=.o)
 LIB_OBJS        := $(LIB_ASM_OBJS) $(LIB_C_OBJS)
 
+DOOM_DIR    := doomgeneric
+DOOM_OUT    := $(PATH_DIR)/doom.elf
+DOOM_CFLAGS := $(USER_CFLAGS) -I$(DOOM_DIR)/doomgeneric -DDOOM_PORT -std=gnu99
+
+IGNORE_DOOM_SRCS := $(wildcard $(DOOM_DIR)/doomgeneric/doomgeneric_*.c) \
+                    $(DOOM_DIR)/doomgeneric/i_allegromusic.c \
+                    $(DOOM_DIR)/doomgeneric/i_allegrosound.c \
+                    $(DOOM_DIR)/doomgeneric/i_sdlmusic.c \
+                    $(DOOM_DIR)/doomgeneric/i_sdlsound.c
+
+DOOM_C_SOURCES := $(filter-out $(IGNORE_DOOM_SRCS), $(wildcard $(DOOM_DIR)/doomgeneric/*.c))
+DOOM_C_SOURCES += userland/apps/doomgeneric_8086os.c
+DOOM_OBJS := $(DOOM_C_SOURCES:.c=.o)
+
 USER_SOURCES    := $(wildcard userland/apps/*.c)
+USER_SOURCES    := $(filter-out userland/apps/doomgeneric_8086os.c, $(USER_SOURCES))
 USER_BINS       := $(patsubst userland/apps/%.c, $(PATH_DIR)/%.elf, $(USER_SOURCES))
 
 TCC_DIR    := tinycc
 TCC_OUT    := $(PATH_DIR)/tcc.elf
 TCC_CFLAGS := $(USER_CFLAGS) -DONE_SOURCE=1 -DTCC_TARGET_I386 -DCONFIG_TCCDIR=\"/path\" -DCONFIG_TCC_CRIPLED
 
-.PHONY: all clean run run-nobuild build-all iso prep_tcc generate_version help
+.PHONY: all clean run run-nobuild build-all iso prep_tcc prep_doom generate_version help
 
-all: generate_version prep_tcc $(KERNEL_BIN) $(USER_BINS) $(TCC_OUT)
+all: generate_version prep_tcc prep_doom $(KERNEL_BIN) $(USER_BINS) $(TCC_OUT) $(DOOM_OUT)
 	@echo "Сборка успешно завершена!"
 
 $(KERNEL_BIN): $(KERNEL_OBJS)
@@ -122,6 +137,9 @@ prep_tcc:
 	@echo "Генерация изолированных заголовков в userland/lib..."
 	@mkdir -p userland/lib/sys
 
+prep_doom:
+	@if [ ! -d "$(DOOM_DIR)" ]; then echo "Скачивание doomgeneric..."; git clone https://github.com/ozkl/doomgeneric.git $(DOOM_DIR); fi
+
 $(TCC_OUT): $(LIB_OBJS)
 	@mkdir -p $(PATH_DIR)
 	@echo "CC Compiling TCC for 8086-OS..."
@@ -129,12 +147,26 @@ $(TCC_OUT): $(LIB_OBJS)
 	@echo "LD Linking TCC..."
 	@$(LD) -m elf_i386 -T userland/app.ld -o $@ userland/apps/tcc.o $(LIB_OBJS) $(LIBGCC)
 
-$(DISK_IMG): $(USER_BINS) $(TCC_OUT)
+$(DOOM_DIR)/doomgeneric/%.o: $(DOOM_DIR)/doomgeneric/%.c
+	@echo "CC Doom $<"
+	@$(CC) $(DOOM_CFLAGS) -c $< -o $@
+
+userland/apps/doomgeneric_8086os.o: userland/apps/doomgeneric_8086os.c
+	@echo "CC Doom Wrapper $<"
+	@$(CC) $(DOOM_CFLAGS) -c $< -o $@
+
+$(DOOM_OUT): $(DOOM_OBJS) $(LIB_OBJS)
+	@mkdir -p $(PATH_DIR)
+	@echo "LD Linking DOOM..."
+	@$(LD) -m elf_i386 -T userland/app.ld -o $@ $(DOOM_OBJS) $(LIB_OBJS) $(LIBGCC)
+
+$(DISK_IMG): $(USER_BINS) $(TCC_OUT) $(DOOM_OUT)
 	@echo "Создание окружения разработчика (SDK) на диске..."
 	@mkdir -p $(DISK_DIR)/lib $(DISK_DIR)/include
 	@cp userland/lib/entry.o $(DISK_DIR)/lib/
 	@cp userland/lib/oslib.o $(DISK_DIR)/lib/
 	@cp userland/lib/*.h $(DISK_DIR)/include/
+	@if [ -f "DOOM1.WAD" ]; then cp DOOM1.WAD $(DISK_DIR)/path/DOOM1.WAD; echo "DOOM1.WAD скопирован в образ!"; fi
 	@echo "Создание диска FAT32..."
 	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=64 status=none
 	@mkfs.fat -F 32 -n "8086OS" $(DISK_IMG) > /dev/null
@@ -197,6 +229,7 @@ help:
 	@echo ""
 	@echo "Component targets:"
 	@echo "  prep_tcc       Verify Tiny C Compiler directory and isolate C headers"
+	@echo "  prep_doom      Download doomgeneric repo for Doom compilation"
 	@echo "  iso            Generate a bootable Live-OS ISO file using GRUB"
 	@echo ""
 	@echo "Report bugs and suggestions to the project repository."

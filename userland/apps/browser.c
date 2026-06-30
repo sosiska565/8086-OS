@@ -81,12 +81,6 @@ void apply_theme(int dark) {
     }
 }
 
-char* strdup(const char* s) {
-    int l = strlen(s);
-    char *d = malloc(l + 1);
-    if(d) strcpy(d, s);
-    return d;
-}
 
 char *fetch_url(const char *url) {
     if (strncmp(url, "demo://start", 12) == 0) {
@@ -122,7 +116,6 @@ char *fetch_url(const char *url) {
         "GET %s HTTP/1.1\r\n"
         "Host: %s\r\n"
         "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n"
-/*
         "Connection: close\r\n\r\n", 
         path, host);
 

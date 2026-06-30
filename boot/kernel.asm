@@ -7,6 +7,7 @@
 ;  May be freely distributed as part of 8086-OS.
 
 
+
 bits 32
 section .text
     align 4
@@ -22,8 +23,8 @@ section .text
     dd 0, 0, 0, 0, 0
 
     dd 0       
-    dd 1280 ;
-    dd 1024 ;
+    dd 2560 ;
+    dd 1440 ;
     dd 32
 
     ;2560 1440

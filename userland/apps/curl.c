@@ -129,7 +129,6 @@ int main(int argc, char** argv) {
         "GET %s HTTP/1.1\r\n"
         "Host: %s\r\n"
         "User-Agent: curl/7.81.0\r\n"
-/*
         "Connection: close\r\n\r\n", 
         path, host);
 

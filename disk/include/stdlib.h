@@ -8,7 +8,11 @@
  *  May be freely distributed as part of 8086-OS.
  */
 
+#ifndef _STDLIB_H
+#define _STDLIB_H
+
 #include "oslib.h"
+
 extern char **environ;
 void qsort(void *base, size_t nmemb, size_t size, int (*compar)(const void *, const void *));
 long strtol(const char *nptr, char **endptr, int base);
@@ -20,3 +24,10 @@ float strtof(const char *nptr, char **endptr);
 long double strtold(const char *nptr, char **endptr);
 void *realloc(void *ptr, size_t size);
 char *realpath(const char *path, char *resolved_path);
+double atof(const char *nptr);
+int sscanf(const char *str, const char *format, ...);
+static inline int abs(int j) {
+    return (j < 0) ? -j : j;
+}
+
+#endif

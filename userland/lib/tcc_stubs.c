@@ -217,3 +217,58 @@ void *_GLOBAL_OFFSET_TABLE_[1] = {0};
 long double strtold(const char *nptr, char **endptr) { 
     return 0.0; 
 }
+
+int rename(const char *oldpath, const char *newpath) {
+    
+    
+    int sz = get_file_size(oldpath);
+    if (sz < 0) return -1; 
+
+    uint8_t *buf = NULL;
+    if (sz > 0) {
+        buf = malloc(sz);
+        if (!buf) return -1; 
+        read_file(oldpath, buf);
+    }
+
+    
+    int res = write_file(newpath, buf, sz);
+    if (buf) free(buf);
+
+    if (res >= 0) {
+        
+        delete_file(oldpath);
+        return 0;
+    }
+    
+    return -1;
+}
+
+int puts(const char *s) {
+    return printf("%s\n", s);
+}
+
+int putchar(int c) {
+    return fputc(c, stdout);
+}
+
+int system(const char *command) {
+    return -1; 
+}
+
+double atof(const char *nptr) {
+    return (double)atoi(nptr);
+}
+
+int sscanf(const char *str, const char *format, ...) {
+    
+    if (format[0] == '%' && format[1] == 'x') {
+        va_list args;
+        va_start(args, format);
+        unsigned int *val = va_arg(args, unsigned int *);
+        *val = strtoul(str, NULL, 16); 
+        va_end(args);
+        return 1;
+    }
+    return 0; 
+}

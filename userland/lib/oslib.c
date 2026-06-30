@@ -24,29 +24,95 @@ int vsprintf(char *str, const char *format, va_list args) {
     while (*format) {
         if (*format == '%') {
             format++;
+            int pad_zero = 0;
+            int width = 0;
+            int precision = -1; 
+
+            if (*format == '0') {
+                pad_zero = 1;
+                format++;
+            }
+
+            while (*format >= '0' && *format <= '9') {
+                width = width * 10 + (*format - '0');
+                format++;
+            }
+
+            if (*format == '.') {
+                format++;
+                precision = 0;
+                while (*format >= '0' && *format <= '9') {
+                    precision = precision * 10 + (*format - '0');
+                    format++;
+                }
+            }
+
             if (*format == 'd' || *format == 'i') {
                 int n = va_arg(args, int); char buf[16]; int i = 0, is_neg = 0;
-                if (n == 0) { str[pos++] = '0'; }
+                if (n == 0) { buf[i++] = '0'; }
                 else {
                     if (n < 0) { is_neg = 1; n = -n; }
                     while (n > 0) { buf[i++] = (n % 10) + '0'; n /= 10; }
-                    if (is_neg) buf[i++] = '-';
-                    while (--i >= 0) str[pos++] = buf[i];
                 }
+                
+                int num_zeros = 0;
+                if (precision >= 0) {
+                    if (precision > i) num_zeros = precision - i;
+                    pad_zero = 0; 
+                } else if (pad_zero) {
+                    if (width > i + is_neg) num_zeros = width - i - is_neg;
+                }
+
+                int total_len = is_neg + num_zeros + i;
+                while (!pad_zero && width > total_len) { str[pos++] = ' '; width--; }
+                if (is_neg) { str[pos++] = '-'; }
+                while (num_zeros > 0) { str[pos++] = '0'; num_zeros--; width--; }
+                while (--i >= 0) str[pos++] = buf[i];
+
             } else if (*format == 'u') {
                 uint32_t n = va_arg(args, uint32_t); char buf[16]; int i = 0;
-                if (n == 0) { str[pos++] = '0'; }
-                else { while (n > 0) { buf[i++] = (n % 10) + '0'; n /= 10; } while (--i >= 0) str[pos++] = buf[i]; }
+                if (n == 0) { buf[i++] = '0'; }
+                else { while (n > 0) { buf[i++] = (n % 10) + '0'; n /= 10; } }
+
+                int num_zeros = 0;
+                if (precision >= 0) { if (precision > i) num_zeros = precision - i; } 
+                else if (pad_zero) { if (width > i) num_zeros = width - i; }
+                
+                int total_len = num_zeros + i;
+                while (!pad_zero && width > total_len) { str[pos++] = ' '; width--; }
+                while (num_zeros > 0) { str[pos++] = '0'; num_zeros--; width--; }
+                while (--i >= 0) str[pos++] = buf[i];
+
             } else if (*format == 'x' || *format == 'X') {
                 unsigned int n = va_arg(args, unsigned int); char buf[16]; int i = 0;
-                if (n == 0) { str[pos++] = '0'; }
-                else { while (n > 0) { int rem = n % 16; buf[i++] = (rem < 10) ? (rem + '0') : (rem - 10 + 'A'); n /= 16; } while (--i >= 0) str[pos++] = buf[i]; }
+                char base_char = (*format == 'x') ? 'a' : 'A';
+                if (n == 0) { buf[i++] = '0'; }
+                else { while (n > 0) { int rem = n % 16; buf[i++] = (rem < 10) ? (rem + '0') : (rem - 10 + base_char); n /= 16; } }
+
+                int num_zeros = 0;
+                if (precision >= 0) { if (precision > i) num_zeros = precision - i; } 
+                else if (pad_zero) { if (width > i) num_zeros = width - i; }
+                
+                int total_len = num_zeros + i;
+                while (!pad_zero && width > total_len) { str[pos++] = ' '; width--; }
+                while (num_zeros > 0) { str[pos++] = '0'; num_zeros--; width--; }
+                while (--i >= 0) str[pos++] = buf[i];
+
             } else if (*format == 's') {
                 char* s = va_arg(args, char*); if (!s) s = "(null)";
-                while (*s) str[pos++] = *s++;
+                int len = strlen(s);
+                if (precision >= 0 && precision < len) len = precision; 
+                while (width > len) { str[pos++] = ' '; width--; }
+                for (int j = 0; j < len; j++) str[pos++] = s[j];
             } else if (*format == 'c') {
+                while (width > 1) { str[pos++] = ' '; width--; }
                 str[pos++] = (char)va_arg(args, int);
-            } else if (*format == '%') { str[pos++] = '%'; }
+            } else if (*format == '%') { 
+                str[pos++] = '%'; 
+            } else {
+                str[pos++] = '%';
+                str[pos++] = *format;
+            }
         } else { str[pos++] = *format; }
         format++;
     }
@@ -468,4 +534,11 @@ void memset32(void *dest, uint32_t val, size_t count) {
     while (count--) {
         *ptr++ = val;
     }
+}
+
+char *strdup(const char *s) {
+    int len = strlen(s);
+    char *d = malloc(len + 1);
+    if (d) strcpy(d, s);
+    return d;
 }

@@ -13,3 +13,6 @@ extern int errno;
 #define EINTR 4
 #define ENOENT 2
 #define EINVAL 22
+#define EPERM    1
+#define ENOENT   2
+#define EISDIR   21

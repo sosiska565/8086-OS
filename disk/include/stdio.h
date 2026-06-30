@@ -19,3 +19,7 @@ int fputs(const char *s, FILE *stream);
 FILE *fdopen(int fd, const char *mode);
 FILE *freopen(const char *pathname, const char *mode, FILE *stream);
 int remove(const char *pathname);
+int rename(const char *oldpath, const char *newpath);
+int puts(const char *s);
+int putchar(int c);
+int system(const char *command);

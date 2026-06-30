@@ -16,13 +16,14 @@ typedef int                int32_t;
 typedef unsigned short     uint16_t;
 typedef short              int16_t;
 typedef unsigned char      uint8_t;
-typedef char               int8_t;
+typedef signed char        int8_t;
 typedef unsigned int       size_t;
 typedef int                ssize_t;
 typedef unsigned long long uint64_t;
 typedef long long          int64_t;
 typedef unsigned int       uintptr_t; 
 typedef int                time_t;
+typedef int                intptr_t;
 
 typedef int jmp_buf[6]; 
 int setjmp(jmp_buf env);
@@ -80,6 +81,7 @@ extern FILE *stderr_ptr;
 #define COLOR_YELLOW 14
 #define COLOR_WHITE 15
 
+#ifndef DOOM_PORT
 #define KEY_BACKSPACE '\b'
 #define KEY_ENTER '\n'
 #define KEY_TAB '\t'
@@ -91,6 +93,8 @@ extern FILE *stderr_ptr;
 #define KEY_F1 21
 #define KEY_F2 22
 #define KEY_ESC 27
+char *strdup(const char *s);
+#endif
 
 #define VFS_ATTR_FILE 0
 #define VFS_ATTR_DIR 1
@@ -277,4 +281,5 @@ int kill(int pid, int sig);
 int uname(os_version_info *buf);
 void memset32(void *dest, uint32_t val, size_t count);
 
+char *strdup(const char *s);
 #endif
