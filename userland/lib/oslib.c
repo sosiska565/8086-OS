@@ -98,6 +98,7 @@ void *sbrk(int incr) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(1
 typedef struct header { struct header *ptr; unsigned int size; } Header;
 static Header base; static Header *freep = NULL;
 void *malloc(unsigned int nbytes) {
+    if (nbytes >= 0xFFFFFF00 || nbytes == 0) return NULL;
     Header *p, *prevp; unsigned nunits = (nbytes + sizeof(Header) - 1) / sizeof(Header) + 1;
     if ((prevp = freep) == NULL) { base.ptr = freep = prevp = &base; base.size = 0; }
     for (p = prevp->ptr; ; prevp = p, p = p->ptr) {
@@ -140,7 +141,11 @@ char **parse_str(const char *term_input, char delimiter) {
 }
 
 void free(void *ap) {
-    Header *bp, *p; if (ap == NULL) return; bp = (Header *)ap - 1;
+    Header *bp, *p; 
+    if (ap == NULL) return;
+    if (freep == NULL) return;  
+    if ((uint32_t)ap < 0x60000000) return;
+    bp = (Header *)ap - 1;
     for (p = freep; !(bp > p && bp < p->ptr); p = p->ptr) { if (p >= p->ptr && (bp > p || bp < p->ptr)) break; }
     if (bp + bp->size == p->ptr) { bp->size += p->ptr->size; bp->ptr = p->ptr->ptr; } else bp->ptr = p->ptr;
     if (p + p->size == bp) { p->size += bp->size; p->ptr = bp->ptr; } else p->ptr = bp;

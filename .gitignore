@@ -4,7 +4,10 @@ iso
 os.iso
 disk.img
 prop.txt
+fa.sh
+fb.sh
 a.txt
+b.txt
 kernel.bin
 os_kernel.bin
 network_dump.pcap

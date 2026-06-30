@@ -4,8 +4,8 @@
 #define OS_NAME          "8086-OS"
 #define OS_VERSION_MAJOR 0
 #define OS_VERSION_MINOR 9
-#define OS_VERSION_PATCH 2
+#define OS_VERSION_PATCH 3
 #define OS_VERSION_EXTRA "beta"
-#define OS_RELEASE       "0.9.2-beta"
+#define OS_RELEASE       "0.9.3-beta"
 
 #endif

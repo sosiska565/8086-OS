@@ -353,6 +353,7 @@ void wait_process(int pid) {
 
 void kill_task(int pid) {
     if (!ready_queue) return;
+    if (pid <= 1) return;
     Task *t = ready_queue; int found = 0;
     do { if (t->id == pid && t->state != TASK_DEAD) { found = 1; break; } t = t->next; } while (t != ready_queue);
     if (!found) return;
@@ -537,6 +538,10 @@ uint32_t get_symbol(Task* t, uint32_t lib_handle, char* sym_name) {
 
 void send_signal(int pid, int sig) {
     if (!ready_queue || sig < 1 || sig >= MAX_SIG) return;
+    if (pid <= 1) {
+        return; 
+    }
+
     Task *t = ready_queue;
     do {
         if (t->id == pid && t->state != TASK_DEAD) {

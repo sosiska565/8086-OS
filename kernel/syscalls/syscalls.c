@@ -42,7 +42,7 @@ static int safe_strlen(char *str, int max_len) {
         if (str[len] == '\0') return len;
         len++;
     }
-    return len; 
+    return -1; 
 }
 
 
@@ -338,9 +338,18 @@ static void sys_shm_get(struct syscall_registers *regs) {
             shm_table[i].key = key; 
             shm_table[i].size = (size + 4095) & ~4095; 
             shm_table[i].phys_addr = (uint32_t)kmalloc_a(shm_table[i].size);
+            
+            if (!shm_table[i].phys_addr) {
+                
+                shm_table[i].key = 0;
+                shm_table[i].size = 0;
+                regs->eax = -1;
+                return;
+            }
             shm_table[i].owner_pid = current_task->id; 
             fast_memset((void*)shm_table[i].phys_addr, 0, shm_table[i].size/4);
-            regs->eax = shm_table[i].size; return;
+            regs->eax = shm_table[i].size; 
+            return;
         }
     }
     regs->eax = -1;

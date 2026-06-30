@@ -25,6 +25,7 @@ void init_ui_scale() {
 }
 
 gui_window_t* gui_create_window(const char* title, int w, int h) {
+    if (w <= 0 || h <= 0 || w > 4000 || h > 4000) return NULL;
     init_ui_scale();
     if (!wm_queue) { shm_get(WM_SHM_KEY, sizeof(WM_Queue)); wm_queue = (WM_Queue*)shm_map(WM_SHM_KEY); }
     gui_window_t *win = malloc(sizeof(gui_window_t));
@@ -435,6 +436,7 @@ void gui_resize_buffer(gui_window_t *win, int new_w, int new_h) {
 }
 
 gui_window_t* gui_create_frameless(int x, int y, int w, int h) {
+    if (w <= 0 || h <= 0 || w > 4000 || h > 4000) return NULL;
     if (!font_initialized) { font_calc_widths(); font_initialized = 1; }
     if (!wm_queue) { shm_get(WM_SHM_KEY, sizeof(WM_Queue)); wm_queue = (WM_Queue*)shm_map(WM_SHM_KEY); }
     gui_window_t *win = malloc(sizeof(gui_window_t));

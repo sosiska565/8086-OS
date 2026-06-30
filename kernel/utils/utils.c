@@ -225,7 +225,6 @@ void klog(char *msg) {
 
 void klog_save() {
     int result = vfs_write("/sys.log", (uint8_t*)sys_log_buffer, sys_log_pos);
-    if (result > 0) printf("System log saved to sys.log (%d bytes)\n", sys_log_pos);
 }
 
 const char* utf8_to_unicode(const char* s, unsigned int* code) {

@@ -89,9 +89,8 @@ static int ansi_pos = 0;
 void gfx_putc(unsigned int c) {
     if (term_cols == 0 || term_rows == 0 || !back_buffer) return; 
 
-    
     if (ansi_state == 1) {
-        if (c == '[') { ansi_state = 2; ansi_pos = 0; }
+        if (c == '[') { ansi_state = 2; ansi_pos = 0; ansi_buf[0] = '\0'; }
         else ansi_state = 0;
         return;
     } else if (ansi_state == 2) {
@@ -99,8 +98,7 @@ void gfx_putc(unsigned int c) {
             ansi_buf[ansi_pos] = '\0';
             
             if (c == 'J') { 
-                if (strcmp(ansi_buf, "2") == 0) {
-                    
+                if (ansi_pos == 0 || strcmp(ansi_buf, "2") == 0) {
                     int total_pixels = buffer_size_bytes / 4;
                     uint32_t *buf32 = (uint32_t *)back_buffer;
                     for (int i = 0; i < total_pixels; i++) buf32[i] = term_bg_color;
@@ -110,13 +108,15 @@ void gfx_putc(unsigned int c) {
             } 
             else if (c == 'H' || c == 'f') { 
                 int r = 1, col = 1;
-                char *semicolon = strchr(ansi_buf, ';');
-                if (semicolon) {
-                    *semicolon = '\0';
-                    r = atoi(ansi_buf, 10);
-                    col = atoi(semicolon + 1, 10);
-                } else if (ansi_pos > 0) {
-                    r = atoi(ansi_buf, 10);
+                if (ansi_pos > 0) {
+                    char *semicolon = strchr(ansi_buf, ';');
+                    if (semicolon) {
+                        *semicolon = '\0';
+                        r = atoi(ansi_buf, 10);
+                        col = atoi(semicolon + 1, 10);
+                    } else {
+                        r = atoi(ansi_buf, 10);
+                    }
                 }
                 if (r < 1) r = 1; if (col < 1) col = 1;
                 term_y = r - 1; term_x = col - 1;
@@ -128,34 +128,21 @@ void gfx_putc(unsigned int c) {
             else if (c == 'C') { int arg = atoi(ansi_buf, 10); term_x += (arg == 0 ? 1 : arg); if (term_x >= term_cols) term_x = term_cols - 1; }
             else if (c == 'D') { int arg = atoi(ansi_buf, 10); term_x -= (arg == 0 ? 1 : arg); if (term_x < 0) term_x = 0; }
             else if (c == 'm') { 
-                if (ansi_pos == 0 || strcmp(ansi_buf, "0") == 0) {
+                if (ansi_pos == 0) {
                     term_fg_color = 0x00FFFFFF;
                     term_bg_color = 0x00000000;
                 } else {
-                    int code = atoi(ansi_buf, 10);
-                    if (code >= 30 && code <= 37) term_fg_color = vga_to_rgb[code - 30];
-                    else if (code >= 40 && code <= 47) term_bg_color = vga_to_rgb[code - 40];
-                    else if (code == 38 || code == 48) {
-                        char *semi1 = strchr(ansi_buf, ';');
-                        if (semi1) {
-                            char *semi2 = strchr(semi1 + 1, ';');
-                            if (semi2 && atoi(semi1 + 1, 10) == 5) { 
-                                int color_idx = atoi(semi2 + 1, 10);
-                                uint32_t hex_color = 0xFFFFFF;
-                                if (color_idx < 16) hex_color = vga_to_rgb[color_idx];
-                                else if (color_idx >= 232) {
-                                    int gray = (color_idx - 232) * 10 + 8;
-                                    hex_color = (gray << 16) | (gray << 8) | gray;
-                                } else {
-                                    color_idx -= 16;
-                                    int r = (color_idx / 36) ? ((color_idx / 36) * 40 + 55) : 0;
-                                    int g = ((color_idx % 36) / 6) ? (((color_idx % 36) / 6) * 40 + 55) : 0;
-                                    int b = (color_idx % 6) ? ((color_idx % 6) * 40 + 55) : 0;
-                                    hex_color = (r << 16) | (g << 8) | b;
-                                }
-                                if (code == 38) term_fg_color = hex_color; else term_bg_color = hex_color;
-                            }
-                        }
+                    char *p = ansi_buf;
+                    while (*p) {
+                        int code = atoi(p, 10);
+                        if (code == 0) { term_fg_color = 0x00FFFFFF; term_bg_color = 0x00000000; }
+                        else if (code >= 30 && code <= 37) term_fg_color = vga_to_rgb[code - 30];
+                        else if (code >= 40 && code <= 47) term_bg_color = vga_to_rgb[code - 40];
+                        else if (code >= 90 && code <= 97) term_fg_color = vga_to_rgb[code - 90 + 8];
+                        else if (code >= 100 && code <= 107) term_bg_color = vga_to_rgb[code - 100 + 8];
+                        
+                        while (*p && *p != ';') p++;
+                        if (*p == ';') p++;
                     }
                 }
             }
@@ -170,25 +157,16 @@ void gfx_putc(unsigned int c) {
 
     if (c == 27) { ansi_state = 1; return; }
 
-    if (c == '\n') {
-        term_x = 0;
-        term_y++;
-    }
-    else if (c == '\r') { 
-        term_x = 0;
-    }
-    else if (c == '\t'){
-        term_x += 4;
-    }
+    if (c == '\n') { term_x = 0; term_y++; }
+    else if (c == '\r') { term_x = 0; }
+    else if (c == '\t'){ term_x += 4; }
     else if (c == '\b') {
         if (term_x > 0) term_x--;
         else if (term_y > 0) { term_x = term_cols - 1; term_y--; }
         
-        
-        for(int y = 0; y < FONT_H; y++) {
-            for(int x = 0; x < FONT_W; x++) {
-                
-                uint8_t *pixel_addr = (uint8_t*)back_buffer + ((term_y * FONT_H + y) * screen_pitch) + ((term_x * FONT_W + x) * 4);
+        for(int y = 0; y < 8; y++) {
+            for(int x = 0; x < 8; x++) {
+                uint8_t *pixel_addr = (uint8_t*)back_buffer + ((term_y * 8 + y) * screen_pitch) + ((term_x * 8 + x) * 4);
                 *(uint32_t*)pixel_addr = term_bg_color;
             }
         }
@@ -197,30 +175,23 @@ void gfx_putc(unsigned int c) {
             if (term_y < gfx_dirty_min_y) gfx_dirty_min_y = term_y;
             if (term_y > gfx_dirty_max_y) gfx_dirty_max_y = term_y;
         } else {
-            vesa_render_rect(term_x * FONT_W, term_y * FONT_H, FONT_W, FONT_H);
+            vesa_render_rect(term_x * 8, term_y * 8, 8, 8);
         }
     } 
     else if (c >= 32) {
-        vesa_draw_char(term_x * FONT_W, term_y * FONT_H, c, term_fg_color, term_bg_color);
+        vesa_draw_char(term_x * 8, term_y * 8, c, term_fg_color, term_bg_color);
         
         if (gfx_batch_mode) {
             if (term_y < gfx_dirty_min_y) gfx_dirty_min_y = term_y;
             if (term_y > gfx_dirty_max_y) gfx_dirty_max_y = term_y;
         } else {
-            vesa_render_rect(term_x * FONT_W, term_y * FONT_H, FONT_W, FONT_H);
+            vesa_render_rect(term_x * 8, term_y * 8, 8, 8);
         }
         term_x++;
     }
 
-    if (term_x >= term_cols) {
-        term_x = 0;
-        term_y++;
-    }
-
-    if (term_y >= term_rows) {
-        gfx_scroll();
-        term_y = term_rows - 1;
-    }
+    if (term_x >= term_cols) { term_x = 0; term_y++; }
+    if (term_y >= term_rows) { gfx_scroll(); term_y = term_rows - 1; }
 }
 
 void gfx_print(char *str) {
