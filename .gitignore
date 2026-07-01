@@ -17,3 +17,4 @@ os_kernel.bin
 setlicense.sh
 rc.sh
 isodir
+*.o
