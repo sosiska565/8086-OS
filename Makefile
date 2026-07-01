@@ -183,7 +183,7 @@ iso: $(KERNEL_BIN) $(DISK_IMG)
 	@printf "set timeout=3\nset default=0\ninsmod all_video\nmenuentry '8086-OS' {\n    multiboot /boot/os_kernel.bin\n    module /boot/disk.img disk.img\n    boot\n}\n" > iso/boot/grub/grub.cfg
 	@grub-mkrescue -o $(ISO) iso
 
-build-all: iso $(DISK_IMG)
+build-all: generate_version iso $(DISK_IMG)
 
 run: generate_version build-all
 	@echo "Запуск QEMU..."

@@ -1,21 +1,14 @@
-FROM --platform=linux/amd64 debian:bookworm-slim
+FROM --platform=linux/amd64 archlinux:latest
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    gcc-multilib \
+RUN pacman -Syu --noconfirm && pacman -S --noconfirm --needed \
+    base-devel \
     nasm \
-    binutils \
-    make \
-    sed \
     git \
-    grub-pc-bin \
-    grub-common \
+    grub \
     xorriso \
     dosfstools \
     mtools \
-    && rm -rf /var/lib/apt/lists/*
+    && pacman -Scc --noconfirm
 
 WORKDIR /workspace
 

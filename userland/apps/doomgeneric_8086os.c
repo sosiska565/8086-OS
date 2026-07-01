@@ -1,12 +1,4 @@
-/*
- *  SPDX-License-Identifier: MIT
- *
- *  8086-OS/userland/apps/doomgeneric_8086os.c
- *
- *  Copyright (C) 2026  sosiska565
- *
- *  May be freely distributed as part of 8086-OS.
- */
+
 
 
 
@@ -92,80 +84,58 @@ struct {
     unsigned char doom_key;
     int last_state;
 } key_map[] = {
+    
     {0x48, DOOM_KEY_UP_ARROW,      0},
     {0x50, DOOM_KEY_DOWN_ARROW,    0},
     {0x4B, DOOM_KEY_LEFT_ARROW,    0},
     {0x4D, DOOM_KEY_RIGHT_ARROW,   0},
+    {0x2A, DOOM_KEY_STRAFE_L,      0}, 
+    {0x36, DOOM_KEY_STRAFE_R,      0}, 
+    {0x39, ' ',                    0}, 
+    {0x1D, DOOM_KEY_FIRE,          0}, 
 
-    {0x2A, DOOM_KEY_STRAFE_L,      0},
-    {0x36, DOOM_KEY_STRAFE_R,      0},
-
-    {0x39, DOOM_KEY_USE,           0},
-    {0x1D, DOOM_KEY_FIRE,          0},
-
+    
     {0x01, DOOM_KEY_ESCAPE,        0},
     {0x1C, DOOM_KEY_ENTER,         0},
     {0x0F, DOOM_KEY_TAB,           0},
-
-    {0x3B, DOOM_KEY_F1,            0},
-    {0x3C, DOOM_KEY_F2,            0},
-    {0x3D, DOOM_KEY_F3,            0},
-    {0x3E, DOOM_KEY_F4,            0},
-    {0x3F, DOOM_KEY_F5,            0},
-    {0x40, DOOM_KEY_F6,            0},
-    {0x41, DOOM_KEY_F7,            0},
-    {0x42, DOOM_KEY_F8,            0},
-    {0x43, DOOM_KEY_F9,            0},
-    {0x44, DOOM_KEY_F10,           0},
-    {0x57, DOOM_KEY_F11,           0},
-    {0x58, DOOM_KEY_F12,           0},
-
     {0x0E, DOOM_KEY_BACKSPACE,     0},
-    {0x45, DOOM_KEY_PAUSE,         0},    
-    {0x0D, DOOM_KEY_EQUALS,        0},
+    {0x39, DOOM_KEY_USE,           0},
+
+    
+    {0x02, '1', 0}, {0x03, '2', 0}, {0x04, '3', 0}, {0x05, '4', 0}, 
+    {0x06, '5', 0}, {0x07, '6', 0}, {0x08, '7', 0}, {0x09, '8', 0}, 
+    {0x0A, '9', 0}, {0x0B, '0', 0},
+
+    
+    {0x10, 'q', 0}, {0x11, 'w', 0}, {0x12, 'e', 0}, {0x13, 'r', 0}, {0x14, 't', 0}, {0x15, 'y', 0},
+    {0x16, 'u', 0}, {0x17, 'i', 0}, {0x18, 'o', 0}, {0x19, 'p', 0},
+    {0x1E, 'a', 0}, {0x1F, 's', 0}, {0x20, 'd', 0}, {0x21, 'f', 0}, {0x22, 'g', 0}, {0x23, 'h', 0},
+    {0x24, 'j', 0}, {0x25, 'k', 0}, {0x26, 'l', 0},
+    {0x2C, 'z', 0}, {0x2D, 'x', 0}, {0x2E, 'c', 0}, {0x2F, 'v', 0}, {0x30, 'b', 0}, {0x31, 'n', 0}, {0x32, 'm', 0},
+
+    
     {0x0C, DOOM_KEY_MINUS,         0},
-
-    {0x36, DOOM_KEY_RSHIFT,        0},
-    {0x1D, DOOM_KEY_RCTRL,         0},    
-    {0x38, DOOM_KEY_RALT,          0},    
-    {0x38, DOOM_KEY_LALT,          0},
-
-    {0x3A, DOOM_KEY_CAPSLOCK,      0},
-    {0x45, DOOM_KEY_NUMLOCK,       0},
-    {0x46, DOOM_KEY_SCRLCK,        0},
-    {0x37, DOOM_KEY_PRTSCR,        0},    
-
-    {0x47, DOOM_KEY_HOME,          0},
-    {0x4F, DOOM_KEY_END,           0},
-    {0x49, DOOM_KEY_PGUP,          0},
-    {0x51, DOOM_KEY_PGDN,          0},
-    {0x52, DOOM_KEY_INS,           0},
-    {0x53, DOOM_KEY_DEL,           0},
-
-    {0x52, DOOM_KEY_KP0,           0},
-    {0x4F, DOOM_KEY_KP1,           0},
-    {0x50, DOOM_KEY_KP2,           0},
-    {0x51, DOOM_KEY_KP3,           0},
-    {0x4B, DOOM_KEY_KP4,           0},
-    {0x4C, DOOM_KEY_KP5,           0},
-    {0x4D, DOOM_KEY_KP6,           0},
-    {0x47, DOOM_KEY_KP7,           0},
-    {0x48, DOOM_KEY_KP8,           0},
-    {0x49, DOOM_KEY_KP9,           0},
-
-    {0x35, DOOM_KEY_KP_DIVIDE,     0},    
-    {0x4E, DOOM_KEY_KP_PLUS,       0},
-    {0x4A, DOOM_KEY_KP_MINUS,      0},
-    {0x37, DOOM_KEY_KP_MULTIPLY,   0},
-    {0x53, DOOM_KEY_KP_PERIOD,     0},
-    {0x59, DOOM_KEY_KP_EQUALS,     0},
-    {0x1C, DOOM_KEY_KP_ENTER,      0},    
-
-    {0x11, 'w',                    0},
-    {0x1E, 'a',                    0},
-    {0x1F, 's',                    0},
-    {0x20, 'd',                    0},
+    {0x0D, DOOM_KEY_EQUALS,        0},
+    {0x3B, DOOM_KEY_F1,            0}, {0x3C, DOOM_KEY_F2,            0}, {0x3D, DOOM_KEY_F3,            0},
+    {0x3E, DOOM_KEY_F4,            0}, {0x3F, DOOM_KEY_F5,            0}, {0x40, DOOM_KEY_F6,            0},
+    {0x41, DOOM_KEY_F7,            0}, {0x42, DOOM_KEY_F8,            0}, {0x43, DOOM_KEY_F9,            0},
+    {0x44, DOOM_KEY_F10,           0}, {0x57, DOOM_KEY_F11,           0}, {0x58, DOOM_KEY_F12,           0},
 };
+
+
+
+int doom_has_focus() {
+    
+    WM_Queue *wmq = (WM_Queue*)shm_map(WM_SHM_KEY);
+    if (wmq) {
+        
+        if (strcmp(wmq->active_window_title, "DOOM") == 0) {
+            return 1; 
+        }
+    }
+    return 0; 
+}
+
 
 
 #define QUEUE_SIZE 64
@@ -183,8 +153,17 @@ void push_key(unsigned char key, int pressed) {
 
 void poll_doom_input() {
     int map_size = sizeof(key_map) / sizeof(key_map[0]);
+    int focused = doom_has_focus(); 
+
     for (int i = 0; i < map_size; i++) {
-        int state = get_key_state(key_map[i].scancode); 
+        int state = 0;
+        
+        
+        if (focused) {
+            state = get_key_state(key_map[i].scancode);
+        }
+        
+
         if (state != key_map[i].last_state) {
             push_key(key_map[i].doom_key, state);
             key_map[i].last_state = state;
