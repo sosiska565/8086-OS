@@ -1,12 +1,6 @@
 [submodule "drivers/net/lwip"]
 	path = drivers/net/lwip
 	url = https://github.com/lwip-tcpip/lwip
-[submodule "tinycc"]
-	path = tinycc
-	url = https://github.com/TinyCC/tinycc
 [submodule ".private"]
 	path = .private
 	url = https://github.com/sosiska565/8086-OS-private
-[submodule "doomgeneric"]
-	path = doomgeneric
-	url = https://github.com/ozkl/doomgeneric
