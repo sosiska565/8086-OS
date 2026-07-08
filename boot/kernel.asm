@@ -7,7 +7,6 @@
 ;  May be freely distributed as part of 8086-OS.
 
 
-
 bits 32
 section .text
     align 4
@@ -23,13 +22,9 @@ section .text
     dd 0, 0, 0, 0, 0
 
     dd 0       
-    dd 1920 ;
-    dd 1080 ;
-    dd 32
-
-    ;2560 1440
-    ;1280 1024
-    ;800 600
+    dd SCREEN_WIDTH
+    dd SCREEN_HEIGHT
+    dd SCREEN_BPP
 
 global start
 extern kmain

@@ -8,6 +8,8 @@
  *  May be freely distributed as part of 8086-OS.
  */
 
+
+
 #include "fs/vfs.h"
 #include "fs/fat/fat32.h"
 #include "drivers/video/bga/gfx_console.h"
@@ -325,5 +327,48 @@ int vfs_delete(char* path) {
     if (vfs_resolve_mount(path, &rel_path, &drive_id) == 0) {
         return fat32_delete_file(drive_id, rel_path);
     }
+    return -1;
+}
+
+int vfs_ensure_file_exists(char* full_path) {
+    uint8_t attr;
+    
+    
+    if (vfs_get_attr(full_path, &attr) == 1) {
+        if (attr == VFS_ATTR_FILE) return 0; 
+        return -1; 
+    }
+
+    char temp_path[256];
+    int len = strlen(full_path);
+    
+    
+    if (len >= 256) return -1; 
+
+    
+    for (int i = 1; i < len; i++) { 
+        if (full_path[i] == '/') {
+            
+            fast_memcpy(temp_path, full_path, i);
+            temp_path[i] = '\0'; 
+
+            
+            if (vfs_get_attr(temp_path, &attr) == 0) {
+                
+                if (vfs_mkdir(temp_path) != 1) { 
+                    return -1; 
+                }
+            } else if (attr != VFS_ATTR_DIR) {
+                return -1; 
+            }
+        }
+    }
+
+    
+    uint8_t dummy = 0;
+    if (vfs_write(full_path, &dummy, 0) >= 0) {
+        return 1; 
+    }
+
     return -1;
 }

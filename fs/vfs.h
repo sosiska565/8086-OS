@@ -44,5 +44,6 @@ int vfs_readdir(char* path, int index, vfs_dirent_t* out_dirent);
 int vfs_get_attr(char* path, uint8_t* out_type);
 int vfs_mkdir(char* path);
 int vfs_delete(char* path); 
+int vfs_ensure_file_exists(char* full_path);
 
 #endif

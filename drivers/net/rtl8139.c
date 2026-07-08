@@ -133,15 +133,14 @@ void rtl8139_send_packet(uint8_t* data, uint32_t len) {
 
 void rtl8139_handler_c(void) {
     if (rtl_io_base == 0) return;
-
     
     uint16_t status = inw(rtl_io_base + RTL_INTR_STATUS);
     
-    if (status & RTL_CMD_EMPTY == 0 || status & 0x01) {
-        rtl8139_poll(); 
+    if (status & 0x01) { 
+        rtl8139_poll();
     }
-
-    outw(rtl_io_base + RTL_INTR_STATUS, status); 
+    
+    outw(rtl_io_base + RTL_INTR_STATUS, status);
 }
 
 void rtl8139_poll(void) {

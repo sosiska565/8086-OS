@@ -8,6 +8,8 @@
  *  May be freely distributed as part of 8086-OS.
  */
 
+
+
 #include "task/task.h"
 #include "mm/memory.h"
 #include "drivers/vga/vga.h"
@@ -90,35 +92,34 @@ void free_task_struct(Task *t) {
 }
 
 void cleanup_zombies(void) {
-    if (!tasks_need_cleanup) return;
+    if(!tasks_need_cleanup) return;
     uint32_t flags = save_flags();
-
-    if (ready_queue) {
+    if(ready_queue) {
         Task *curr = ready_queue;
         Task *start = ready_queue;
         int looped = 0;
-
-        while (curr && !looped) {
+        
+        while(curr && !looped) {
             Task *next_task = curr->next;
+            if(next_task == start) looped = 1;
             
-            if (next_task == start) looped = 1;
-
-            if (curr->state == TASK_DEAD) {
+            if(curr->state == TASK_DEAD) {
                 Task *to_free = curr;
-
-                if (curr->next == curr) { 
+                if (curr->next == curr) {
                     ready_queue = NULL;
                     free_task_struct(to_free);
                     break;
                 } else {
-                    
                     Task *prev = ready_queue;
                     while(prev->next != curr) prev = prev->next;
-
                     prev->next = curr->next;
-                    if (curr == ready_queue) ready_queue = curr->next;
-                    if (curr == start) start = curr->next; 
-
+                    
+                    if(curr == ready_queue) ready_queue = curr->next;
+                    if(curr == start) start = curr->next;
+                    
+                    
+                    if (current_task == curr) current_task = curr->next; 
+                    
                     free_task_struct(to_free);
                 }
             }
@@ -272,7 +273,12 @@ void task_scheduler() {
         if (next->state == TASK_RUNNING || next->state == TASK_READY) break;
         if (next->state == TASK_SLEEPING && get_ticks() >= next->wake_tick) { next->state = TASK_RUNNING; break; }
         next = next->next;
-        if (next == prev) { if (prev->state == TASK_RUNNING) break; return; }
+        if (next == prev) {
+            if (prev->state == TASK_RUNNING) break;
+            
+            restore_flags(flags); 
+            return; 
+        }
     }
     if (next == prev) { restore_flags(flags); return; }
     current_task = next;
@@ -289,10 +295,8 @@ void kill_children_of(int pid) {
 
 void exit_process() {
     __asm__ volatile("cli");
-    outb(0x20, 0x20);
-
-    char log[128]; 
-    sprintf(log, "[TASK] Process exited/killed: '%s' (PID %d)", current_task->name, current_task->id); 
+    char log[128];
+    sprintf(log, "[TASK] Process exited/killed: '%s' (PID %d)", current_task->name, current_task->id);
     klog(log);
 
     kill_children_of(current_task->id);
@@ -303,15 +307,13 @@ void exit_process() {
         uint32_t size;
         int owner_pid;
     } shm_table[32];
-    extern void kfree_a(void *ptr);
-    
-    for(int i = 0; i < 32; i++) {
-        if(shm_table[i].phys_addr != 0 && shm_table[i].owner_pid == current_task->id) {
-            
+    extern void kfree_a(void* ptr);
+
+    for (int i = 0; i < 32; i++) {
+        if (shm_table[i].phys_addr != 0 && shm_table[i].owner_pid == current_task->id) {
             char shm_log[128];
             sprintf(shm_log, "[SHM] Recovered leaked memory block (Key: %d, Size: %d)", shm_table[i].key, shm_table[i].size);
             klog(shm_log);
-
             kfree_a((void*)shm_table[i].phys_addr);
             shm_table[i].phys_addr = 0;
             shm_table[i].key = 0;
@@ -321,7 +323,8 @@ void exit_process() {
     }
 
     for (int i = 0; i < MAX_FDS; i++) {
-        if (current_task->fd_table[i] != -1) sys_close(i);
+        if (current_task->fd_table[i] != -1)
+            sys_close(i);
     }
 
     Task *task_to_kill = current_task;
@@ -329,18 +332,25 @@ void exit_process() {
     tasks_need_cleanup = 1;
 
     Task *next_live = task_to_kill->next;
-    while(next_live->state == TASK_DEAD && next_live != task_to_kill) {
+    while (next_live->state == TASK_DEAD && next_live != task_to_kill) {
         next_live = next_live->next;
     }
-
     current_task = next_live;
-    if (foreground_task_id == task_to_kill->id) foreground_task_id = current_task->id; 
 
-    if (next_live->page_dir) switch_page_directory(next_live->page_dir);
-    else switch_page_directory(kernel_dir);
-    
+    if (next_live->state == TASK_SLEEPING) {
+        next_live->state = TASK_READY;
+    }
+
+    if (foreground_task_id == task_to_kill->id)
+        foreground_task_id = current_task->id;
+
+    if (next_live->page_dir)
+        switch_page_directory(next_live->page_dir);
+    else
+        switch_page_directory(kernel_dir);
+
     switch_to_task(next_live, task_to_kill);
-    while(1) { __asm__ volatile("hlt"); }
+    while (1) { __asm__ volatile("hlt"); }
 }
 
 void yield() { task_scheduler(); }

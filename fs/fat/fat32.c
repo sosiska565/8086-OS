@@ -8,6 +8,8 @@
  *  May be freely distributed as part of 8086-OS.
  */
 
+
+
 #include "fs/fat/fat32.h"
 #include "drivers/file/ATA/ATA.h"
 #include "drivers/vga/vga.h"
@@ -293,6 +295,10 @@ int fat32_readdir(int drive_id, char* path, int index, vfs_dirent_t* out_dirent)
 int fat32_mkdir(int drive_id, char* path) {
     if (isReadMode == 1) return -1;
     fat32_state_t *fs = &fat_states[drive_id];
+
+    if (fat32_get_cluster_for_path(drive_id, path, NULL, NULL) != 0xFFFFFFFF) {
+        return -3; 
+    }
     
     char parent_path[256]; char new_dir_name[64];
     int last_slash = -1; int len = strlen(path);

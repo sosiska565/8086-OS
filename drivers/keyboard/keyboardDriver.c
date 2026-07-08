@@ -8,6 +8,7 @@
  *  May be freely distributed as part of 8086-OS.
  */
 
+
 #include "drivers/keyboard/keyboardDriver.h"
 #include "drivers/vga/vga.h"
 #include "drivers/io/io.h"
@@ -133,24 +134,36 @@ void keyboard_flush(void) {
 }
 
 void keyboard_handler_c(void) {
+    uint8_t status = inb(0x64);
+    
+    if (!(status & 0x01)) {
+        for (volatile int i = 0; i < 50; i++); 
+        status = inb(0x64);
+    }
+
+    if (!(status & 0x01)) {
+        inb(0x60); 
+        return;
+    }
+
     uint8_t scancode = inb(0x60);
     uint8_t is_release = (scancode & 0x80);
     uint8_t make_code = scancode & 0x7F;
 
     key_states[make_code] = !is_release;
-
+    
     if (make_code == 0x2A || make_code == 0x36) shift_pressed = !is_release;
     else if (make_code == 0x3A && !is_release) caps_lock = !caps_lock;
-    else if (make_code == 0x1D) ctrl_pressed = !is_release; 
+    else if (make_code == 0x1D) ctrl_pressed = !is_release;
     else if (make_code == 0x38) alt_pressed = !is_release;
     else if (make_code == 0x5B) win_pressed = !is_release;
-    
+
     extern void send_signal(int pid, int sig);
     extern int foreground_task_id;
 
-    if (!is_release && ctrl_pressed && make_code == 0x2E) { 
-        if (foreground_task_id > 1) { 
-            send_signal(foreground_task_id, 2); 
+    if (!is_release && ctrl_pressed && make_code == 0x2E) {
+        if (foreground_task_id > 1) {
+            send_signal(foreground_task_id, 2);
         }
     }
 
@@ -158,9 +171,7 @@ void keyboard_handler_c(void) {
         add_scancode_to_buffer(make_code);
         unsigned int c = scancode_to_char_layout(make_code);
         if (c != 0) {
-            
             uint8_t current_mods = get_keyboard_modifiers();
-            
             unsigned int event = (c & 0xFFFFFF) | (current_mods << 24);
             add_to_buffer(event);
         }
@@ -168,9 +179,23 @@ void keyboard_handler_c(void) {
 }
 
 unsigned int getch(void) {
-    __asm__ volatile("sti");
-    while (1) { if (!is_buffer_empty()) break; task_scheduler(); }
-    __asm__ volatile("cli"); unsigned int c = get_from_buffer(); __asm__ volatile("sti"); return c;
+    while (1) {
+        __asm__ volatile("cli");
+        if (!is_buffer_empty()) {
+            unsigned int c = get_from_buffer();
+            __asm__ volatile("sti");
+            return c;
+        }
+        __asm__ volatile("sti");
+        
+        if (current_task && current_task->id > 0) {
+            current_task->wake_tick = get_ticks() + 10;
+            current_task->state = TASK_SLEEPING;
+            task_scheduler();
+        } else {
+            __asm__ volatile("hlt");
+        }
+    }
 }
 uint8_t wait_scancode(void) {
     __asm__ volatile("sti");

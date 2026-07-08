@@ -12,6 +12,9 @@
 #include "font.h"
 #include "gui_protocol.h"
 #include <signal.h>
+#define STBTT_assert(x) ((void)(0))
+#include "stb_truetype.h"
+#include "libgui.h"
 
 #define COLOR_BG           0x001F2B5F
 #define COLOR_TITLE_ACTIVE 0x00323233 
@@ -19,14 +22,13 @@
 #define COLOR_BORDER       0x00454545 
 #define TITLE_BAR_H        26         
 
-
 #define MOD_SHIFT 1
 #define MOD_CTRL  2
 #define MOD_ALT   4
 #define MOD_WIN   8
 
-
 #define TERMINAL "path/gterm.elf"
+#define SYSTEM_FONT_PATH "/system/font/font.ttf"
 
 typedef struct {
     int shm_key;
@@ -65,6 +67,33 @@ int current_cursor_type = RM_NONE;
 
 void wm_put_pixel(int x, int y, uint32_t color) { if (x >= 0 && x < sw && y >= 0 && y < sh) wm_backbuffer[y * sw + x] = color; }
 void wm_draw_rect(int x, int y, int w, int h, uint32_t color) { for (int iy = 0; iy < h; iy++) for (int ix = 0; ix < w; ix++) wm_put_pixel(x + ix, y + iy, color); }
+
+
+void wm_draw_rounded_rect(int x, int y, int w, int h, int r, uint32_t color) {
+    if (r > w/2) r = w/2;
+    if (r > h/2) r = h/2;
+
+    wm_draw_rect(x, y + r, w, h - 2 * r, color);
+
+    int cx = r, cy = 0;
+    int err = 1 - r;
+
+    while (cx >= cy) {
+        wm_draw_rect(x + r - cx, y + r - cy - 1, w - 2 * r + cx * 2, 1, color);
+        wm_draw_rect(x + r - cy, y + r - cx - 1, w - 2 * r + cy * 2, 1, color);
+        wm_draw_rect(x + r - cx, y + h - r + cy, w - 2 * r + cx * 2, 1, color);
+        wm_draw_rect(x + r - cy, y + h - r + cx, w - 2 * r + cy * 2, 1, color);
+
+        cy++;
+        if (err < 0) {
+            err += 2 * cy + 1;
+        } else {
+            cx--;
+            err += 2 * (cy - cx) + 1;
+        }
+    }
+}
+
 void wm_draw_char(int x, int y, char c, uint32_t fg) { if ((unsigned char)c > 127) c = '?'; char *glyph = font8x8_basic[(int)c]; for (int ry = 0; ry < 8; ry++) for (int rx = 0; rx < 8; rx++) if ((glyph[ry] >> rx) & 1) wm_put_pixel(x + rx, y + ry, fg); }
 void wm_draw_circle(int cx, int cy, int r, uint32_t color) { for (int y = -r; y <= r; y++) for (int x = -r; x <= r; x++) if (x*x + y*y <= r*r) wm_put_pixel(cx + x, cy + y, color); }
 
@@ -76,6 +105,99 @@ void wm_draw_string(int x, int y, const char *str, uint32_t fg) {
         str++;
     } 
 }
+
+stbtt_fontinfo wm_font;
+uint8_t* wm_ttf_buffer = NULL;
+int wm_font_loaded = 0;
+
+typedef struct {
+    unsigned char* bitmap;
+    int bw, bh, bxoff, byoff, advance;
+} WM_GlyphCache;
+
+WM_GlyphCache wm_glyph_cache[128];
+int wm_font_ascent = 0;
+
+uint32_t wm_blend(uint32_t fg, uint32_t bg, uint8_t alpha) {
+    if (alpha == 0) return bg;
+    if (alpha == 255) return fg;
+    uint32_t rb = bg & 0x00FF00FF;
+    uint32_t g  = bg & 0x0000FF00;
+    rb += (((fg & 0x00FF00FF) - rb) * alpha) >> 8;
+    g  += (((fg & 0x0000FF00) - g ) * alpha) >> 8;
+    return (rb & 0x00FF00FF) | (g & 0x0000FF00);
+}
+
+void wm_init_font() {
+    int sz = get_file_size(SYSTEM_FONT_PATH);
+    if (sz > 0) {
+        wm_ttf_buffer = malloc(sz);
+        read_file(SYSTEM_FONT_PATH, wm_ttf_buffer);
+        if (stbtt_InitFont(&wm_font, wm_ttf_buffer, 0)) {
+            float scale = stbtt_ScaleForPixelHeight(&wm_font, 16.0f);
+            int descent, lineGap;
+            stbtt_GetFontVMetrics(&wm_font, &wm_font_ascent, &descent, &lineGap);
+            wm_font_ascent = (int)(wm_font_ascent * scale);
+
+            for (int i = 32; i < 128; i++) {
+                int advance, lsb;
+                stbtt_GetCodepointHMetrics(&wm_font, i, &advance, &lsb);
+                wm_glyph_cache[i].advance = (int)(advance * scale);
+                wm_glyph_cache[i].bitmap = stbtt_GetCodepointBitmap(&wm_font, 0, scale, i, 
+                    &wm_glyph_cache[i].bw, &wm_glyph_cache[i].bh, 
+                    &wm_glyph_cache[i].bxoff, &wm_glyph_cache[i].byoff);
+            }
+            wm_font_loaded = 1;
+        } else {
+            free(wm_ttf_buffer);
+        }
+    }
+}
+
+int wm_get_ttf_string_width(const char *str) {
+    if (!wm_font_loaded) return 0;
+    int width = 0;
+    while (*str) {
+        unsigned char c = *str++;
+        if (c < 128) width += wm_glyph_cache[c].advance;
+    }
+    return width;
+}
+
+void wm_draw_ttf_string(int x, int y, const char *str, uint32_t fg) {
+    if (!wm_font_loaded) {
+        wm_draw_string(x, y, str, fg); 
+        return;
+    }
+
+    int cx = x;
+    while (*str) {
+        unsigned char c = *str++;
+        if (c < 32 || c >= 128) continue;
+        
+        WM_GlyphCache *gc = &wm_glyph_cache[c];
+        if (gc->bitmap) {
+            int out_y = y + wm_font_ascent + gc->byoff; 
+            int out_x = cx + gc->bxoff;
+
+            for (int by = 0; by < gc->bh; by++) {
+                for (int bx = 0; bx < gc->bw; bx++) {
+                    uint8_t alpha = gc->bitmap[by * gc->bw + bx];
+                    if (alpha > 0) {
+                        int px = out_x + bx;
+                        int py = out_y + by;
+                        if (px >= 0 && px < sw && py >= 0 && py < sh) {
+                            uint32_t bg = wm_backbuffer[py * sw + px];
+                            wm_put_pixel(px, py, wm_blend(fg, bg, alpha));
+                        }
+                    }
+                }
+            }
+        }
+        cx += gc->advance;
+    }
+}
+
 
 void load_wallpaper(const char *path) {
     int sz = get_file_size(path);
@@ -161,16 +283,11 @@ void process_wm_queue() {
                 if (windows[i].shm_key == cmd.shm_key) {
                     int old_key = windows[i].shm_key;
                     windows[i].shm_key = cmd.data; 
-                    
-                    
                     windows[i].w = cmd.w;       
                     windows[i].h = cmd.h;       
                     windows[i].buf_w = cmd.w; 
                     windows[i].buf_h = cmd.h;
-                    
                     windows[i].shared_mem = (Client_SHM*)shm_map(cmd.data);
-                    
-                    
                     shm_get(old_key, 0); 
                     break;
                 }
@@ -202,15 +319,16 @@ void process_wm_queue() {
 
 
 void compose_screen(int mx, int my) {
-    
     if (scaled_wallpaper) {
         memcpy(wm_backbuffer, scaled_wallpaper, sw * sh * 4);
     } else {
-        
         for(int i = 0; i < sw * sh; i++) wm_backbuffer[i] = COLOR_BG;
     }
 
     
+    const int r_radius = 8;
+    const int skip_mask[8] = {4, 2, 1, 1, 0, 0, 0, 0};
+
     for (int i = 0; i < num_windows; i++) {
         Window *win = &windows[i];
         if (!win->shared_mem) continue; 
@@ -224,13 +342,25 @@ void compose_screen(int mx, int my) {
             
             int title_start_y = win->y - TITLE_BAR_H;
             if (title_start_y < 0) title_start_y = 0;
+            
             for (int r = title_start_y; r < win->y; r++) {
                 if (r >= sh) break;
-                int draw_x = (win->x < 0) ? 0 : win->x;
-                int draw_w = win->w - ((win->x < 0) ? -win->x : 0);
+                
+                int draw_x = win->x;
+                int draw_w = win->w;
+                
+                
+                int dy = r - (win->y - TITLE_BAR_H); 
+                int skip = (dy >= 0 && dy < r_radius) ? skip_mask[dy] : 0;
+                
+                draw_x += skip;
+                draw_w -= skip * 2;
+
+                
+                if (draw_x < 0) { draw_w += draw_x; draw_x = 0; }
                 if (draw_x + draw_w > sw) draw_w = sw - draw_x;
+                
                 if (draw_w > 0) {
-                    
                     for(int c = 0; c < draw_w; c++) wm_backbuffer[r * sw + draw_x + c] = t_color;
                 }
             }
@@ -240,22 +370,25 @@ void compose_screen(int mx, int my) {
                 int screen_y = win->y + r;
                 if (screen_y < 0) continue;
                 if (screen_y >= sh) break;
-                
-                
                 if (r >= win->buf_h) continue; 
 
                 int src_x = 0;
                 int dest_x = win->x;
                 int copy_w = win->w;
 
-                if (dest_x < 0) { src_x = -dest_x; copy_w += dest_x; dest_x = 0; }
+                
+                int dy = (win->h - 1) - r; 
+                int skip = (dy >= 0 && dy < r_radius) ? skip_mask[dy] : 0;
+
+                dest_x += skip;
+                src_x += skip;
+                copy_w -= skip * 2;
+
+                if (dest_x < 0) { src_x += -dest_x; copy_w += dest_x; dest_x = 0; }
                 if (dest_x + copy_w > sw) { copy_w = sw - dest_x; }
-                
-                
                 if (src_x + copy_w > win->buf_w) copy_w = win->buf_w - src_x;
 
                 if (copy_w > 0) {
-                    
                     memcpy(&wm_backbuffer[screen_y * sw + dest_x], 
                            &client_pixels[r * win->buf_w + src_x], 
                            copy_w * 4);
@@ -268,11 +401,21 @@ void compose_screen(int mx, int my) {
             wm_draw_circle(win->x + 35, btn_y, 5, is_active ? 0x00FFBD2E : 0x004D4D4D);
             wm_draw_circle(win->x + 55, btn_y, 5, is_active ? 0x0027C93F : 0x004D4D4D);
             
-            
-            int text_w = 0; for(int k=0; win->title[k]; k++) text_w += font_get_width(win->title[k]);
-            int title_x = win->x + (win->w - text_w) / 2;
-            if (title_x > win->x + 70) wm_draw_string(title_x, win->y - TITLE_BAR_H + 9, win->title, is_active ? 0x00CCCCCC : 0x00888888);
+            int text_w = wm_font_loaded ? wm_get_ttf_string_width(win->title) : 0;
+            if (!wm_font_loaded) {
+                for(int k=0; win->title[k]; k++) text_w += font_get_width(win->title[k]);
+            }
 
+            int title_x = win->x + (win->w - text_w) / 2;
+            if (title_x > win->x + 70) {
+                if (wm_font_loaded) {
+                    
+                    wm_draw_ttf_string(title_x, win->y - TITLE_BAR_H + 5, win->title, is_active ? 0x00FFFFFF : 0x00999999);
+                } else {
+                    
+                    wm_draw_string(title_x, win->y - TITLE_BAR_H + 9, win->title, is_active ? 0x00CCCCCC : 0x00888888);
+                }
+            }
         } else {
             
             for (int r = 0; r < win->h; r++) {
@@ -292,7 +435,6 @@ void compose_screen(int mx, int my) {
         }
     }
 
-    
     static const uint8_t cur_normal[15][10] = { {2,0,0,0,0,0,0,0,0,0}, {2,2,0,0,0,0,0,0,0,0}, {2,1,2,0,0,0,0,0,0,0}, {2,1,1,2,0,0,0,0,0,0}, {2,1,1,1,2,0,0,0,0,0}, {2,1,1,1,1,2,0,0,0,0}, {2,1,1,1,1,1,2,0,0,0}, {2,1,1,1,1,1,1,2,0,0}, {2,1,1,1,1,1,1,1,2,0}, {2,1,1,1,1,1,2,2,2,2}, {2,1,1,2,1,1,2,0,0,0}, {2,1,2,0,2,1,1,2,0,0}, {2,2,0,0,2,1,1,2,0,0}, {2,0,0,0,0,2,2,0,0,0}, {0,0,0,0,0,0,0,0,0,0} };
     static const uint8_t cur_ns[15][10] =     { {0,0,0,0,2,0,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,2,1,1,1,2,0,0,0}, {0,2,1,1,1,1,1,2,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,2,1,1,1,1,1,2,0,0}, {0,0,2,1,1,1,2,0,0,0}, {0,0,0,2,1,2,0,0,0,0}, {0,0,0,0,2,0,0,0,0,0} };
     static const uint8_t cur_ew[15][10] =     { {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,2,0,0,2,0,0,0}, {0,0,2,1,2,2,1,2,0,0}, {0,2,1,1,1,1,1,1,2,0}, {2,1,1,1,1,1,1,1,1,2}, {0,2,1,1,1,1,1,1,2,0}, {0,0,2,1,2,2,1,2,0,0}, {0,0,0,2,0,0,2,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0} };
@@ -317,6 +459,7 @@ int main(int argc, char** argv) {
     get_screen_info(&sw, &sh, &sbpp);
     wm_backbuffer = malloc(sw * sh * 4);
     font_calc_widths();
+    wm_init_font();
 
     signal(SIGINT, SIG_IGN);
 
@@ -327,7 +470,6 @@ int main(int argc, char** argv) {
 
     int mx = sw / 2, my = sh / 2, mbtn = 0, mz = 0, prev_mbtn = 0;
     static int prev_mx = -1, prev_my = -1;
-
 
     while (1) {
         process_wm_queue();

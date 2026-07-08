@@ -61,4 +61,15 @@ gui_window_t* gui_create_frameless(int x, int y, int w, int h);
 
 int gui_textfield_dark(gui_window_t *win, int x, int y, int w, int h, char *text_buffer, int max_len, int *is_focused);
 
+void init_vector_fonts();
+static inline uint32_t fast_blend(uint32_t fg, uint32_t bg, uint8_t alpha);
+void gui_draw_vector_string(gui_window_t* win, int x, int y, const char *str, float size, uint32_t fg);
+
+int gui_get_font_height();
+int gui_get_font_width();
+int gui_get_string_width(const char *str, int len);
+
+int font_get_width(unsigned int c);
+void gui_set_font_size(float size);
+
 #endif

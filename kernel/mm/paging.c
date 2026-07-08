@@ -13,7 +13,6 @@
 #include "drivers/vga/vga.h"
 #include "drivers/video/vesa.h"
 #include "multiboot.h"
-#include "system_apps/console/system.h"
 #include "fs/fat/fat32.h"
 #include "drivers/video/bga/gfx_console.h"
 #include "utils/utils.h"

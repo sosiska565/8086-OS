@@ -22,7 +22,7 @@ struct interrupt_frame {
 } __attribute__((packed));
 
 void system_division_handler_c(struct interrupt_frame *frame){
-    if (current_task && current_task->id > 1) {
+    if (current_task && current_task->id > 0) {
         char dump[128];
         sprintf(dump, "[CRASH] Process '%s' (PID %d) Killed: Division by Zero!", current_task->name, current_task->id);
         klog(dump);
@@ -37,7 +37,7 @@ void page_fault_handler_c(struct registers_t *regs) {
     uint32_t cr2;
     __asm__ volatile("mov %%cr2, %0" : "=r"(cr2)); 
 
-    if (current_task && current_task->id > 1) {
+    if (current_task && current_task->id > 0) {
         
         char dump[256];
         sprintf(dump, "[CRASH DUMP] '%s' (PID %d) Segfault at 0x%x. ERR: 0x%x. EIP: 0x%x", 
@@ -58,7 +58,7 @@ void page_fault_handler_c(struct registers_t *regs) {
 }
 
 void invalid_opcode_handler_c(struct registers_t *regs) {
-    if (current_task && current_task->id > 1) {
+    if (current_task && current_task->id > 0) {
         char dump[128];
         sprintf(dump, "[CRASH] Process '%s' (PID %d) Killed: Invalid Opcode!", current_task->name, current_task->id);
         klog(dump);

@@ -119,11 +119,9 @@ void panic(char *err){
     vesa_render_buffer(); 
     
     __asm__ volatile ("sti"); 
-    unsigned long newTick = get_ticks() + 5000;
-    while(get_ticks() < newTick) {
+    while(1) {
         __asm__ volatile("hlt"); 
     }
-    __asm__ volatile ("mov $0xFE, %al\nout %al, $0x64\n");
 }
 
 int is_space(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }

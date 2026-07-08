@@ -163,7 +163,7 @@ int vsprintf(char *str, const char *format, va_list args);
 void print(const char *str);
 void print_char(unsigned int c);
 
-int getc(void);
+char getc(void);
 void gets(char *buffer, int max_len);
 
 int spawn(const char* path, char** argv, const char* redirect_out);
@@ -282,4 +282,6 @@ int uname(os_version_info *buf);
 void memset32(void *dest, uint32_t val, size_t count);
 
 char *strdup(const char *s);
+void flush_keyboard();
+
 #endif

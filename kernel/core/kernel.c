@@ -8,11 +8,11 @@
  *  May be freely distributed as part of 8086-OS.
  */
 
+
 #include <stdint.h>
 #include "drivers/vga/vga.h"
 #include "drivers/keyboard/keyboardDriver.h"
 #include "idt/idt.h"
-#include "system_apps/console/console.h"
 #include "drivers/timer/timer.h"
 #include "mm/memory.h"
 #include "drivers/speaker/speaker.h"

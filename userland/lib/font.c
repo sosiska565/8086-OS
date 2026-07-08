@@ -227,11 +227,6 @@ void font_calc_widths(void) {
     }
 }
 
-int font_get_width(unsigned int c) {
-    if (c < 1104) return font_widths[c];
-    return 8;
-}
-
 
 uint32_t blend_colors(uint32_t fg, uint32_t bg, float alpha) {
     if (alpha <= 0.05f) return bg;

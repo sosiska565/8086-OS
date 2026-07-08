@@ -1,0 +1,43 @@
+[os]
+name = "8086-OS"
+version_major = 0
+version_minor = 9
+version_patch = 4
+version_extra = "beta"
+
+[build]
+compiler = "gcc"
+linker = "ld"
+assembler = "nasm"
+iso_name = "os.iso"
+disk_name = "disk.img"
+disk_dir = "disk"
+kernel_bin = "os_kernel.bin"
+disk_size_mb = 64
+
+[display]
+width = 2560
+height = 1440
+bpp = 32
+
+#2560
+#1440
+
+[qemu]
+accel = ["kvm", "whpx", "hvf", "tcg"]
+device = [
+    "ahci,id=ahci",
+    "ide-hd,drive=disk1,bus=ahci.0",
+    "ide-cd,drive=cd1,bus=ahci.1",
+    "rtl8139,netdev=mynet0"
+]
+drive = [
+    "file=disk.img,format=raw,if=none,id=disk1",
+    "file=os.iso,format=raw,if=none,id=cd1"
+]
+netdev = "bridge,id=mynet0,br=virbr0"
+object = "filter-dump,id=f1,netdev=mynet0,file=network_dump.pcap"
+boot = "d"
+rtc = "base=localtime"
+m = "2g"
+display = "sdl,grab-mod=lctrl-lalt"

@@ -123,7 +123,7 @@ int sprintf(char *str, const char *format, ...) { va_list args; va_start(args, f
 int vprintf(const char* format, va_list args) { char buffer[4096]; int r = vsprintf(buffer, format, args); print(buffer); return r; }
 int printf(const char* format, ...) { va_list args; va_start(args, format); int r = vprintf(format, args); va_end(args); return r; }
 
-int getc(void) { char ch = 0; read(0, &ch, 1); return ch; }
+char getc(void) { char ch = 0; read(0, &ch, 1); return ch; }
 
 void gets(char *buffer, int max_len) {
     int pos = 0;
@@ -541,4 +541,8 @@ char *strdup(const char *s) {
     char *d = malloc(len + 1);
     if (d) strcpy(d, s);
     return d;
+}
+
+void flush_keyboard() {
+    __asm__ volatile("int $0x80" : : "a"(120) : "memory");
 }

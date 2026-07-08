@@ -59,7 +59,7 @@ static int safe_strlen(char *str, int max_len) {
 
 
 
-static void sys_exit(struct syscall_registers *regs) { keyboard_flush(); exit_process(); }
+static void sys_exit(struct syscall_registers *regs) { exit_process(); }
 
 static void sys_read(struct syscall_registers *regs) { 
     if (!validate_user_ptr((void*)regs->ecx, regs->edx)) { regs->eax = -1; return; }
@@ -555,6 +555,10 @@ static void sys_uname(struct syscall_registers *regs) {
     regs->eax = 0;
 }
 
+static void sys_flush_keyboard(struct syscall_registers *regs) {
+    keyboard_flush();
+}
+
 static syscall_handler_t syscall_table[256] = {
     [1]  = sys_exit, [2]  = sys_fork, [3]  = sys_read, [4]  = sys_write, [5]  = sys_read_file, [6]  = sys_write_file, 
     [7]  = sys_waitpid, [8]  = sys_get_file_size, [10] = sys_delete_file, [11] = sys_spawn, [12] = sys_chdir, [13] = sys_set_color,     
@@ -579,12 +583,13 @@ static syscall_handler_t syscall_table[256] = {
     [125] = sys_scancode_to_char,
     [126] = sys_wait_scancode,
     [33] = sys_get_rtc,
-    [118] = sys_sigaction, [119] = sys_sigreturn,
+    [118] = sys_sigaction, [119] = sys_sigreturn, [120] = sys_flush_keyboard,
 };
 
 extern void check_signals(uint32_t esp);
 
 void syscall_handler_c(struct syscall_registers *regs) {
+    __asm__ volatile("sti"); 
     if (regs->eax < 256 && syscall_table[regs->eax] != NULL) 
         syscall_table[regs->eax](regs); 
     else 
