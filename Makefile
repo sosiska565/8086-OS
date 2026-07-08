@@ -91,7 +91,7 @@ $(DISK_DIR)/system/bin/%.elf: userland/sysapps/%.c $(LIB_OBJS)
 generate_version:
 	@mkdir -p kernel/include
 	@printf '#ifndef _GENERATED_VERSION_H\n#define _GENERATED_VERSION_H\n\n#define OS_NAME          "%s"\n#define OS_VERSION_MAJOR %s\n#define OS_VERSION_MINOR %s\n#define OS_VERSION_PATCH %s\n#define OS_VERSION_EXTRA "%s"\n#define OS_RELEASE       "%s"\n\n#endif\n' "$(OS_NAME)" "$(OS_VERSION_MAJOR)" "$(OS_VERSION_MINOR)" "$(OS_VERSION_PATCH)" "$(OS_VERSION_EXTRA)" "$(OS_RELEASE_STR)" > kernel/include/version.h
-	@sed -i -E "s|.*|$(OS_RELEASE_STR)|" README.md
+	@sed -i -E "s|(<!--VERSION-->).*<!--/VERSION-->|\1$(OS_RELEASE_STR)<!--\/VERSION-->|g" README.md
 
 $(DISK_IMG): $(USER_BINS) $(SYSAPP_BINS)
 	@mkdir -p $(DISK_DIR)/lib $(DISK_DIR)/include
