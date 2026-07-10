@@ -1,12 +1,12 @@
-/*
- *  SPDX-License-Identifier: MIT
- *
- *  8086-OS/system_apps/initd/initd.c
- *
- *  Copyright (C) 2026  sosiska565
- *
- *  May be freely distributed as part of 8086-OS.
- */
+// /*
+//  *  SPDX-License-Identifier: MIT
+//  *
+//  *  8086-OS/system_apps/initd/initd.c
+//  *
+//  *  Copyright (C) 2026  sosiska565
+//  *
+//  *  May be freely distributed as part of 8086-OS.
+//  */
 
 #include "system_apps/initd/initd.h"
 #include "task/task.h"
@@ -18,6 +18,9 @@
 #define INITD_PATH "/config/initd/initd.cfg"
 
 void initd(int argc, char **argv) {
+    printf("\n=== 8086-OS Kernel Booted ===\n");
+    printf("Mounting root filesystem...\n");
+    
     uint8_t config_file[512];
     memset(config_file, 0, sizeof(config_file));
     
