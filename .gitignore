@@ -19,3 +19,4 @@ rc.sh
 isodir
 *.o
 hdd.img
+tests.sh
