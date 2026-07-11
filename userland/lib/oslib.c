@@ -546,3 +546,12 @@ char *strdup(const char *s) {
 void flush_keyboard() {
     __asm__ volatile("int $0x80" : : "a"(120) : "memory");
 }
+
+void flush_rect(void* buffer, int x, int y, int w, int h) {
+    __asm__ volatile (
+        "int $0x80"
+        : 
+        : "a"(127), "b"(buffer), "c"(x), "d"(y), "S"(w), "D"(h)
+        : "memory"
+    );
+}

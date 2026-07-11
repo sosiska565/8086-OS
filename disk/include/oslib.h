@@ -283,5 +283,6 @@ void memset32(void *dest, uint32_t val, size_t count);
 
 char *strdup(const char *s);
 void flush_keyboard();
+void flush_rect(void* buffer, int x, int y, int w, int h);
 
 #endif

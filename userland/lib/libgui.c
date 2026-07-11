@@ -337,10 +337,15 @@ void gui_update(gui_window_t* win) {
     }
 }
 
-void gui_render(gui_window_t* win) {
+void gui_render(gui_window_t *win) {
+    if (!win->shared_mem) return;
+    
     int real_w = (int)(win->w * g_ui_scale);
     int real_h = (int)(win->h * g_ui_scale);
+    
     memcpy(win->pixels, win->backbuffer, real_w * real_h * 4);
+    
+    win->shared_mem->is_dirty = 1; 
 }
 
 static inline void gui_put_pixel_phys(gui_window_t* win, int px, int py, uint32_t color) {
@@ -367,16 +372,31 @@ void gui_put_pixel(gui_window_t* win, int x, int y, uint32_t color) {
     }
 }
 
-void gui_draw_rect(gui_window_t* win, int x, int y, int w, int h, uint32_t color) {
+void gui_draw_rect(gui_window_t *win, int x, int y, int w, int h, uint32_t color) {
     int px_start = (int)(x * g_ui_scale);
     int py_start = (int)(y * g_ui_scale);
     int px_w = (int)(w * g_ui_scale);
     int px_h = (int)(h * g_ui_scale);
+    
     if (w > 0 && px_w == 0) px_w = 1;
     if (h > 0 && px_h == 0) px_h = 1;
-    for (int py = 0; py < px_h; py++)
-        for (int px = 0; px < px_w; px++)
-            gui_put_pixel_phys(win, px_start + px, py_start + py, color);
+
+    int real_w = (int)(win->w * g_ui_scale);
+    int real_h = (int)(win->h * g_ui_scale);
+
+    if (px_start < 0) { px_w += px_start; px_start = 0; }
+    if (py_start < 0) { px_h += py_start; py_start = 0; }
+    if (px_start + px_w > real_w) px_w = real_w - px_start;
+    if (py_start + px_h > real_h) px_h = real_h - py_start;
+
+    if (px_w <= 0 || px_h <= 0) return;
+
+    for (int py = 0; py < px_h; py++) {
+        uint32_t *row_ptr = &win->backbuffer[(py_start + py) * real_w + px_start];
+        memset32(row_ptr, color, px_w); 
+    }
+    
+    if (win->shared_mem) win->shared_mem->is_dirty = 1; 
 }
 
 void gui_draw_circle_filled(gui_window_t* win, int cx, int cy, int r, uint32_t color) {

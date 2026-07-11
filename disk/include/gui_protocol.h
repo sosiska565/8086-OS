@@ -13,17 +13,15 @@
 
 #include <stdint.h>
 
-
 #define WM_SHM_KEY 1000
-
 
 #define WM_CMD_CREATE_WINDOW 1
 #define WM_CMD_DESTROY_WINDOW 2
-#define WM_CMD_RESIZE_WINDOW 3 
-#define WM_CMD_SET_RESIZABLE 4 
+#define WM_CMD_RESIZE_WINDOW 3
+#define WM_CMD_SET_RESIZABLE 4
 #define WM_CMD_CREATE_FRAMELESS 5
-#define WM_CMD_SET_WALLPAPER 6 
-#define WM_CMD_SET_SCALE 7 
+#define WM_CMD_SET_WALLPAPER 6
+#define WM_CMD_SET_SCALE 7
 
 #define GUI_EV_MOUSE_MOVE 1
 #define GUI_EV_MOUSE_CLICK 2
@@ -34,7 +32,7 @@
 
 typedef struct {
     int type;
-    int shm_key; 
+    int shm_key;
     int x, y, w, h;
     char title[32];
     int data;
@@ -48,7 +46,6 @@ typedef struct {
     float global_scale;
 } WM_Queue;
 
-
 typedef struct {
     int type;
     int x, y;
@@ -56,13 +53,12 @@ typedef struct {
     int keycode;
 } GUI_Event;
 
-
-
 typedef struct {
     volatile int event_head;
     volatile int event_tail;
+    volatile int is_dirty;      
     GUI_Event events[32];
-    uint32_t pixels[]; 
+    uint32_t pixels[];
 } Client_SHM;
 
 #endif

@@ -262,6 +262,40 @@ static void sys_flush_screen(struct syscall_registers *regs) {
     regs->eax = 0; 
 }
 
+extern uint32_t* back_buffer;
+extern int screen_width;
+extern int screen_height;
+extern int screen_pitch;
+extern int screen_bpp;
+extern void vesa_render_rect(int x, int y, int w, int h);
+
+static void sys_flush_rect(struct syscall_registers* regs) {
+    uint32_t* user_buffer = (uint32_t*)regs->ebx;
+    int x = (int)regs->ecx;
+    int y = (int)regs->edx;
+    int w = (int)regs->esi;
+    int h = (int)regs->edi;
+
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > screen_width) w = screen_width - x;
+    if (y + h > screen_height) h = screen_height - y;
+
+    if (w > 0 && h > 0 && user_buffer && back_buffer && video_memory) {
+        int bpp_bytes = screen_bpp / 8;
+        uint8_t* src = (uint8_t*)user_buffer + (y * (screen_width * 4)) + (x * 4); 
+        uint8_t* dst = (uint8_t*)back_buffer + (y * screen_pitch) + (x * bpp_bytes);
+        
+        for (int i = 0; i < h; i++) {
+            fast_memcpy(dst, src, w * bpp_bytes);
+            src += screen_width * 4;
+            dst += screen_pitch;
+        }
+        vesa_render_rect(x, y, w, h);
+    }
+    regs->eax = 0;
+}
+
 static void sys_get_mouse(struct syscall_registers *regs) { 
     if (regs->ebx && validate_user_ptr((void*)regs->ebx, 4)) *(int*)regs->ebx = mouse.x; 
     if (regs->ecx && validate_user_ptr((void*)regs->ecx, 4)) *(int*)regs->ecx = mouse.y; 
@@ -583,7 +617,7 @@ static syscall_handler_t syscall_table[256] = {
     [125] = sys_scancode_to_char,
     [126] = sys_wait_scancode,
     [33] = sys_get_rtc,
-    [118] = sys_sigaction, [119] = sys_sigreturn, [120] = sys_flush_keyboard,
+    [118] = sys_sigaction, [119] = sys_sigreturn, [120] = sys_flush_keyboard, [127] = sys_flush_rect,
 };
 
 extern void check_signals(uint32_t esp);
