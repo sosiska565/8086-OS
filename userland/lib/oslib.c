@@ -11,7 +11,7 @@
 #include "signal.h"
 #include "oslib.h"
 
-FILE _stdin_struct = {0}; FILE _stdout_struct = {1}; FILE _stderr_struct = {2};
+FILE _stdin_struct = {0}; FILE _stdout_struct = {1}; FILE _stderr_struct = {1};
 FILE *stdin_ptr = &_stdin_struct; FILE *stdout_ptr = &_stdout_struct; FILE *stderr_ptr = &_stderr_struct;
 
 void print_char(unsigned int c) { char ch = (char)c; write(1, &ch, 1); }
@@ -260,7 +260,21 @@ void *memset(void* dest, int val, uint32_t count_pixels) { __asm__ volatile ( "c
 int mount(const char* device, const char* mount_point, const char* fs_type) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(92), "b"(device), "c"(mount_point), "d"(fs_type) : "memory"); return ret; }
 int unmount(const char* mount_point) { int ret; __asm__ volatile("int $0x80" : "=a"(ret) : "a"(93), "b"(mount_point) : "memory"); return ret; }
 
-void set_color(int fg, int bg) { __asm__ volatile("int $0x80" : : "a"(13), "b"(fg), "c"(bg)); }
+void set_color(int fg_color, int bg_color) {
+    int ansi_fg;
+    if (fg_color < 8) ansi_fg = 30 + fg_color;
+    else              ansi_fg = 90 + (fg_color - 8);
+
+    if (bg_color == COLOR_BLACK) {
+        printf("\033[0;%dm", ansi_fg);
+    } else {
+        int ansi_bg;
+        if (bg_color < 8) ansi_bg = 40 + bg_color;
+        else              ansi_bg = 100 + (bg_color - 8);
+
+        printf("\033[0;%d;%dm", ansi_fg, ansi_bg);
+    }
+}
 void get_cursor(int *x, int *y) { __asm__ volatile("int $0x80" : : "a"(16), "b"(x), "c"(y) : "memory"); }
 void set_cursor(int x, int y) { __asm__ volatile("int $0x80" : : "a"(17), "b"(x), "c"(y)); }
 void clear_screen(void) { __asm__ volatile("int $0x80" : : "a"(18)); }

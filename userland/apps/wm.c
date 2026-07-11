@@ -440,19 +440,42 @@ void compose_screen() {
                 if (wm_font_loaded) wm_draw_ttf_string(title_x, win->y - TITLE_BAR_H + 5, win->title, is_active ? 0x00FFFFFF : 0x00999999);
                 else wm_draw_string(title_x, win->y - TITLE_BAR_H + 9, win->title, is_active ? 0x00CCCCCC : 0x00888888);
             }
-        } else {
+        } else { 
             for (int r = 0; r < win->h; r++) {
                 int screen_y = win->y + r;
+                
                 if (screen_y < 0 || screen_y >= sh || r >= win->buf_h) continue;
                 if (g_dirty_r >= 0 && !screen_is_dirty && (screen_y < g_dirty_y || screen_y >= g_dirty_b)) continue;
 
-                for (int c = 0; c < win->w; c++) {
-                    int screen_x = win->x + c;
-                    if (screen_x < 0 || screen_x >= sw || c >= win->buf_w) continue;
-                    if (g_dirty_r >= 0 && !screen_is_dirty && (screen_x < g_dirty_x || screen_x >= g_dirty_r)) continue;
+                int src_x = 0;
+                int dest_x = win->x;
+                int copy_w = win->w;
 
-                    uint32_t pixel = win->shared_mem->pixels[r * win->buf_w + c];
-                    if (pixel != 0x00FF00FF) wm_backbuffer[screen_y * sw + screen_x] = pixel;
+                if (dest_x < 0) {
+                    src_x = -dest_x;
+                    copy_w += dest_x;
+                    dest_x = 0;
+                }
+                
+                if (dest_x + copy_w > sw) copy_w = sw - dest_x;
+                if (src_x + copy_w > win->buf_w) copy_w = win->buf_w - src_x;
+
+                if (g_dirty_r >= 0 && !screen_is_dirty) {
+                    if (dest_x < g_dirty_x) {
+                        int diff = g_dirty_x - dest_x;
+                        src_x += diff;
+                        copy_w -= diff;
+                        dest_x = g_dirty_x;
+                    }
+                    if (dest_x + copy_w > g_dirty_r) {
+                        copy_w = g_dirty_r - dest_x;
+                    }
+                }
+
+                if (copy_w > 0) {
+                    memcpy(&wm_backbuffer[screen_y * sw + dest_x], 
+                           &win->shared_mem->pixels[r * win->buf_w + src_x], 
+                           copy_w * 4);
                 }
             }
         }

@@ -10,6 +10,8 @@
 
 
 
+
+
 #include "task/task.h"
 #include "mm/memory.h"
 #include "drivers/vga/vga.h"
@@ -203,16 +205,36 @@ int create_process(void (*entry)(int, char**), int argc, char **argv, char *name
         }
         
         if (fd_out != -1) {
-            int old_sys = new_task->fd_table[1];
-            if (old_sys != -1) {
-                system_open_files[old_sys].refcount--;
-                if (system_open_files[old_sys].type == FILE_TYPE_PIPE) {
-                    if (system_open_files[old_sys].mode == O_RDONLY) system_open_files[old_sys].pipe->readers--;
-                    else system_open_files[old_sys].pipe->writers--;
+            int new_sys = current_task->fd_table[fd_out];
+
+            
+            int old_sys1 = new_task->fd_table[1];
+            if (old_sys1 != -1) {
+                system_open_files[old_sys1].refcount--;
+                if (system_open_files[old_sys1].type == FILE_TYPE_PIPE) {
+                    if (system_open_files[old_sys1].mode == O_RDONLY) system_open_files[old_sys1].pipe->readers--;
+                    else system_open_files[old_sys1].pipe->writers--;
                 }
             }
-            int new_sys = current_task->fd_table[fd_out];
             new_task->fd_table[1] = new_sys;
+            if (new_sys != -1) {
+                system_open_files[new_sys].refcount++;
+                if (system_open_files[new_sys].type == FILE_TYPE_PIPE) {
+                    if (system_open_files[new_sys].mode == O_RDONLY) system_open_files[new_sys].pipe->readers++;
+                    else system_open_files[new_sys].pipe->writers++;
+                }
+            }
+
+            
+            int old_sys2 = new_task->fd_table[2];
+            if (old_sys2 != -1) {
+                system_open_files[old_sys2].refcount--;
+                if (system_open_files[old_sys2].type == FILE_TYPE_PIPE) {
+                    if (system_open_files[old_sys2].mode == O_RDONLY) system_open_files[old_sys2].pipe->readers--;
+                    else system_open_files[old_sys2].pipe->writers--;
+                }
+            }
+            new_task->fd_table[2] = new_sys;
             if (new_sys != -1) {
                 system_open_files[new_sys].refcount++;
                 if (system_open_files[new_sys].type == FILE_TYPE_PIPE) {

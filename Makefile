@@ -95,8 +95,7 @@ generate_version:
 
 $(DISK_IMG): $(USER_BINS) $(SYSAPP_BINS)
 	@mkdir -p $(DISK_DIR)/lib $(DISK_DIR)/include
-	@cp userland/lib/entry.o $(DISK_DIR)/lib/
-	@cp userland/lib/oslib.o $(DISK_DIR)/lib/
+	@cp userland/lib/*.o $(DISK_DIR)/lib/
 	@cp userland/lib/*.h $(DISK_DIR)/include/
 	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=$(DISK_SIZE) status=none
 	@mkfs.fat -F 32 -n "8086OS" $(DISK_IMG) > /dev/null
