@@ -2,7 +2,7 @@
 name = "8086-OS"
 version_major = 0
 version_minor = 9
-version_patch = 7
+version_patch = 8
 version_extra = "beta"
 
 [build]
